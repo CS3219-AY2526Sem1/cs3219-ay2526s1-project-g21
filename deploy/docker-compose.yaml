@@ -1,0 +1,45 @@
+services:
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  user:
+    build: ../services/user
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+      - JWT_PUBLIC_KEY=dev
+    depends_on: [mongo]
+    ports: ["8081:8080"]
+
+  question:
+    build: ../services/question
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [mongo]
+    ports: ["8082:8080"]
+
+  match:
+    build: ../services/match
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [redis, mongo]
+    ports: ["8083:8080"]
+
+  collab:
+    build: ../services/collab
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [mongo]
+    ports: ["8084:8080"]
+
+volumes:
+  mongo-data:
