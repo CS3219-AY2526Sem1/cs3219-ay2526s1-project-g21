@@ -1,11 +1,11 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, NavLinkProps } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import AccountMenu from "@/components/AccountMenu";
 
 export default function NavBar() {
   const { isLoggedIn } = useAuth();
-
-  const link = ({ isActive }: any) =>
+  
+  const link: NavLinkProps["className"] = ({ isActive }) =>
     "text-[15px] font-medium transition px-2 py-1 rounded-md " +
     (isActive ? "text-ink-900" : "text-slate-600 hover:text-ink-900");
 
