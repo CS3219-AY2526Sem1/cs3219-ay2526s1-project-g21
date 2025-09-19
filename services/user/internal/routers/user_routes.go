@@ -1,16 +1,16 @@
 package routers
 
 import (
-	handlers "peerprep/user/internal/handlers"
+    handlers "peerprep/user/internal/handlers"
 
-	"github.com/go-chi/chi/v5"
+    "github.com/go-chi/chi/v5"
 )
 
 func UserRoutes(r *chi.Mux, userHandler *handlers.UserHandler) {
-	r.Route("/api/v1/users", func(r chi.Router) {
-		r.Post("/", userHandler.CreateUserHandler)   // Create user
-		r.Get("/", userHandler.GetUserHandler)       // Get user by ID
-		r.Put("/", userHandler.UpdateUserHandler)    // Update user
-		r.Delete("/", userHandler.DeleteUserHandler) // Delete user
-	})
+    r.Route("/api/v1/users", func(r chi.Router) {
+        r.Post("/", userHandler.CreateUserHandler)             // Create user
+        r.Get("/{id}", userHandler.GetUserHandler)             // Get user by ID
+        r.Put("/{id}", userHandler.UpdateUserHandler)          // Update user by ID
+        r.Delete("/{id}", userHandler.DeleteUserHandler)       // Delete user by ID
+    })
 }
