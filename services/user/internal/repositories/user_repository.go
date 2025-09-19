@@ -18,33 +18,45 @@ func (r *UserRepository) CreateUser(user *models.User) error {
 }
 
 func (r *UserRepository) GetUserByID(userID string) (*models.User, error) {
-	var user models.User
-	err := r.DB.First(&user, "user_id = ?", userID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrUserNotFound
-	}
-	return &user, err
+    var user models.User
+    id, err := strconv.ParseUint(userID, 10, 64)
+    if err != nil {
+        return nil, err
+    }
+    err = r.DB.Where("id = ?", id).First(&user).Error
+    if errors.Is(err, gorm.ErrRecordNotFound) {
+        return nil, ErrUserNotFound
+    }
+    return &user, err
 }
 
 func (r *UserRepository) UpdateUser(userID string, updates *models.User) (*models.User, error) {
-	var user models.User
-	if err := r.DB.First(&user, "user_id = ?", userID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
-	}
+    var user models.User
+    id, err := strconv.ParseUint(userID, 10, 64)
+    if err != nil {
+        return nil, err
+    }
+    if err := r.DB.Where("id = ?", id).First(&user).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return nil, ErrUserNotFound
+        }
+        return nil, err
+    }
 
-	if err := r.DB.Model(&user).Updates(updates).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
+    if err := r.DB.Model(&user).Updates(updates).Error; err != nil {
+        return nil, err
+    }
+    return &user, nil
 }
 
 func (r *UserRepository) DeleteUser(userID string) error {
-	result := r.DB.Delete(&models.User{}, "user_id = ?", userID)
-	if result.RowsAffected == 0 {
-		return ErrUserNotFound
-	}
-	return result.Error
+    id, err := strconv.ParseUint(userID, 10, 64)
+    if err != nil {
+        return err
+    }
+    result := r.DB.Where("id = ?", id).Delete(&models.User{})
+    if result.RowsAffected == 0 {
+        return ErrUserNotFound
+    }
+    return result.Error
 }
