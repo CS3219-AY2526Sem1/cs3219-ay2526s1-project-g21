@@ -20,3 +20,7 @@ vendor/
 
 # Environment files
 .env
+
+.claude/
+cursor/
+.copilot/
