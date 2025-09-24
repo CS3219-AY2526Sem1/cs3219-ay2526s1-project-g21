@@ -1,14 +1,29 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Field from "@/components/Field";
 import { useAuth } from "@/context/AuthContext";
 import { handleFormChange } from "@/utils/form";
 
 export default function Login() {
   const { login } = useAuth();
-  const nav = useNavigate();
 
   const [form, setForm] = useState({ username: "", password: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await login(form.username, form.password);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-md px-6 py-14">
@@ -16,14 +31,12 @@ export default function Login() {
         Let’s Start Practicing!
       </h1>
 
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          login(form.username, form.password);
-          nav("/");
-        }}
-      >
+      <form className="space-y-5" onSubmit={onSubmit}>
+        {error && (
+          <div className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <Field
           label="Username"
           name="username"
@@ -38,8 +51,12 @@ export default function Login() {
           onChange={(e) => handleFormChange(e, setForm)}
         />
 
-        <button type="submit" className="w-full rounded-md bg-[#2F6FED] px-4 py-2.5 text-white font-medium">
-          Log In
+        <button
+          type="submit"
+          className="w-full rounded-md bg-[#2F6FED] px-4 py-2.5 text-white font-medium disabled:opacity-60"
+          disabled={loading}
+        >
+          {loading ? "Logging in..." : "Log In"}
         </button>
 
         <Link to="/forgot" className="block w-full rounded-md border border-[#D1D5DB] px-4 py-2.5 text-center">

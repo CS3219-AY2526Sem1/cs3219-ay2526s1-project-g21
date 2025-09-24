@@ -31,6 +31,24 @@ func (r *UserRepository) GetUserByID(userID string) (*models.User, error) {
 	return &user, err
 }
 
+func (r *UserRepository) GetUserByUsername(username string) (*models.User, error) {
+	var user models.User
+	err := r.DB.Where("username = ?", username).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	return &user, err
+}
+
+func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	err := r.DB.Where("email = ?", email).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	return &user, err
+}
+
 func (r *UserRepository) UpdateUser(userID string, updates *models.User) (*models.User, error) {
 	var user models.User
 	id, err := strconv.ParseUint(userID, 10, 64)

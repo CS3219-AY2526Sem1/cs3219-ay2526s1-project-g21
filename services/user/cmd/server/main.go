@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"peerprep/user/internal/handlers"
+	"peerprep/user/internal/models"
 	"peerprep/user/internal/repositories"
 	"peerprep/user/internal/routers"
 	"time"
@@ -32,9 +33,15 @@ func main() {
 		logger.Fatal("Failed to connect to the database", zap.Error(err))
 	}
 
-	// Initialize repository and handler
+	// Auto-migrate models
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		logger.Fatal("Failed to migrate database", zap.Error(err))
+	}
+
+	// Initialize repository and handlers
 	userRepo := &repositories.UserRepository{DB: db}
 	userHandler := &handlers.UserHandler{Repo: userRepo}
+	authHandler := handlers.NewAuthHandler(userRepo)
 
 	// Set up router
 	r := chi.NewRouter()
@@ -43,8 +50,9 @@ func main() {
 	// Health check route
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
 
-	// Register user routes
+	// Register routes
 	routers.UserRoutes(r, userHandler)
+	routers.AuthRoutes(r, authHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
