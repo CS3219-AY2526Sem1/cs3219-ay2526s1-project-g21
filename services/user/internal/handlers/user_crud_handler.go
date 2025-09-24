@@ -13,24 +13,6 @@ type UserHandler struct {
     Repo *repositories.UserRepository
 }
 
-// CreateUserHandler handles user creation
-func (h *UserHandler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
-    var user models.User
-    if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-        http.Error(w, "Invalid request payload", http.StatusBadRequest)
-        return
-    }
-
-    // Save user using the repository
-    if err := h.Repo.CreateUser(&user); err != nil {
-        http.Error(w, "Failed to create user", http.StatusInternalServerError)
-        return
-    }
-
-    w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(user)
-}
-
 // GetUserHandler retrieves a user by ID
 func (h *UserHandler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
     userID := chi.URLParam(r, "id")
