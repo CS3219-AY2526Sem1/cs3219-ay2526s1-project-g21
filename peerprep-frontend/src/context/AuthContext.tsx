@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { login as apiLogin } from "@/api/auth";
 
  type AuthContextType = {
   isLoggedIn: boolean;
@@ -24,16 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   const login = async (username: string, password: string) => {
-    const res = await fetch(`/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg || "Login failed");
-    }
-    const data = (await res.json()) as { token: string };
+    const data = await apiLogin(username, password);
     setToken(data.token);
     navigate("/");
   };
