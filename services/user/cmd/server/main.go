@@ -8,6 +8,7 @@ import (
 	"peerprep/user/internal/repositories"
 	"peerprep/user/internal/routers"
 	"time"
+	"fmt"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,7 +22,11 @@ func main() {
 	defer logger.Sync()
 
 	// Initialize database connection
-	dsn := "host=localhost user=your_user password=your_password dbname=your_db port=5432 sslmode=disable"
+	dbUser := os.Getenv("POSTGRES_USER")
+	dbPass := os.Getenv("POSTGRES_PASSWORD")
+	dbName := os.Getenv("POSTGRES_DB")
+	dsn := fmt.Sprintf("host=postgres user=%s password=%s dbname=%s port=5432 sslmode=disable",
+		dbUser, dbPass, dbName)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		logger.Fatal("Failed to connect to the database", zap.Error(err))
