@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"peerprep/user/internal/models"
@@ -108,6 +110,51 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(authResponse{Token: signed})
 }
 
-func (h *AuthHandler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
+func (h *AuthHandler) MeHandler(w http.ResponseWriter, r *http.Request) {
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "missing token", http.StatusUnauthorized)
+		return
+	}
+	tokenStr := strings.TrimPrefix(authz, "Bearer ")
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrTokenUnverifiable
+		}
+		return []byte(h.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := claims["sub"]
+	if !ok {
+		http.Error(w, "invalid token subject", http.StatusUnauthorized)
+		return
+	}
+
+	// Find user
+	var uid string
+	switch v := userID.(type) {
+	case float64:
+		uid = fmt.Sprintf("%d", int64(v))
+	case string:
+		uid = v
+	default:
+		http.Error(w, "invalid token subject type", http.StatusUnauthorized)
+		return
+	}
+	user, err := h.Repo.GetUserByID(uid)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"id": user.ID, "username": user.Username, "email": user.Email})
 }

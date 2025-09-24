@@ -14,4 +14,11 @@ export async function register(username: string, email: string, password: string
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, email, password }),
   });
+}
+
+export async function getMe(token: string): Promise<{ id: number; username: string; email: string }> {
+  return apiFetch<{ id: number; username: string; email: string }>(`/api/v1/auth/me`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
 } 
