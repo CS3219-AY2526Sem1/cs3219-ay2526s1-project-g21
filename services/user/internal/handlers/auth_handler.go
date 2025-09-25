@@ -47,63 +47,55 @@ type authResponse struct {
 func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+		utils.JSONError(w, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	if req.Username == "" || req.Email == "" || req.Password == "" {
-		http.Error(w, "missing fields", http.StatusBadRequest)
+		utils.JSONError(w, http.StatusBadRequest, "Missing fields")
 		return
 	}
 
-	username := req.Username
-	email := req.Email
-
-	// Check if username already exists
-	existing, err := h.Repo.GetUserByUsername(username)
-	if err != nil && err != repositories.ErrUserNotFound {
-		http.Error(w, "database error checking username", http.StatusInternalServerError)
+	// Check username/email existence
+	if existing, err := h.Repo.GetUserByUsername(req.Username); err != nil && err != repositories.ErrUserNotFound {
+		utils.JSONError(w, http.StatusInternalServerError, "Database error checking username")
 		return
-	}
-	if existing != nil {
-		http.Error(w, "username taken", http.StatusConflict)
+	} else if existing != nil {
+		utils.JSONError(w, http.StatusConflict, "Username taken")
 		return
 	}
 
-	// Check if email already exists
-	existing, err = h.Repo.GetUserByEmail(email)
-	if err != nil && err != repositories.ErrUserNotFound {
-		http.Error(w, "database error checking email", http.StatusInternalServerError)
+	if existing, err := h.Repo.GetUserByEmail(req.Email); err != nil && err != repositories.ErrUserNotFound {
+		utils.JSONError(w, http.StatusInternalServerError, "Database error checking email")
 		return
-	}
-	if existing != nil {
-		http.Error(w, "email taken", http.StatusConflict)
+	} else if existing != nil {
+		utils.JSONError(w, http.StatusConflict, "Email taken")
 		return
 	}
 
 	if !utils.IsPasswordValid(req.Password) {
-		http.Error(w, "password must be at least 8 characters long and include 1 special character", http.StatusBadRequest)
+		utils.JSONError(w, http.StatusBadRequest, "Password must be at least 8 characters long and include 1 special character")
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "failed to hash password", http.StatusInternalServerError)
+		utils.JSONError(w, http.StatusInternalServerError, "Failed to hash password")
 		return
 	}
 
 	user := &models.User{
-		Username:     username,
-		Email:        email,
+		Username:     req.Username,
+		Email:        req.Email,
 		PasswordHash: string(hash),
 	}
+
 	if err := h.Repo.CreateUser(user); err != nil {
-		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		utils.JSONError(w, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
+
+	utils.JSON(w, http.StatusCreated, map[string]any{
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
@@ -113,19 +105,14 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+		utils.JSONError(w, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	username := strings.ToLower(req.Username)
-
 	user, err := h.Repo.GetUserByUsername(username)
-	if err != nil {
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
-		return
-	}
-	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
+		utils.JSONError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
@@ -134,37 +121,37 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		"username": user.Username,
 		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(h.JWTSecret))
 	if err != nil {
-		http.Error(w, "failed to sign token", http.StatusInternalServerError)
+		utils.JSONError(w, http.StatusInternalServerError, "Failed to sign token")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(authResponse{Token: signed})
+
+	utils.JSON(w, http.StatusOK, authResponse{Token: signed})
 }
 
 func (h *AuthHandler) MeHandler(w http.ResponseWriter, r *http.Request) {
 	claims, err := utils.VerifyToken(r, h.JWTSecret)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		utils.JSONError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	uid, err := utils.GetUserIDFromClaims(claims) // <-- safe extraction
+	uid, err := utils.GetUserIDFromClaims(claims)
 	if err != nil {
-		http.Error(w, "invalid token subject", http.StatusUnauthorized)
+		utils.JSONError(w, http.StatusUnauthorized, "Invalid token subject")
 		return
 	}
 
 	user, err := h.Repo.GetUserByID(uid)
 	if err != nil {
-		http.Error(w, "user not found", http.StatusNotFound)
+		utils.JSONError(w, http.StatusNotFound, "User not found")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	utils.JSON(w, http.StatusOK, map[string]any{
 		"id":       user.ID,
 		"username": user.Username,
 		"email":    user.Email,
