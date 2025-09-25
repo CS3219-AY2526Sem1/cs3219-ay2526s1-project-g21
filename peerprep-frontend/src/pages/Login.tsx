@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Field from "@/components/Field";
 import { useAuth } from "@/context/AuthContext";
 import { handleFormChange } from "@/utils/form";
+import toast from "react-hot-toast";
 
 export default function Login() {
   const { login } = useAuth();
@@ -22,6 +23,9 @@ export default function Login() {
       setError(message);
     } finally {
       setLoading(false);
+      toast.success("Successfully logged in", {
+        position: "bottom-center",
+      });
     }
   };
 

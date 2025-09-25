@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Field from "@/components/Field";
 import { handleFormChange } from "@/utils/form";
 import { register } from "@/api/auth";
+import toast from "react-hot-toast";
 
 export default function SignUp() {
   const nav = useNavigate();
@@ -37,6 +38,9 @@ export default function SignUp() {
       setError(message);
     } finally {
       setLoading(false);
+      toast.success("Successfully created account", {
+        position: "bottom-center",
+      });
     }
   };
 

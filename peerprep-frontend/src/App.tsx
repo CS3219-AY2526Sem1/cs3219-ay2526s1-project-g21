@@ -6,6 +6,7 @@ import SignUp from "@/pages/SignUp";
 import Forgot from "@/pages/Forgot";
 import Account from "@/pages/Account";
 import { useAuth } from "@/context/AuthContext";
+import { Toaster } from 'react-hot-toast'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { isLoggedIn } = useAuth();
@@ -16,6 +17,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-white">
       <NavBar />
+      <Toaster />
       <main className="mx-auto max-w-7xl px-6 py-12">
         <Routes>
           <Route path="/" element={<Home />} />
