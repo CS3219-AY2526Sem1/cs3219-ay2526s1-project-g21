@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"peerprep/user/internal/repositories"
 	"peerprep/user/internal/routers"
 	"time"
-	"fmt"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -34,7 +34,6 @@ func connectWithRetry(dsn string, maxWait time.Duration, logger *zap.Logger) (*g
 				if pingErr := sqlDB.Ping(); pingErr == nil {
 					return db, nil
 				}
-				err = err
 			}
 		}
 		lastErr = err

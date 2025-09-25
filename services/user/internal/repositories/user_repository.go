@@ -33,7 +33,7 @@ func (r *UserRepository) GetUserByID(userID string) (*models.User, error) {
 
 func (r *UserRepository) GetUserByUsername(username string) (*models.User, error) {
 	var user models.User
-	err := r.DB.Where("username = ?", username).First(&user).Error
+	err := r.DB.Where("LOWER(username) = LOWER(?)", username).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
 	}
@@ -42,7 +42,7 @@ func (r *UserRepository) GetUserByUsername(username string) (*models.User, error
 
 func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
 	var user models.User
-	err := r.DB.Where("email = ?", email).First(&user).Error
+	err := r.DB.Where("LOWER(email) = LOWER(?)", email).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
 	}

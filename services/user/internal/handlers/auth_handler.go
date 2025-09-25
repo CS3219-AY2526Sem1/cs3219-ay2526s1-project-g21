@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"peerprep/user/internal/models"
 	"peerprep/user/internal/repositories"
+	"peerprep/user/internal/utils"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -50,17 +50,26 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+
 	if req.Username == "" || req.Email == "" || req.Password == "" {
 		http.Error(w, "missing fields", http.StatusBadRequest)
 		return
 	}
 
-	if existing, _ := h.Repo.GetUserByUsername(req.Username); existing != nil {
+	username := req.Username
+	email := req.Email
+
+	if existing, _ := h.Repo.GetUserByUsername(username); existing != nil {
 		http.Error(w, "username taken", http.StatusConflict)
 		return
 	}
-	if existing, _ := h.Repo.GetUserByEmail(req.Email); existing != nil {
+	if existing, _ := h.Repo.GetUserByEmail(email); existing != nil {
 		http.Error(w, "email taken", http.StatusConflict)
+		return
+	}
+
+	if !utils.IsPasswordValid(req.Password) {
+		http.Error(w, "password must be at least 8 characters long and include 1 special character", http.StatusBadRequest)
 		return
 	}
 
@@ -69,14 +78,23 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to hash password", http.StatusInternalServerError)
 		return
 	}
-	user := &models.User{Username: req.Username, Email: req.Email, PasswordHash: string(hash)}
+
+	user := &models.User{
+		Username:     username,
+		Email:        email,
+		PasswordHash: string(hash),
+	}
 	if err := h.Repo.CreateUser(user); err != nil {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{"id": user.ID, "username": user.Username, "email": user.Email})
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":       user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	})
 }
 
 func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +103,10 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	user, err := h.Repo.GetUserByUsername(req.Username)
+
+	username := strings.ToLower(req.Username)
+
+	user, err := h.Repo.GetUserByUsername(username)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -96,9 +117,9 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.MapClaims{
-		"sub": user.ID,
+		"sub":      user.ID,
 		"username": user.Username,
-		"exp": time.Now().Add(24 * time.Hour).Unix(),
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(h.JWTSecret))
@@ -111,44 +132,18 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) MeHandler(w http.ResponseWriter, r *http.Request) {
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "missing token", http.StatusUnauthorized)
+	claims, err := utils.VerifyToken(r, h.JWTSecret)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	tokenStr := strings.TrimPrefix(authz, "Bearer ")
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrTokenUnverifiable
-		}
-		return []byte(h.JWTSecret), nil
-	})
-	if err != nil || !token.Valid {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		http.Error(w, "invalid token claims", http.StatusUnauthorized)
-		return
-	}
-	userID, ok := claims["sub"]
-	if !ok {
+
+	uid, err := utils.GetUserIDFromClaims(claims) // <-- safe extraction
+	if err != nil {
 		http.Error(w, "invalid token subject", http.StatusUnauthorized)
 		return
 	}
 
-	// Find user
-	var uid string
-	switch v := userID.(type) {
-	case float64:
-		uid = fmt.Sprintf("%d", int64(v))
-	case string:
-		uid = v
-	default:
-		http.Error(w, "invalid token subject type", http.StatusUnauthorized)
-		return
-	}
 	user, err := h.Repo.GetUserByID(uid)
 	if err != nil {
 		http.Error(w, "user not found", http.StatusNotFound)
@@ -156,5 +151,9 @@ func (h *AuthHandler) MeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"id": user.ID, "username": user.Username, "email": user.Email})
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":       user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	})
 }
