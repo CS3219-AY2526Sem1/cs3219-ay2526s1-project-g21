@@ -59,11 +59,24 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	username := req.Username
 	email := req.Email
 
-	if existing, _ := h.Repo.GetUserByUsername(username); existing != nil {
+	// Check if username already exists
+	existing, err := h.Repo.GetUserByUsername(username)
+	if err != nil && err != repositories.ErrUserNotFound {
+		http.Error(w, "database error checking username", http.StatusInternalServerError)
+		return
+	}
+	if existing != nil {
 		http.Error(w, "username taken", http.StatusConflict)
 		return
 	}
-	if existing, _ := h.Repo.GetUserByEmail(email); existing != nil {
+
+	// Check if email already exists
+	existing, err = h.Repo.GetUserByEmail(email)
+	if err != nil && err != repositories.ErrUserNotFound {
+		http.Error(w, "database error checking email", http.StatusInternalServerError)
+		return
+	}
+	if existing != nil {
 		http.Error(w, "email taken", http.StatusConflict)
 		return
 	}
