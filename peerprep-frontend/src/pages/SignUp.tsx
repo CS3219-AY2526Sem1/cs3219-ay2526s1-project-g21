@@ -32,15 +32,15 @@ export default function SignUp() {
     setLoading(true);
     try {
       await register(form.username, form.email, form.password);
+      toast.success("Successfully created account", {
+        position: "bottom-center",
+      });
       nav("/login");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Registration failed";
       setError(message);
     } finally {
       setLoading(false);
-      toast.success("Successfully created account", {
-        position: "bottom-center",
-      });
     }
   };
 
