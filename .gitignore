@@ -17,3 +17,6 @@ dist/
 # Go
 vendor/
 **/*.local
+
+# Environment files
+.env

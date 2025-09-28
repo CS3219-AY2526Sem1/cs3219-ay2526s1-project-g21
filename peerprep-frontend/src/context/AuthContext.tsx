@@ -1,31 +1,42 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { login as apiLogin } from "@/api/auth";
 
-type AuthContextType = {
+ type AuthContextType = {
   isLoggedIn: boolean;
-  login: (email: string, password: string) => void;
+  token: string | null;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const isLoggedIn = useMemo(() => !!token, [token]);
   const navigate = useNavigate();
-  const login = (email: string, password: string) => {
-    // TODO: IMPLEMENT AUTHENTICATION
-    console.log("Logged in with:", email, password);
-    setIsLoggedIn(true);
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem("token", token);
+    } else {
+      localStorage.removeItem("token");
+    }
+  }, [token]);
+
+  const login = async (username: string, password: string) => {
+    const data = await apiLogin(username, password);
+    setToken(data["token"]);
     navigate("/");
   };
 
   const logout = () => {
-    setIsLoggedIn(false);
+    setToken(null);
     navigate("/login");
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
