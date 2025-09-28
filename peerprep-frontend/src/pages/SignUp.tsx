@@ -37,7 +37,11 @@ export default function SignUp() {
       });
       nav("/login");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Registration failed";
+      let message = "Registration failed";
+      if (err instanceof Error) {
+        const errMessageJson = JSON.parse(err.message)
+        message = errMessageJson.error;
+      }
       setError(message);
     } finally {
       setLoading(false);
