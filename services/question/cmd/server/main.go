@@ -15,52 +15,178 @@ import (
 )
 
 type Question struct {
-	Number        int       `json:"number"`                   // unique, auto-assigned human-facing id
-	Title         string    `json:"title"`                    // short title (<= 200 chars)
-	PromptMd      string    `json:"prompt_md"`                // full problem statement in Markdown (<= 20k chars)
-	Examples      []Example `json:"examples,omitempty"`       // optional LeetCode-style I/O examples
-	ConstraintsMd string    `json:"constraints_md,omitempty"` // optional constraints in Markdown (<= 5k chars)
-	TopicTags     []string  `json:"topic_tags,omitempty"`     // optional free-form tags (≤10 items, each ≤50 chars)
-	Difficulty    string    `json:"difficulty"`               // enum: "Easy" | "Medium" | "Hard"
+	ID             string     `json:"id"`         // uuid, can also be number
+	Title          string     `json:"title"`      // question title
+	Difficulty     Difficulty `json:"difficulty"` // enum
+	TopicTags      []string   `json:"topic_tags,omitempty"`
+	PromptMarkdown string     `json:"prompt_markdown"`
+	Constraints    string     `json:"constraints,omitempty"`
+	TestCases      []TestCase `json:"test_cases,omitempty"`
+	ImageURLs      []string   `json:"image_urls,omitempty"` // optional; need to validate urls when used
+	SourceURL      string     `json:"source_url,omitempty"` // optional; need to validate urls when used
+
+	Status           Status     `json:"status,omitempty"` // active or deprecated. read the struct for more deets
+	Version          int        `json:"version,omitempty"`
+	Author           string     `json:"author,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeprecatedAt     *time.Time `json:"deprecated_at,omitempty"`
+	DeprecatedReason string     `json:"deprecated_reason,omitempty"`
 }
 
-// represents a LeetCode-style I/O example
-type Example struct {
-	InputMd       string `json:"input_md"`       // sample input in Markdown
-	OutputMd      string `json:"output_md"`      // expected output in Markdown
-	ExplanationMd string `json:"explanation_md"` // reasoning in Markdown
+type Difficulty string
+
+const (
+	Easy   Difficulty = "Easy"
+	Medium Difficulty = "Medium"
+	Hard   Difficulty = "Hard"
+)
+
+// status describes lifecycle state of a question
+// like for example, if a question is deprecated
+// we'd still want to be able to fetch it for historical purposes
+type Status string
+
+const (
+	StatusActive     Status = "active"
+	StatusDeprecated Status = "deprecated"
+)
+
+// single testcase
+type TestCase struct {
+	Input  string `json:"input"`
+	Output string `json:"output"`
 }
 
-// represents the response structure for /questions endpoint, all questions sent for now.
+// represents the response structure for /questions endpoint, all questions sent for now
 // TODO: implement other question fetching endpoints
 type QuestionsResponse struct {
 	Total int        `json:"total"`
 	Items []Question `json:"items"`
 }
 
+// uniform error payload
+type ErrorResponse struct {
+	Code    string                  `json:"code"`
+	Message string                  `json:"message"`
+	Details []ValidationErrorDetail `json:"details,omitempty"`
+}
+
+// a single field error
+type ValidationErrorDetail struct {
+	Field  string `json:"field"`
+	Reason string `json:"reason"`
+}
+
 func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	// Health check endpoints
-	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+	router.Get("/healthz", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.WriteHeader(http.StatusOK)
+		resp_writer.Write([]byte("ok"))
 	})
 
-	router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ready"))
+	router.Get("/readyz", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.WriteHeader(http.StatusOK)
+		resp_writer.Write([]byte("ready"))
 	})
 
 	// questions endpoint - walking skeleton returns empty list
-	router.Get("/questions", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+	router.Get("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.Header().Set("Content-Type", "application/json")
+		resp_writer.WriteHeader(http.StatusOK)
 
 		response := QuestionsResponse{
 			Total: 0,
 			Items: []Question{},
 		}
 
-		json.NewEncoder(w).Encode(response)
+		json.NewEncoder(resp_writer).Encode(response)
+	})
+
+	// create question (stub) - to be used by admin
+	// TODO: update this
+	router.Post("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.Header().Set("Content-Type", "application/json")
+		resp_writer.Header().Set("Location", "/questions/stub-id")
+		resp_writer.WriteHeader(http.StatusCreated)
+
+		current_time := time.Now().UTC()
+		resp := Question{
+			ID:             "stub-id",
+			Title:          "stub",
+			Difficulty:     Easy,
+			TopicTags:      []string{"Stub"},
+			PromptMarkdown: "stub prompt",
+			Constraints:    "",
+			TestCases:      []TestCase{{Input: "1", Output: "1"}},
+			Status:         StatusActive,
+			Version:        1,
+			Author:         "system",
+			CreatedAt:      current_time,
+			UpdatedAt:      current_time,
+		}
+		json.NewEncoder(resp_writer).Encode(resp)
+	})
+
+	// get by id (stub)
+	// TODO: update this
+	router.Get("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.Header().Set("Content-Type", "application/json")
+		id := chi.URLParam(r, "id")
+		current_time := time.Now().UTC()
+		resp := Question{
+			ID:             id,
+			Title:          "stub",
+			Difficulty:     Medium,
+			TopicTags:      []string{"Stub"},
+			PromptMarkdown: "stub prompt",
+			Constraints:    "",
+			TestCases:      []TestCase{{Input: "1", Output: "1"}},
+			Status:         StatusActive,
+			Version:        1,
+			Author:         "system",
+			CreatedAt:      current_time,
+			UpdatedAt:      current_time,
+		}
+		json.NewEncoder(resp_writer).Encode(resp)
+	})
+
+	// update (stub)
+	router.Put("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.Header().Set("Content-Type", "application/json")
+		id := chi.URLParam(r, "id")
+		current_time := time.Now().UTC()
+		resp := Question{
+			ID:             id,
+			Title:          "stub-updated",
+			Difficulty:     Hard,
+			TopicTags:      []string{"Stub"},
+			PromptMarkdown: "stub prompt updated",
+			Constraints:    "",
+			TestCases:      []TestCase{{Input: "1", Output: "1"}},
+			Status:         StatusActive,
+			Version:        2,
+			Author:         "system",
+			CreatedAt:      current_time.Add(-time.Hour),
+			UpdatedAt:      current_time,
+		}
+		json.NewEncoder(resp_writer).Encode(resp)
+	})
+
+	// delete (stub)
+	router.Delete("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
+		resp_writer.WriteHeader(http.StatusNoContent)
+	})
+
+	// random (stub)
+	router.Get("/questions/random", func(resp_writer http.ResponseWriter, r *http.Request) {
+		// for now we send back 404 to reflect no eligible question in stub
+		resp_writer.Header().Set("Content-Type", "application/json")
+		resp_writer.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(resp_writer).Encode(ErrorResponse{
+			Code:    "no_eligible_question",
+			Message: "no eligible question found",
+		})
 	})
 }
 
@@ -96,14 +222,14 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// wait for interrupt signal to gracefully shutdown the server
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
 	<-shutdownChan
 
 	logger.Info("Question service shutting down...")
 
-	// Graceful shutdown with timeout
+	// graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
