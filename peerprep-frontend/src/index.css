@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body, #root { height: 100%; }
+body { @apply font-sans text-ink-700 bg-white; }
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-medium transition
+         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 active:scale-[.99];
+}
+.btn-primary { @apply bg-brand-500 text-white hover:bg-brand-600 shadow; }
+.btn-ghost   { @apply border border-slate-300 text-ink-900 bg-white hover:bg-slate-50; }
+.badge { @apply rounded-full bg-brand-100 text-brand-700 px-3 py-1 text-xs font-medium; }
+.card  { @apply rounded-2xl bg-white shadow-card border border-slate-200; }
