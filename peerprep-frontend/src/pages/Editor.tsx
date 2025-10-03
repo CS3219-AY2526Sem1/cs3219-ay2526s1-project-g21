@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import CodeEditor from '@uiw/react-textarea-code-editor';
+import CodeEditor from "@uiw/react-textarea-code-editor";
 
 type Question = {
   id: string;
@@ -10,13 +10,25 @@ type Question = {
   tags?: string[];
 };
 
+type WSFrame =
+  | { type: "init"; data: { sessionId: string; doc: { text: string; version: number }; language: string } }
+  | { type: "doc"; data: { text: string; version: number } }
+  | { type: "cursor"; data: { userId: string; pos: number } }
+  | { type: "chat"; data: { userId: string; message: string } }
+  | { type: "stdout"; data: string }
+  | { type: "stderr"; data: string }
+  | { type: "exit"; data: { code: number; timedOut: boolean } }
+  | { type: "error"; data: string };
+
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
 
   const [question, setQuestion] = useState<Question | null>(null);
-  const [language, setLanguage] = useState<string>("javascript");
+  const [language, setLanguage] = useState<string>("python");
   const [code, setCode] = useState<string>("// Start coding here\n");
+  const [docVersion, setDocVersion] = useState<number>(0);
 
+  const wsRef = useRef<WebSocket | null>(null);
   const isRoomValid = useMemo(() => Boolean(roomId && roomId.trim().length > 0), [roomId]);
 
 
@@ -34,13 +46,65 @@ export default function Editor() {
     setQuestion(mock);
   }, []);
 
+  // WebSocket collab setup
   useEffect(() => {
-    // Placeholder: prepare for WebSocket init with roomId
-    // When implemented, connect on mount and cleanup on unmount
-    return () => {
-      // Cleanup connection when leaving the room
+    if (!isRoomValid) return;
+
+    const ws = new WebSocket(`${import.meta.env.VITE_COLLAB_SERVICE_WS}/ws/session/${roomId}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("Connected to collab service", roomId);
+      ws.send(
+        JSON.stringify({
+          type: "init",
+          data: { sessionId: roomId, language },
+        })
+      );
     };
-  }, [isRoomValid]);
+
+    ws.onmessage = (msg) => {
+      const frame: WSFrame = JSON.parse(msg.data);
+
+      switch (frame.type) {
+        case "init":
+          setCode(frame.data.doc.text);
+          setDocVersion(frame.data.doc.version);
+          break;
+        case "doc":
+          setCode(frame.data.text);
+          setDocVersion(frame.data.version);
+          break;
+        case "error":
+          console.error("WS error:", frame.data);
+          break;
+        default:
+          // ignore cursor/chat/stdout/stderr for now
+          break;
+      }
+    };
+
+    ws.onclose = () => console.log("Collab WS closed");
+
+    return () => ws.close();
+  }, [roomId, language, isRoomValid]);
+
+  const handleChange = (evn: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newCode = evn.target.value;
+    setCode(newCode);
+
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "edit",
+        data: {
+          baseVersion: docVersion,
+          rangeStart: 0,
+          rangeEnd: code.length,
+          text: newCode,
+        },
+      })
+    );
+  };
 
   return (
     <div className="mx-auto w-full px-0 md:px-2">
@@ -71,6 +135,7 @@ export default function Editor() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 px-6">
+        {/* Question panel */}
         <div className="order-2 lg:order-1 space-y-4 lg:w-1/2">
           <div className="rounded-lg border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between">
@@ -96,6 +161,7 @@ export default function Editor() {
           </div>
         </div>
 
+        {/* Code Editor */}
         <div className="order-1 lg:order-2 lg:w-1/2">
           <div className="rounded-lg border border-gray-200 bg-white">
             <div className="border-b border-gray-200 px-4 py-2 text-sm text-gray-600">
@@ -104,16 +170,17 @@ export default function Editor() {
             <div className="p-3">
               <CodeEditor
                 value={code}
-                language="js"
-                placeholder="Please enter JS code."
-                onChange={(evn) => setCode(evn.target.value)}
+                language={language}
+                placeholder={`Write ${language} code...`}
+                onChange={handleChange}
                 data-color-mode="dark"
                 padding={15}
                 style={{
                   backgroundColor: "#1E1E1E ",
                   height: "60vh",
                   borderRadius: "5px",
-                  fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace',
+                  fontFamily:
+                    "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
                 }}
               />
             </div>
@@ -123,5 +190,3 @@ export default function Editor() {
     </div>
   );
 }
-
-
