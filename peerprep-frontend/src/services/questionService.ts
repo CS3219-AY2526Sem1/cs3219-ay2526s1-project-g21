@@ -3,7 +3,7 @@ import type { Question } from "@/types/question";
 const mockQuestions: Question[] = [
   {
     id: 1,
-    title: "Jungwoo and his Bananas",
+    title: "Jungwoo and Bananas",
     topic: "Greedy",
     difficulty: "Hard",
     status: "Unsolved"
@@ -50,62 +50,63 @@ const mockQuestions: Question[] = [
     difficulty: "Easy",
     status: "Solved"
   },
-  {
-    id: 8,
-    title: "Valid Parentheses",
-    topic: "Stack",
-    difficulty: "Easy",
-    status: "Solved"
-  },
-  {
-    id: 9,
-    title: "Merge Two Sorted Lists",
-    topic: "Linked List",
-    difficulty: "Easy",
-    status: "Attempted"
-  },
-  {
-    id: 10,
-    title: "Best Time to Buy and Sell Stock",
-    topic: "Array",
-    difficulty: "Easy",
-    status: "Unsolved"
-  },
-  {
-    id: 11,
-    title: "Maximum Subarray",
-    topic: "Dynamic Programming",
-    difficulty: "Medium",
-    status: "Solved"
-  },
-  {
-    id: 12,
-    title: "Climbing Stairs",
-    topic: "Dynamic Programming",
-    difficulty: "Easy",
-    status: "Solved"
-  },
-  {
-    id: 13,
-    title: "Binary Tree Inorder Traversal",
-    topic: "Tree",
-    difficulty: "Easy",
-    status: "Attempted"
-  },
-  {
-    id: 14,
-    title: "Symmetric Tree",
-    topic: "Tree",
-    difficulty: "Easy",
-    status: "Unsolved"
-  },
-  {
-    id: 15,
-    title: "Maximum Depth of Binary Tree",
-    topic: "Tree",
-    difficulty: "Easy",
-    status: "Solved"
-  }
+  // TODO: Extra data to be used later for testing pagination... 
+  // {
+  //   id: 8,
+  //   title: "Valid Parentheses",
+  //   topic: "Stack",
+  //   difficulty: "Easy",
+  //   status: "Solved"
+  // },
+  // {
+  //   id: 9,
+  //   title: "Merge Two Sorted Lists",
+  //   topic: "Linked List",
+  //   difficulty: "Easy",
+  //   status: "Attempted"
+  // },
+  // {
+  //   id: 10,
+  //   title: "Best Time to Buy and Sell Stock",
+  //   topic: "Array",
+  //   difficulty: "Easy",
+  //   status: "Unsolved"
+  // },
+  // {
+  //   id: 11,
+  //   title: "Maximum Subarray",
+  //   topic: "Dynamic Programming",
+  //   difficulty: "Medium",
+  //   status: "Solved"
+  // },
+  // {
+  //   id: 12,
+  //   title: "Climbing Stairs",
+  //   topic: "Dynamic Programming",
+  //   difficulty: "Easy",
+  //   status: "Solved"
+  // },
+  // {
+  //   id: 13,
+  //   title: "Binary Tree Inorder Traversal",
+  //   topic: "Tree",
+  //   difficulty: "Easy",
+  //   status: "Attempted"
+  // },
+  // {
+  //   id: 14,
+  //   title: "Symmetric Tree",
+  //   topic: "Tree",
+  //   difficulty: "Easy",
+  //   status: "Unsolved"
+  // },
+  // {
+  //   id: 15,
+  //   title: "Maximum Depth of Binary Tree",
+  //   topic: "Tree",
+  //   difficulty: "Easy",
+  //   status: "Solved"
+  // }
 ];
 
 // send back mock data for now.

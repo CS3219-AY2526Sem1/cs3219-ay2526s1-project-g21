@@ -72,7 +72,19 @@ export default function Questions() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-14">
-      <h1 className="text-3xl font-semibold text-black mb-8">All Questions</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-semibold text-black">All Questions</h1>
+        <div className="flex items-center gap-4">
+          <button className="inline-flex items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-white text-sm font-medium hover:brightness-95">
+            Filter Questions
+          </button>
+          <input
+            type="text"
+            placeholder="Search Questions"
+            className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[#2F6FED] focus:border-transparent"
+          />
+        </div>
+      </div>
 
       <div className="bg-white border border-[#E5E7EB] rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
@@ -92,6 +104,20 @@ export default function Questions() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="px-6 py-3 bg-white border-t border-[#E5E7EB] flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing 1 to {Math.min(6, questions.length)} of {questions.length} rows
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-2 text-sm border border-[#D1D5DB] rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              Previous
+            </button>
+            <button className="px-3 py-2 text-sm border border-[#D1D5DB] rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </section>
