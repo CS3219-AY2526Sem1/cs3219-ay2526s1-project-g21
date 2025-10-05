@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, Flag } from "lucide-react";
 import type { Question } from "@/types/question";
 import { getDifficultyColor, getStatusColor } from "@/utils/questionUtils";
+import { getQuestions } from "@/services/questionService";
 
 interface QuestionsTableRowProps {
   question: Question;
@@ -32,53 +33,43 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
   );
 };
 
-// mock data for testing
-const mockQuestions: Question[] = [
-  {
-    id: 1,
-    title: "Reverse a Linked List",
-    topic: "Linked List",
-    difficulty: "Hard",
-    status: "Solved"
-  },
-  {
-    id: 2,
-    title: "Find Duplicate Peak Element in Array",
-    topic: "Binary Search",
-    difficulty: "Medium",
-    status: "Attempted"
-  },
-  {
-    id: 3,
-    title: "House Robbers I",
-    topic: "Dynamic Programming",
-    difficulty: "Easy",
-    status: "Unsolved"
-  },
-  {
-    id: 4,
-    title: "Gas Stations",
-    topic: "Dynamic Programming",
-    difficulty: "Medium",
-    status: "Unsolved"
-  },
-  {
-    id: 5,
-    title: "Jungwoo and Bananas",
-    topic: "Greedy",
-    difficulty: "Hard",
-    status: "Unsolved"
-  },
-  {
-    id: 6,
-    title: "Minimum Triangulation Score of Polygon",
-    topic: "Math",
-    difficulty: "Medium",
-    status: "Unsolved"
-  }
-];
-
 export default function Questions() {
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        setLoading(true);
+        const data = await getQuestions();
+        setQuestions(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load questions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadQuestions();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="mx-auto max-w-7xl px-6 py-14">
+        <div className="text-center">Loading questions...</div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="mx-auto max-w-7xl px-6 py-14">
+        <div className="text-center text-red-600">Error: {error}</div>
+      </section>
+    );
+  }
+
   return (
     <section className="mx-auto max-w-7xl px-6 py-14">
       <h1 className="text-3xl font-semibold text-black mb-8">All Questions</h1>
@@ -96,7 +87,7 @@ export default function Questions() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E7EB]">
-              {mockQuestions.map((question) => (
+              {questions.map((question) => (
                 <QuestionsTableRow key={question.id} question={question} />
               ))}
             </tbody>
