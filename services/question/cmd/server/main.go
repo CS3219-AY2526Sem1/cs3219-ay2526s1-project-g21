@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"peerprep/question/internal/models"
+	"peerprep/question/internal/repositories"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-
-func registerRoutes(router *chi.Mux, logger *zap.Logger) {
+func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.QuestionRepository) {
 	// Health check endpoints
 	router.Get("/healthz", func(resp_writer http.ResponseWriter, r *http.Request) {
 		resp_writer.WriteHeader(http.StatusOK)
@@ -32,13 +32,23 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	// questions endpoint - walking skeleton returns empty list
 	router.Get("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
 		resp_writer.Header().Set("Content-Type", "application/json")
-		resp_writer.WriteHeader(http.StatusOK)
 
-		response := models.QuestionsResponse{
-			Total: 0,
-			Items: []models.Question{},
+		questions, err := repo.GetAll()
+		if err != nil {
+			resp_writer.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "internal_error",
+				Message: "Failed to fetch questions",
+			})
+			return
 		}
 
+		response := models.QuestionsResponse{
+			Total: len(questions),
+			Items: questions,
+		}
+
+		resp_writer.WriteHeader(http.StatusOK)
 		json.NewEncoder(resp_writer).Encode(response)
 	})
 
@@ -46,24 +56,31 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	// TODO: update this
 	router.Post("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
 		resp_writer.Header().Set("Content-Type", "application/json")
-		resp_writer.Header().Set("Location", "/questions/stub-id")
-		resp_writer.WriteHeader(http.StatusCreated)
 
-		current_time := time.Now().UTC()
-		resp := models.Question{
-			ID:             "stub-id",
-			Title:          "stub",
-			Difficulty:     models.Easy,
-			TopicTags:      []string{"Stub"},
-			PromptMarkdown: "stub prompt",
-			Constraints:    "",
-			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
-			Status:         models.StatusActive,
-			Author:         "system",
-			CreatedAt:      current_time,
-			UpdatedAt:      current_time,
+		// TODO: needs more error handling and validation
+		var question models.Question
+		if err := json.NewDecoder(r.Body).Decode(&question); err != nil {
+			resp_writer.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "invalid_request",
+				Message: "Invalid request payload",
+			})
+			return
 		}
-		json.NewEncoder(resp_writer).Encode(resp)
+
+		created, err := repo.Create(&question)
+		if err != nil {
+			resp_writer.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "internal_error",
+				Message: "Failed to create question",
+			})
+			return
+		}
+
+		resp_writer.Header().Set("Location", "/questions/"+created.ID)
+		resp_writer.WriteHeader(http.StatusCreated)
+		json.NewEncoder(resp_writer).Encode(created)
 	})
 
 	// get by id (stub)
@@ -71,46 +88,63 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	router.Get("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
 		resp_writer.Header().Set("Content-Type", "application/json")
 		id := chi.URLParam(r, "id")
-		current_time := time.Now().UTC()
-		resp := models.Question{
-			ID:             id,
-			Title:          "stub",
-			Difficulty:     models.Medium,
-			TopicTags:      []string{"Stub"},
-			PromptMarkdown: "stub prompt",
-			Constraints:    "",
-			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
-			Status:         models.StatusActive,
-			Author:         "system",
-			CreatedAt:      current_time,
-			UpdatedAt:      current_time,
+
+		question, err := repo.GetByID(id)
+		if err != nil {
+			resp_writer.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "question_not_found",
+				Message: "Question not found",
+			})
+			return
 		}
-		json.NewEncoder(resp_writer).Encode(resp)
+
+		resp_writer.WriteHeader(http.StatusOK)
+		json.NewEncoder(resp_writer).Encode(question)
 	})
 
 	// update (stub)
 	router.Put("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
 		resp_writer.Header().Set("Content-Type", "application/json")
 		id := chi.URLParam(r, "id")
-		current_time := time.Now().UTC()
-		resp := models.Question{
-			ID:             id,
-			Title:          "stub-updated",
-			Difficulty:     models.Hard,
-			TopicTags:      []string{"Stub"},
-			PromptMarkdown: "stub prompt updated",
-			Constraints:    "",
-			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
-			Status:         models.StatusActive,
-			Author:         "system",
-			CreatedAt:      current_time.Add(-time.Hour),
-			UpdatedAt:      current_time,
+
+		var question models.Question
+		if err := json.NewDecoder(r.Body).Decode(&question); err != nil {
+			resp_writer.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "invalid_request",
+				Message: "Invalid request payload",
+			})
+			return
 		}
-		json.NewEncoder(resp_writer).Encode(resp)
+
+		updated, err := repo.Update(id, &question)
+		if err != nil {
+			resp_writer.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "internal_error",
+				Message: "Failed to update question",
+			})
+			return
+		}
+
+		resp_writer.WriteHeader(http.StatusOK)
+		json.NewEncoder(resp_writer).Encode(updated)
 	})
 
 	// delete (stub)
 	router.Delete("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+
+		if err := repo.Delete(id); err != nil {
+			resp_writer.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "internal_error",
+				Message: "Failed to delete question",
+			})
+			return
+		}
+
 		resp_writer.WriteHeader(http.StatusNoContent)
 	})
 
@@ -118,11 +152,16 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	router.Get("/questions/random", func(resp_writer http.ResponseWriter, r *http.Request) {
 		// for now we send back 404 to reflect no eligible question in stub
 		resp_writer.Header().Set("Content-Type", "application/json")
-		resp_writer.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-			Code:    "no_eligible_question",
-			Message: "no eligible question found",
-		})
+
+		_, err := repo.GetRandom()
+		if err != nil {
+			resp_writer.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+				Code:    "no_eligible_question",
+				Message: "no eligible question found",
+			})
+			return
+		}
 	})
 }
 
@@ -130,10 +169,13 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
+	// initialise repository
+	questionRepo := repositories.NewQuestionRepository()
+
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 
-	registerRoutes(router, logger)
+	registerRoutes(router, logger, questionRepo)
 
 	port := os.Getenv("PORT")
 	if port == "" {
