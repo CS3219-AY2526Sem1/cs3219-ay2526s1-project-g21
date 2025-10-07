@@ -10,24 +10,16 @@ import (
 
 	"peerprep/question/internal/handlers"
 	"peerprep/question/internal/repositories"
+	"peerprep/question/internal/routers"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-func registerRoutes(router *chi.Mux, logger *zap.Logger, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
-	// Health check endpoints
-	router.Get("/healthz", healthHandler.HealthzHandler)
-	router.Get("/readyz", healthHandler.ReadyzHandler)
-
-	// Question endpoints
-	router.Get("/questions", questionHandler.GetQuestionsHandler)
-	router.Post("/questions", questionHandler.CreateQuestionHandler)
-	router.Get("/questions/{id}", questionHandler.GetQuestionByIDHandler)
-	router.Put("/questions/{id}", questionHandler.UpdateQuestionHandler)
-	router.Delete("/questions/{id}", questionHandler.DeleteQuestionHandler)
-	router.Get("/questions/random", questionHandler.GetRandomQuestionHandler)
+func registerRoutes(router *chi.Mux, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
+	routers.HealthRoutes(router, healthHandler)
+	routers.QuestionRoutes(router, questionHandler)
 }
 
 func main() {
@@ -44,7 +36,7 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 
-	registerRoutes(router, logger, questionHandler, healthHandler)
+	registerRoutes(router, questionHandler, healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
