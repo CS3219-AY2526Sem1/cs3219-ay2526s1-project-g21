@@ -11,6 +11,7 @@ import (
 
 	"peerprep/question/internal/models"
 	"peerprep/question/internal/repositories"
+	"peerprep/question/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -35,8 +36,7 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.Ques
 
 		questions, err := repo.GetAll()
 		if err != nil {
-			resp_writer.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+			utils.JSON(resp_writer, http.StatusInternalServerError, models.ErrorResponse{
 				Code:    "internal_error",
 				Message: "Failed to fetch questions",
 			})
@@ -48,8 +48,7 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.Ques
 			Items: questions,
 		}
 
-		resp_writer.WriteHeader(http.StatusOK)
-		json.NewEncoder(resp_writer).Encode(response)
+		utils.JSON(resp_writer, http.StatusOK, response)
 	})
 
 	// create question (stub) - to be used by admin
@@ -91,16 +90,14 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.Ques
 
 		question, err := repo.GetByID(id)
 		if err != nil {
-			resp_writer.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+			utils.JSON(resp_writer, http.StatusNotFound, models.ErrorResponse{
 				Code:    "question_not_found",
 				Message: "Question not found",
 			})
 			return
 		}
 
-		resp_writer.WriteHeader(http.StatusOK)
-		json.NewEncoder(resp_writer).Encode(question)
+		utils.JSON(resp_writer, http.StatusOK, question)
 	})
 
 	// update (stub)
@@ -155,8 +152,7 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.Ques
 
 		_, err := repo.GetRandom()
 		if err != nil {
-			resp_writer.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
+			utils.JSON(resp_writer, http.StatusNotFound, models.ErrorResponse{
 				Code:    "no_eligible_question",
 				Message: "no eligible question found",
 			})
