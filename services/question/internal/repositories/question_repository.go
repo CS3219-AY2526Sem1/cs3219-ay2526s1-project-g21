@@ -26,7 +26,7 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 
 func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
 	// return stub question with provided id for now
-	current_time := time.Now().UTC()
+	currentTime := time.Now().UTC()
 	question := &models.Question{
 		ID:             id,
 		Title:          "stub",
@@ -37,15 +37,15 @@ func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
 		TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
 		Status:         models.StatusActive,
 		Author:         "system",
-		CreatedAt:      current_time,
-		UpdatedAt:      current_time,
+		CreatedAt:      currentTime,
+		UpdatedAt:      currentTime,
 	}
 	return question, nil
 }
 
 func (r *QuestionRepository) Create(question *models.Question) (*models.Question, error) {
 	// return stub created question
-	current_time := time.Now().UTC()
+	currentTime := time.Now().UTC()
 	created := &models.Question{
 		ID:             "stub-id",
 		Title:          "stub",
@@ -56,15 +56,15 @@ func (r *QuestionRepository) Create(question *models.Question) (*models.Question
 		TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
 		Status:         models.StatusActive,
 		Author:         "system",
-		CreatedAt:      current_time,
-		UpdatedAt:      current_time,
+		CreatedAt:      currentTime,
+		UpdatedAt:      currentTime,
 	}
 	return created, nil
 }
 
 func (r *QuestionRepository) Update(id string, question *models.Question) (*models.Question, error) {
 	// return stub updated question
-	current_time := time.Now().UTC()
+	currentTime := time.Now().UTC()
 	updated := &models.Question{
 		ID:             id,
 		Title:          "stub-updated",
@@ -75,8 +75,8 @@ func (r *QuestionRepository) Update(id string, question *models.Question) (*mode
 		TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
 		Status:         models.StatusActive,
 		Author:         "system",
-		CreatedAt:      current_time.Add(-time.Hour),
-		UpdatedAt:      current_time,
+		CreatedAt:      currentTime.Add(-time.Hour),
+		UpdatedAt:      currentTime,
 	}
 	return updated, nil
 }
