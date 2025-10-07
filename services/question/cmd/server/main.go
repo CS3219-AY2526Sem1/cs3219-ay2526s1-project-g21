@@ -2,163 +2,32 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"peerprep/question/internal/models"
+	"peerprep/question/internal/handlers"
 	"peerprep/question/internal/repositories"
-	"peerprep/question/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-func registerRoutes(router *chi.Mux, logger *zap.Logger, repo *repositories.QuestionRepository) {
+func registerRoutes(router *chi.Mux, logger *zap.Logger, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
 	// Health check endpoints
-	router.Get("/healthz", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.WriteHeader(http.StatusOK)
-		resp_writer.Write([]byte("ok"))
-	})
+	router.Get("/healthz", healthHandler.HealthzHandler)
+	router.Get("/readyz", healthHandler.ReadyzHandler)
 
-	router.Get("/readyz", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.WriteHeader(http.StatusOK)
-		resp_writer.Write([]byte("ready"))
-	})
-
-	// questions endpoint - walking skeleton returns empty list
-	router.Get("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.Header().Set("Content-Type", "application/json")
-
-		questions, err := repo.GetAll()
-		if err != nil {
-			utils.JSON(resp_writer, http.StatusInternalServerError, models.ErrorResponse{
-				Code:    "internal_error",
-				Message: "Failed to fetch questions",
-			})
-			return
-		}
-
-		response := models.QuestionsResponse{
-			Total: len(questions),
-			Items: questions,
-		}
-
-		utils.JSON(resp_writer, http.StatusOK, response)
-	})
-
-	// create question (stub) - to be used by admin
-	// TODO: update this
-	router.Post("/questions", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.Header().Set("Content-Type", "application/json")
-
-		// TODO: needs more error handling and validation
-		var question models.Question
-		if err := json.NewDecoder(r.Body).Decode(&question); err != nil {
-			resp_writer.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-				Code:    "invalid_request",
-				Message: "Invalid request payload",
-			})
-			return
-		}
-
-		created, err := repo.Create(&question)
-		if err != nil {
-			resp_writer.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-				Code:    "internal_error",
-				Message: "Failed to create question",
-			})
-			return
-		}
-
-		resp_writer.Header().Set("Location", "/questions/"+created.ID)
-		resp_writer.WriteHeader(http.StatusCreated)
-		json.NewEncoder(resp_writer).Encode(created)
-	})
-
-	// get by id (stub)
-	// TODO: update this
-	router.Get("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.Header().Set("Content-Type", "application/json")
-		id := chi.URLParam(r, "id")
-
-		question, err := repo.GetByID(id)
-		if err != nil {
-			utils.JSON(resp_writer, http.StatusNotFound, models.ErrorResponse{
-				Code:    "question_not_found",
-				Message: "Question not found",
-			})
-			return
-		}
-
-		utils.JSON(resp_writer, http.StatusOK, question)
-	})
-
-	// update (stub)
-	router.Put("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
-		resp_writer.Header().Set("Content-Type", "application/json")
-		id := chi.URLParam(r, "id")
-
-		var question models.Question
-		if err := json.NewDecoder(r.Body).Decode(&question); err != nil {
-			resp_writer.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-				Code:    "invalid_request",
-				Message: "Invalid request payload",
-			})
-			return
-		}
-
-		updated, err := repo.Update(id, &question)
-		if err != nil {
-			resp_writer.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-				Code:    "internal_error",
-				Message: "Failed to update question",
-			})
-			return
-		}
-
-		resp_writer.WriteHeader(http.StatusOK)
-		json.NewEncoder(resp_writer).Encode(updated)
-	})
-
-	// delete (stub)
-	router.Delete("/questions/{id}", func(resp_writer http.ResponseWriter, r *http.Request) {
-		id := chi.URLParam(r, "id")
-
-		if err := repo.Delete(id); err != nil {
-			resp_writer.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
-				Code:    "internal_error",
-				Message: "Failed to delete question",
-			})
-			return
-		}
-
-		resp_writer.WriteHeader(http.StatusNoContent)
-	})
-
-	// random (stub)
-	router.Get("/questions/random", func(resp_writer http.ResponseWriter, r *http.Request) {
-		// for now we send back 404 to reflect no eligible question in stub
-		resp_writer.Header().Set("Content-Type", "application/json")
-
-		_, err := repo.GetRandom()
-		if err != nil {
-			utils.JSON(resp_writer, http.StatusNotFound, models.ErrorResponse{
-				Code:    "no_eligible_question",
-				Message: "no eligible question found",
-			})
-			return
-		}
-	})
+	// Question endpoints
+	router.Get("/questions", questionHandler.GetQuestionsHandler)
+	router.Post("/questions", questionHandler.CreateQuestionHandler)
+	router.Get("/questions/{id}", questionHandler.GetQuestionByIDHandler)
+	router.Put("/questions/{id}", questionHandler.UpdateQuestionHandler)
+	router.Delete("/questions/{id}", questionHandler.DeleteQuestionHandler)
+	router.Get("/questions/random", questionHandler.GetRandomQuestionHandler)
 }
 
 func main() {
@@ -168,10 +37,14 @@ func main() {
 	// initialise repository
 	questionRepo := repositories.NewQuestionRepository()
 
+	// initialise handlers
+	questionHandler := handlers.NewQuestionHandler(questionRepo)
+	healthHandler := handlers.NewHealthHandler()
+
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 
-	registerRoutes(router, logger, questionRepo)
+	registerRoutes(router, logger, questionHandler, healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
