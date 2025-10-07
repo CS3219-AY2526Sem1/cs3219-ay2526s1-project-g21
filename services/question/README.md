@@ -80,6 +80,12 @@ Invoke-RestMethod -Uri "http://localhost:8082/questions/t1" `
   -Method DELETE
 ```
 
+To refresh seeded data 
+```
+cd deploy
+docker compose up mongo-seed
+```
+
 Alternatively, see repo `deploy/docker-compose.yaml` for multi-service setup.
 
 ## Notes

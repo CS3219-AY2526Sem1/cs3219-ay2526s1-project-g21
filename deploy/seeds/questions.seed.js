@@ -32,8 +32,117 @@ const docs = [
     status: "active",
     createdAt: now,
     updatedAt: now
-  }
+  },
+  {
+    id: "4",
+    title: "Merge Two Sorted Lists",
+    difficulty: "Easy",
+    tags: ["Linked List"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "5",
+    title: "Longest Substring Without Repeating Characters",
+    difficulty: "Medium",
+    tags: ["Hash Table", "String", "Sliding Window"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "6",
+    title: "Reverse Linked List",
+    difficulty: "Easy",
+    tags: ["Linked List"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "7",
+    title: "Container With Most Water",
+    difficulty: "Medium",
+    tags: ["Array", "Two Pointers"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "8",
+    title: "Climbing Stairs",
+    difficulty: "Easy",
+    tags: ["Dynamic Programming"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "9",
+    title: "Binary Tree Level Order Traversal",
+    difficulty: "Medium",
+    tags: ["Tree", "Breadth-First Search"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "10",
+    title: "Maximum Subarray",
+    difficulty: "Medium",
+    tags: ["Array", "Dynamic Programming"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "11",
+    title: "Best Time to Buy and Sell Stock",
+    difficulty: "Easy",
+    tags: ["Array", "Dynamic Programming"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "12",
+    title: "Valid Parentheses",
+    difficulty: "Easy",
+    tags: ["Stack", "String"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "13",
+    title: "Kth Largest Element in an Array",
+    difficulty: "Medium",
+    tags: ["Heap", "Sorting"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "14",
+    title: "Coin Change",
+    difficulty: "Medium",
+    tags: ["Dynamic Programming"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "15",
+    title: "Word Break",
+    difficulty: "Medium",
+    tags: ["Dynamic Programming", "String"],
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  },
 ];
+
 
 // ensure collection exists
 db.createCollection("questions");
