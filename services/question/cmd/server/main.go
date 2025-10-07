@@ -9,73 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"peerprep/question/internal/models"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-type Question struct {
-	ID             string     `json:"id"`         // uuid, can also be number
-	Title          string     `json:"title"`      // question title
-	Difficulty     Difficulty `json:"difficulty"` // enum
-	TopicTags      []string   `json:"topic_tags,omitempty" validate:"max=10"`
-	PromptMarkdown string     `json:"prompt_markdown"`
-	Constraints    string     `json:"constraints,omitempty"`
-	TestCases      []TestCase `json:"test_cases,omitempty"`
-	ImageURLs      []string   `json:"image_urls,omitempty" validate:"max=5"` // optional; need to validate urls when used
-
-	Status           Status     `json:"status,omitempty"` // active or deprecated. read the struct for more deets
-	Author           string     `json:"author,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeprecatedAt     *time.Time `json:"deprecated_at,omitempty"`
-	DeprecatedReason string     `json:"deprecated_reason,omitempty"`
-}
-
-type Difficulty string
-
-const (
-	Easy   Difficulty = "Easy"
-	Medium Difficulty = "Medium"
-	Hard   Difficulty = "Hard"
-)
-
-// status describes lifecycle state of a question
-// like for example, if a question is deprecated
-// we'd still want to be able to fetch it for historical purposes
-type Status string
-
-const (
-	StatusActive     Status = "active"
-	StatusDeprecated Status = "deprecated"
-)
-
-// single testcase
-type TestCase struct {
-	Input       string `json:"input" validate:"required"`
-	Output      string `json:"output" validate:"required"`
-	Description string `json:"description,omitempty"` // optional test case description
-}
-
-// represents the response structure for /questions endpoint, all questions sent for now
-// TODO: implement other question fetching endpoints
-type QuestionsResponse struct {
-	Total int        `json:"total"`
-	Items []Question `json:"items"`
-}
-
-// uniform error payload
-type ErrorResponse struct {
-	Code    string                  `json:"code"`
-	Message string                  `json:"message"`
-	Details []ValidationErrorDetail `json:"details,omitempty"`
-}
-
-// a single field error
-type ValidationErrorDetail struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
-}
 
 func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 	// Health check endpoints
@@ -94,9 +34,9 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 		resp_writer.Header().Set("Content-Type", "application/json")
 		resp_writer.WriteHeader(http.StatusOK)
 
-		response := QuestionsResponse{
+		response := models.QuestionsResponse{
 			Total: 0,
-			Items: []Question{},
+			Items: []models.Question{},
 		}
 
 		json.NewEncoder(resp_writer).Encode(response)
@@ -110,15 +50,15 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 		resp_writer.WriteHeader(http.StatusCreated)
 
 		current_time := time.Now().UTC()
-		resp := Question{
+		resp := models.Question{
 			ID:             "stub-id",
 			Title:          "stub",
-			Difficulty:     Easy,
+			Difficulty:     models.Easy,
 			TopicTags:      []string{"Stub"},
 			PromptMarkdown: "stub prompt",
 			Constraints:    "",
-			TestCases:      []TestCase{{Input: "1", Output: "1"}},
-			Status:         StatusActive,
+			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
+			Status:         models.StatusActive,
 			Author:         "system",
 			CreatedAt:      current_time,
 			UpdatedAt:      current_time,
@@ -132,15 +72,15 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 		resp_writer.Header().Set("Content-Type", "application/json")
 		id := chi.URLParam(r, "id")
 		current_time := time.Now().UTC()
-		resp := Question{
+		resp := models.Question{
 			ID:             id,
 			Title:          "stub",
-			Difficulty:     Medium,
+			Difficulty:     models.Medium,
 			TopicTags:      []string{"Stub"},
 			PromptMarkdown: "stub prompt",
 			Constraints:    "",
-			TestCases:      []TestCase{{Input: "1", Output: "1"}},
-			Status:         StatusActive,
+			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
+			Status:         models.StatusActive,
 			Author:         "system",
 			CreatedAt:      current_time,
 			UpdatedAt:      current_time,
@@ -153,15 +93,15 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 		resp_writer.Header().Set("Content-Type", "application/json")
 		id := chi.URLParam(r, "id")
 		current_time := time.Now().UTC()
-		resp := Question{
+		resp := models.Question{
 			ID:             id,
 			Title:          "stub-updated",
-			Difficulty:     Hard,
+			Difficulty:     models.Hard,
 			TopicTags:      []string{"Stub"},
 			PromptMarkdown: "stub prompt updated",
 			Constraints:    "",
-			TestCases:      []TestCase{{Input: "1", Output: "1"}},
-			Status:         StatusActive,
+			TestCases:      []models.TestCase{{Input: "1", Output: "1"}},
+			Status:         models.StatusActive,
 			Author:         "system",
 			CreatedAt:      current_time.Add(-time.Hour),
 			UpdatedAt:      current_time,
@@ -179,7 +119,7 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 		// for now we send back 404 to reflect no eligible question in stub
 		resp_writer.Header().Set("Content-Type", "application/json")
 		resp_writer.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(resp_writer).Encode(ErrorResponse{
+		json.NewEncoder(resp_writer).Encode(models.ErrorResponse{
 			Code:    "no_eligible_question",
 			Message: "no eligible question found",
 		})
