@@ -57,8 +57,32 @@ cd services/question
 go run ./cmd/server
 ```
 
+Testing examples (From bash terminal):
+```bash
+# To list all
+Invoke-RestMethod -Uri "http://localhost:8082/questions"  
+
+# To create a question
+Invoke-RestMethod -Uri "http://localhost:8082/questions" `
+  -Method POST -Headers @{ "Content-Type" = "application/json" } `
+  -Body '{"id":"t1","title":"Seed – Arrays Intro","difficulty":"Easy","tags":["Array"],"status":"active"}'
+
+# To list a specific question
+Invoke-RestMethod -Uri "http://localhost:8082/questions/t1"  
+
+# To update a question
+Invoke-RestMethod -Uri "http://localhost:8082/questions/t1" `
+  -Method PUT -Headers @{ "Content-Type" = "application/json" } `
+  -Body '{"id":"t1","title":"Seed – Arrays Intro","difficulty":"Hard","tags":["Array"],"status":"active"}'  
+
+# To Delete a question
+Invoke-RestMethod -Uri "http://localhost:8082/questions/t1" `
+  -Method DELETE
+```
+
 Alternatively, see repo `deploy/docker-compose.yaml` for multi-service setup.
 
 ## Notes
 - Requests/Responses are JSON unless noted.
 - Logging uses production `zap` configuration.
+- The Database is currently initialized with 3 example questions, found in deploy/seeds/questions.seed.js

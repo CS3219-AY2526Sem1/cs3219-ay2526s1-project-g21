@@ -51,6 +51,19 @@ services:
     depends_on: [mongo, postgres]
     ports: ["8084:8080"]
 
+  mongo-seed:
+      image: mongo:7
+      depends_on:
+        - mongo
+      volumes:
+        - ./seeds:/seeds:ro
+      command: >
+        bash -lc "
+          mongosh 'mongodb://mongo:27017/peerprep' /seeds/questions.seed.js
+        "
+      restart: "no" 
+
+
 volumes:
   mongo-data:
   postgres-data:

@@ -27,7 +27,11 @@ func main() {
 	defer logger.Sync()
 
 	// initialise repository
-	questionRepo := repositories.NewQuestionRepository()
+	ctx := context.Background()
+	questionRepo, err := repositories.NewQuestionRepository(ctx) // Updated
+	if err != nil {
+		logger.Fatal("failed to init mongo repo", zap.Error(err))
+	}
 
 	// initialise handlers
 	questionHandler := handlers.NewQuestionHandler(questionRepo)
