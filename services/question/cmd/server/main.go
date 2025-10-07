@@ -18,15 +18,13 @@ type Question struct {
 	ID             string     `json:"id"`         // uuid, can also be number
 	Title          string     `json:"title"`      // question title
 	Difficulty     Difficulty `json:"difficulty"` // enum
-	TopicTags      []string   `json:"topic_tags,omitempty"`
+	TopicTags      []string   `json:"topic_tags,omitempty" validate:"max=10"`
 	PromptMarkdown string     `json:"prompt_markdown"`
 	Constraints    string     `json:"constraints,omitempty"`
 	TestCases      []TestCase `json:"test_cases,omitempty"`
-	ImageURLs      []string   `json:"image_urls,omitempty"` // optional; need to validate urls when used
-	SourceURL      string     `json:"source_url,omitempty"` // optional; need to validate urls when used
+	ImageURLs      []string   `json:"image_urls,omitempty" validate:"max=5"` // optional; need to validate urls when used
 
 	Status           Status     `json:"status,omitempty"` // active or deprecated. read the struct for more deets
-	Version          int        `json:"version,omitempty"`
 	Author           string     `json:"author,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
@@ -54,8 +52,9 @@ const (
 
 // single testcase
 type TestCase struct {
-	Input  string `json:"input"`
-	Output string `json:"output"`
+	Input       string `json:"input" validate:"required"`
+	Output      string `json:"output" validate:"required"`
+	Description string `json:"description,omitempty"` // optional test case description
 }
 
 // represents the response structure for /questions endpoint, all questions sent for now
@@ -120,7 +119,6 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 			Constraints:    "",
 			TestCases:      []TestCase{{Input: "1", Output: "1"}},
 			Status:         StatusActive,
-			Version:        1,
 			Author:         "system",
 			CreatedAt:      current_time,
 			UpdatedAt:      current_time,
@@ -143,7 +141,6 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 			Constraints:    "",
 			TestCases:      []TestCase{{Input: "1", Output: "1"}},
 			Status:         StatusActive,
-			Version:        1,
 			Author:         "system",
 			CreatedAt:      current_time,
 			UpdatedAt:      current_time,
@@ -165,7 +162,6 @@ func registerRoutes(router *chi.Mux, logger *zap.Logger) {
 			Constraints:    "",
 			TestCases:      []TestCase{{Input: "1", Output: "1"}},
 			Status:         StatusActive,
-			Version:        2,
 			Author:         "system",
 			CreatedAt:      current_time.Add(-time.Hour),
 			UpdatedAt:      current_time,
