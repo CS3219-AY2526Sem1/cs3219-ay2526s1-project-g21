@@ -26,7 +26,7 @@ jobs:
         with:
           version: v1.64.8
           working-directory: ${{ matrix.service }}
-          args: --timeout=5m
+          args: --timeout=5m --out-format=github-actions
 
       - name: Test ${{ matrix.service }}
         run: |
