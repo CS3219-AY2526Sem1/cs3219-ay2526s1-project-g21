@@ -21,11 +21,16 @@ jobs:
               echo "==> Skipping $d (no Go files)"
             fi
           done
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v5
-        with:
-          version: latest # Or specify a fixed version like 'v1.54.2'
-          args: --timeout=5m
+      - name: Format check all services
+        run: |
+          for d in services/*; do
+            if [ -f "$d/go.mod" ]; then
+              echo "==> Linting $d"
+              (cd "$d" && golangci-lint run --timeout=5m)
+            else
+              echo "==> Skipping $d (no go.mod)"
+            fi
+          done
       - name: Test all services
         run: |
           for d in services/*; do
