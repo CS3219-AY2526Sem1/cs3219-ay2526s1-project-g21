@@ -6,6 +6,7 @@ import InterviewLobby from "@/pages/InterviewLobby";
 import SignUp from "@/pages/SignUp";
 import Forgot from "@/pages/Forgot";
 import Account from "@/pages/Account";
+import Questions from "@/pages/Questions";
 import Editor from "@/pages/Editor";
 import { useAuth } from "@/context/AuthContext";
 import { Toaster } from 'react-hot-toast'
@@ -29,7 +30,7 @@ export default function App() {
 
           <Route path="/account" element={<Protected><Account /></Protected>} />
           <Route path="/interview" element={<Protected><InterviewLobby /></Protected>} />
-          <Route path="/questions" element={<Protected><Home /></Protected>} />
+          <Route path="/questions" element={<Protected><Questions /></Protected>} />
           <Route path="/room/:roomId" element={<Protected><Editor /></Protected>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
