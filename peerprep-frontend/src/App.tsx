@@ -2,6 +2,7 @@ import { Route, Routes, Navigate } from "react-router-dom";
 import NavBar from "@/components/Nav";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
+import InterviewLobby from "@/pages/InterviewLobby";
 import SignUp from "@/pages/SignUp";
 import Forgot from "@/pages/Forgot";
 import Account from "@/pages/Account";
@@ -28,7 +29,7 @@ export default function App() {
           <Route path="/forgot" element={<Forgot />} />
 
           <Route path="/account" element={<Protected><Account /></Protected>} />
-          <Route path="/interview" element={<Protected><Home /></Protected>} />
+          <Route path="/interview" element={<Protected><InterviewLobby /></Protected>} />
           <Route path="/questions" element={<Protected><Questions /></Protected>} />
           <Route path="/room/:roomId" element={<Protected><Editor /></Protected>} />
 

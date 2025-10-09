@@ -3,7 +3,7 @@ import { ChangeEvent } from "react";
 export type FormSetter<T> = React.Dispatch<React.SetStateAction<T>>;
 
 export function handleFormChange<T>(
-  e: ChangeEvent<HTMLInputElement>,
+  e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   setForm: FormSetter<T>
 ) {
   const { name, value } = e.target;
