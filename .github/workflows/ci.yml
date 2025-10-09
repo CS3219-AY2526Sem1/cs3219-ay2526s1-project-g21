@@ -22,15 +22,11 @@ jobs:
             fi
           done
       - name: Format check all services
-        run: |
-          for d in services/*; do
-            if [ -f "$d/go.mod" ]; then
-              echo "==> Linting $d"
-              (cd "$d" && golangci-lint run --timeout=5m)
-            else
-              echo "==> Skipping $d (no go.mod)"
-            fi
-          done
+        uses: golangci/golangci-lint-action@v5
+        with:
+          version: v1.64.8
+          working-directory: services/
+        continue-on-error: false
       - name: Test all services
         run: |
           for d in services/*; do
