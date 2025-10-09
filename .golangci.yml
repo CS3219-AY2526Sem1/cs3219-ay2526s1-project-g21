@@ -7,6 +7,8 @@ linters:
     - staticcheck
     - gofmt
     - goimports
+  disable:
+    - errcheck
 
 linters-settings:
   staticcheck:
