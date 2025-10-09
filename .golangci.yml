@@ -1,0 +1,15 @@
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gofmt
+    - goimports
+
+linters-settings:
+  staticcheck:
+    checks: ["all", "-SA1019"]
+

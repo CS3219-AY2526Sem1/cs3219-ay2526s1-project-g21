@@ -16,12 +16,7 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Vet ${{ matrix.service }}
-        run: |
-          echo "==> go vet ${{ matrix.service }}"
-          (cd "${{ matrix.service }}" && go vet ./...)
-
-      - name: Lint ${{ matrix.service }}
+      - name: Type check and lint ${{ matrix.service }}
         uses: golangci/golangci-lint-action@v5
         with:
           version: v1.64.8
