@@ -6,27 +6,27 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [services/collab, services/match, services/question, services/user]
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-      - name: Type check all services
+
+      - name: Type check and lint ${{ matrix.service }}
+        uses: golangci/golangci-lint-action@v5
+        with:
+          version: v1.64.8
+          working-directory: ${{ matrix.service }}
+          args: --timeout=5m --out-format=colored-line-number
+
+      - name: Test ${{ matrix.service }}
         run: |
-          for d in services/*; do
-            if ls "$d"/*.go >/dev/null 2>&1; then
-              echo "==> go vet $d"
-              (cd "$d" && go vet ./...)
-            else
-              echo "==> Skipping $d (no Go files)"
-            fi
-          done
-      - name: Test all services
-        run: |
-          for d in services/*; do
-            echo "==> Testing $d"
-            (cd "$d" && go test ./...)
-          done
+          echo "==> go test ${{ matrix.service }}"
+          (cd "${{ matrix.service }}" && go test ./...)
 
   docker-build:
     runs-on: ubuntu-latest

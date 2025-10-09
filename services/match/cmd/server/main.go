@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 // --- Models ---
 type JoinReq struct {
 	UserID     string `json:"userId"`
-	Category      string `json:"category"`
+	Category   string `json:"category"`
 	Difficulty string `json:"difficulty"`
 }
 
@@ -35,10 +35,10 @@ type Resp struct {
 }
 
 type MatchEvent struct {
-	MatchId string `json:"matchId"`
-	User1 string `json:"user1"`
-	User2 string `json:"user2"`
-	Category string `json:"category"`
+	MatchId    string `json:"matchId"`
+	User1      string `json:"user1"`
+	User2      string `json:"user2"`
+	Category   string `json:"category"`
 	Difficulty string `json:"difficulty"`
 }
 
@@ -153,7 +153,7 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 
 	matchID := uuid.New().String()
 	match := MatchEvent{
-		MatchId: matchID,
+		MatchId:    matchID,
 		User1:      u1,
 		User2:      u2,
 		Category:   req.Category,
@@ -166,7 +166,7 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 		"id":         matchID,
 		"user1":      u1,
 		"user2":      u2,
-		"category":      req.Category,
+		"category":   req.Category,
 		"difficulty": req.Difficulty,
 		"created_at": time.Now().Format(time.RFC3339),
 	})
