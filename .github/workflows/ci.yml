@@ -25,8 +25,11 @@ jobs:
         uses: golangci/golangci-lint-action@v5
         with:
           version: v1.64.8
-          working-directory: services/
+          working-directory: ${{ matrix.service }}
         continue-on-error: false
+        strategy:
+          matrix:
+            service: [services/collab, services/match, services/question, services/user]
       - name: Test all services
         run: |
           for d in services/*; do
