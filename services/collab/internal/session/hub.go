@@ -26,3 +26,14 @@ func (h *Hub) Delete(id string) {
 	defer h.mu.Unlock()
 	delete(h.rooms, id)
 }
+
+func (h *Hub) GetDoc(sessionID string) (string, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	room, ok := h.rooms[sessionID]
+	if !ok {
+		return "", false
+	}
+	doc, _ := room.Snapshot()
+	return doc.Text, true
+}

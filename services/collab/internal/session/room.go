@@ -49,6 +49,16 @@ func (r *Room) SetLanguage(l models.Language) {
 	r.language = l
 }
 
+func (r *Room) BootstrapDoc(template string) models.DocState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.doc.Text == "" && template != "" {
+		r.doc.Text = template
+		r.doc.Version++
+	}
+	return r.doc
+}
+
 func (r *Room) ApplyEdit(e models.Edit) (ok bool, newDoc models.DocState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

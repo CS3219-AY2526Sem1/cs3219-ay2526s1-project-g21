@@ -35,10 +35,14 @@ func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
-	resp := []models.LanguageSpec{
-		{Name: models.LangPython, FileName: "main.py", DefaultTabSize: 4, Formatter: []string{"black"}},
-		{Name: models.LangJava, FileName: "Main.java", DefaultTabSize: 4, Formatter: []string{"google-java-format"}},
-		{Name: models.LangCPP, FileName: "main.cpp", DefaultTabSize: 2, Formatter: []string{"clang-format"}},
+	languages := []models.Language{models.LangPython, models.LangJava, models.LangCPP}
+	resp := make([]models.LanguageSpec, 0, len(languages))
+	for _, lang := range languages {
+		spec, _, _, _, err := h.runner.LangSpecPublic(lang)
+		if err != nil {
+			continue
+		}
+		resp = append(resp, spec)
 	}
 	writeJSON(w, resp)
 }
@@ -122,6 +126,12 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		room.SetLanguage(initReq.Language)
 	}
 	doc, lang := room.Snapshot()
+	if doc.Text == "" {
+		spec, _, _, _, specErr := h.runner.LangSpecPublic(lang)
+		if specErr == nil && spec.ExampleTemplate != "" {
+			doc = room.BootstrapDoc(spec.ExampleTemplate)
+		}
+	}
 	_ = conn.WriteJSON(models.WSFrame{
 		Type: "init",
 		Data: models.InitResponse{
@@ -163,6 +173,16 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			marshal(frame.Data, &ch)
 			room.Broadcast(client, models.WSFrame{Type: "chat", Data: ch})
 
+		case "language":
+			var langChange models.LanguageChange
+			marshal(frame.Data, &langChange)
+			if langChange.Language == "" {
+				continue
+			}
+			room.SetLanguage(langChange.Language)
+			room.Broadcast(client, models.WSFrame{Type: "language", Data: langChange.Language})
+			_ = conn.WriteJSON(models.WSFrame{Type: "language", Data: langChange.Language})
+
 		case "run":
 			var run models.RunCmd
 			marshal(frame.Data, &run)
@@ -196,7 +216,7 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 		return
 	}
 
-	exit, timedOut, _ := sbx.Run(
+	exit, timedOut, runErr := sbx.Run(
 		ctx,
 		fileNameFromLang(run.Language),
 		[]byte(run.Code),
@@ -204,6 +224,10 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stdout", Data: string(p)}) },
 		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stderr", Data: string(p)}) },
 	)
+	if runErr != nil {
+		h.log.Error("sandbox run failed", "language", run.Language, "error", runErr.Error())
+		_ = conn.WriteJSON(errFrame("sandbox_error: " + runErr.Error()))
+	}
 	_ = conn.WriteJSON(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
 }
 

@@ -56,43 +56,46 @@ func (r *Runner) langSpec(lang models.Language) (models.LanguageSpec, string, st
 	switch lang {
 	case models.LangPython:
 		return models.LanguageSpec{
-				Name:           lang,
-				FileName:       "main.py",
-				RunCmd:         []string{"python3", "main.py"},
-				DefaultTabSize: 4,
-				Formatter:      []string{"black"},
+				Name:            lang,
+				FileName:        "main.py",
+				RunCmd:          []string{"python3", "main.py"},
+				DefaultTabSize:  4,
+				Formatter:       []string{"black"},
+				ExampleTemplate: "print(\"Hello from Python!\")\n",
 			},
-			"peerprep/python:latest",
+			"python:3.11-slim",
 			"main.py",
 			[][]string{{"python3", "main.py"}},
 			nil
 
 	case models.LangJava:
 		return models.LanguageSpec{
-				Name:           lang,
-				FileName:       "Main.java",
-				CompileCmd:     []string{"javac", "Main.java"},
-				ExecCmd:        []string{"bash", "-lc", "java Main"},
-				DefaultTabSize: 4,
-				Formatter:      []string{"google-java-format"},
+				Name:            lang,
+				FileName:        "Main.java",
+				CompileCmd:      []string{"javac", "Main.java"},
+				ExecCmd:         []string{"/bin/sh", "-c", "java Main"},
+				DefaultTabSize:  4,
+				Formatter:       []string{"google-java-format"},
+				ExampleTemplate: "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello from Java!\");\n    }\n}\n",
 			},
-			"peerprep/java:latest",
+			"eclipse-temurin:17-jdk",
 			"Main.java",
-			[][]string{{"javac", "Main.java"}, {"bash", "-lc", "java Main"}},
+			[][]string{{"javac", "Main.java"}, {"/bin/sh", "-c", "java Main"}},
 			nil
 
 	case models.LangCPP:
 		return models.LanguageSpec{
-				Name:           lang,
-				FileName:       "main.cpp",
-				CompileCmd:     []string{"bash", "-lc", "g++ -O2 -std=c++17 main.cpp -o main"},
-				ExecCmd:        []string{"./main"},
-				DefaultTabSize: 2,
-				Formatter:      []string{"clang-format"},
+				Name:            lang,
+				FileName:        "main.cpp",
+				CompileCmd:      []string{"g++", "-O2", "-std=c++17", "main.cpp", "-o", "main"},
+				ExecCmd:         []string{"./main"},
+				DefaultTabSize:  2,
+				Formatter:       []string{"clang-format"},
+				ExampleTemplate: "#include <iostream>\n\nint main() {\n    std::cout << \"Hello from C++!\" << std::endl;\n    return 0;\n}\n",
 			},
-			"peerprep/cpp:latest",
+			"gcc:13",
 			"main.cpp",
-			[][]string{{"bash", "-lc", "g++ -O2 -std=c++17 main.cpp -o main"}, {"./main"}},
+			[][]string{{"g++", "-O2", "-std=c++17", "main.cpp", "-o", "main"}, {"./main"}},
 			nil
 	default:
 		return models.LanguageSpec{}, "", "", nil, errors.New("unsupported language")

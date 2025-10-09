@@ -37,7 +37,9 @@ type FormatRequest struct {
 	Code     string   `json:"code"`
 }
 
-type FormatResponse struct{ Formatted string `json:"formatted"` }
+type FormatResponse struct {
+	Formatted string `json:"formatted"`
+}
 
 /*** Collaboration session state ***/
 type DocState struct {
@@ -46,7 +48,7 @@ type DocState struct {
 }
 
 type WSFrame struct {
-	Type string      `json:"type"` // "init","edit","cursor","chat","run","stdout","stderr","exit","error","doc"
+	Type string      `json:"type"` // "init","edit","cursor","chat","run","language","stdout","stderr","exit","error","doc"
 	Data interface{} `json:"data"`
 }
 
@@ -82,4 +84,8 @@ type RunCmd struct {
 	Language Language `json:"language"`
 	Code     string   `json:"code"`
 	Stdin    string   `json:"stdin,omitempty"`
+}
+
+type LanguageChange struct {
+	Language Language `json:"language"`
 }

@@ -1,15 +1,15 @@
 package exec
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
-	// "io"
+	"fmt"
+	"io"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
@@ -40,13 +40,13 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 	ctx, cancel := context.WithTimeout(ctx, s.limits.WallTime)
 	defer cancel()
 
+	if err := s.ensureImage(ctx); err != nil {
+		return -1, false, err
+	}
+
 	hostCfg := &container.HostConfig{
 		NetworkMode:    "none",
-		ReadonlyRootfs: true,
-		Mounts: []mount.Mount{
-			{Type: mount.TypeTmpfs, Target: "/tmp"},
-			{Type: mount.TypeTmpfs, Target: "/workspace"},
-		},
+		ReadonlyRootfs: false,
 		Resources: container.Resources{
 			Memory:   s.limits.MemoryB,
 			NanoCPUs: s.limits.NanoCPUs,
@@ -57,16 +57,17 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 
 	conf := &container.Config{
 		Image:        s.image,
-		Cmd:          []string{"bash", "-lc", "sleep infinity"},
+		Cmd:          []string{"/bin/sh", "-c", "sleep infinity"},
 		Tty:          false,
 		AttachStdout: false,
 		AttachStderr: false,
 		WorkingDir:   "/workspace",
+		Env:          []string{"PYTHONDONTWRITEBYTECODE=1"},
 	}
 
 	create, err := s.cli.ContainerCreate(ctx, conf, hostCfg, nil, nil, "")
 	if err != nil {
-		return 0, false, err
+		return -1, false, err
 	}
 	cid := create.ID
 	defer func() {
@@ -74,13 +75,13 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 	}()
 
 	if err := s.cli.ContainerStart(ctx, cid, types.ContainerStartOptions{}); err != nil {
-		return 0, false, err
+		return -1, false, err
 	}
 
 	// Copy code file
 	if err := s.copyFile(ctx, cid, "/workspace/"+fileName, code, 0600); err != nil {
 		_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-		return 0, false, err
+		return -1, false, err
 	}
 
 	// Run steps (compile -> run)
@@ -88,7 +89,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 		execID, attachCloser, err := s.execStart(ctx, cid, cmd)
 		if err != nil {
 			_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-			return 0, false, err
+			return -1, false, err
 		}
 
 		// Demux multiplexed docker stream
@@ -102,7 +103,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 		ir, ierr := s.cli.ContainerExecInspect(ctx, execID)
 		if ierr != nil {
 			_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-			return 0, false, ierr
+			return -1, false, ierr
 		}
 
 		if ir.ExitCode != 0 {
@@ -113,6 +114,25 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 		}
 	}
 	return 0, false, nil
+}
+
+func (s *Sandbox) ensureImage(ctx context.Context) error {
+	_, _, err := s.cli.ImageInspectWithRaw(ctx, s.image)
+	if err == nil {
+		return nil
+	}
+	if client.IsErrNotFound(err) {
+		pullCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		reader, pullErr := s.cli.ImagePull(pullCtx, s.image, types.ImagePullOptions{})
+		if pullErr != nil {
+			return pullErr
+		}
+		defer reader.Close()
+		_, _ = io.Copy(io.Discard, reader)
+		return nil
+	}
+	return err
 }
 
 func (s *Sandbox) execStart(ctx context.Context, containerID string, cmd []string) (execID string, attach types.HijackedResponse, err error) {
@@ -138,22 +158,81 @@ func (s *Sandbox) execStart(ctx context.Context, containerID string, cmd []strin
 }
 
 func (s *Sandbox) copyFile(ctx context.Context, cid, absPath string, content []byte, mode int64) error {
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	if err := tw.WriteHeader(&tar.Header{
-		Name: absPath[1:],
-		Mode: mode,
-		Size: int64(len(content)),
-	}); err != nil {
+	if absPath == "" || !strings.HasPrefix(absPath, "/") {
+		return fmt.Errorf("invalid path %q", absPath)
+	}
+	dir := path.Dir(absPath)
+	if err := s.runCommand(ctx, cid, fmt.Sprintf("mkdir -p %s", shellQuote(dir))); err != nil {
 		return err
 	}
-	if _, err := tw.Write(content); err != nil {
+	writeCmd := fmt.Sprintf("cat > %s", shellQuote(absPath))
+	if err := s.execWithInput(ctx, cid, writeCmd, content); err != nil {
 		return err
 	}
-	if err := tw.Close(); err != nil {
+	return s.runCommand(ctx, cid, fmt.Sprintf("chmod %o %s", mode&0o777, shellQuote(absPath)))
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+func (s *Sandbox) runCommand(ctx context.Context, cid, cmd string) error {
+	execID, attach, err := s.execStart(ctx, cid, []string{"/bin/sh", "-c", cmd})
+	if err != nil {
 		return err
 	}
-	return s.cli.CopyToContainer(ctx, cid, "/", &buf, types.CopyToContainerOptions{})
+	_, _ = stdcopy.StdCopy(io.Discard, io.Discard, attach.Reader)
+	attach.Close()
+	inspect, err := s.cli.ContainerExecInspect(ctx, execID)
+	if err != nil {
+		return err
+	}
+	if inspect.ExitCode != 0 {
+		return fmt.Errorf("command failed (%s) exit=%d", cmd, inspect.ExitCode)
+	}
+	return nil
+}
+
+func (s *Sandbox) execWithInput(ctx context.Context, cid, command string, payload []byte) error {
+	execResp, err := s.cli.ContainerExecCreate(ctx, cid, types.ExecConfig{
+		Cmd:          []string{"/bin/sh", "-c", command},
+		WorkingDir:   "/workspace",
+		AttachStdout: true,
+		AttachStderr: true,
+		AttachStdin:  true,
+		Tty:          false,
+	})
+	if err != nil {
+		return err
+	}
+	attach, err := s.cli.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{Tty: false})
+	if err != nil {
+		return err
+	}
+	defer attach.Close()
+	if err := s.cli.ContainerExecStart(ctx, execResp.ID, types.ExecStartCheck{Tty: false}); err != nil {
+		return err
+	}
+	if len(payload) > 0 {
+		if _, err := attach.Conn.Write(payload); err != nil {
+			return err
+		}
+	}
+	if closer, ok := attach.Conn.(interface{ CloseWrite() error }); ok {
+		_ = closer.CloseWrite()
+	}
+	_, _ = stdcopy.StdCopy(io.Discard, io.Discard, attach.Reader)
+	inspect, err := s.cli.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return err
+	}
+	if inspect.ExitCode != 0 {
+		return fmt.Errorf("write failed (%s) exit=%d", command, inspect.ExitCode)
+	}
+	return nil
 }
 
 type writerFunc func([]byte)
