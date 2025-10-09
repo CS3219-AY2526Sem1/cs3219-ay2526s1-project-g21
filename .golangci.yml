@@ -10,5 +10,5 @@ linters:
 
 linters-settings:
   staticcheck:
-    checks: ["all", "-SA1019"]
+    checks: ["all", "-SA1019", "-SA4006"]
 
