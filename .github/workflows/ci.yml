@@ -21,6 +21,11 @@ jobs:
               echo "==> Skipping $d (no Go files)"
             fi
           done
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v5
+        with:
+          version: latest # Or specify a fixed version like 'v1.54.2'
+          args: --timeout=5m
       - name: Test all services
         run: |
           for d in services/*; do
