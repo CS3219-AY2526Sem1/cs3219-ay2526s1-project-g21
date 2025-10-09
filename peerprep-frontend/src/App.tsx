@@ -6,7 +6,6 @@ import InterviewLobby from "@/pages/InterviewLobby";
 import SignUp from "@/pages/SignUp";
 import Forgot from "@/pages/Forgot";
 import Account from "@/pages/Account";
-import MatchPage from "@/pages/Test";
 import Editor from "@/pages/Editor";
 import { useAuth } from "@/context/AuthContext";
 import { Toaster } from 'react-hot-toast'
