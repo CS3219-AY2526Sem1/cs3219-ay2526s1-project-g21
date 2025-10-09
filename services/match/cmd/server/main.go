@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -127,9 +127,9 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 	// Add user to queues
 	now := float64(time.Now().Unix())
 	pipe := rdb.TxPipeline()
-	pipe.ZAdd(ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), &redis.Z{Score: now, Member: req.UserID})
-	pipe.ZAdd(ctx, fmt.Sprintf("queue:%s", req.Category), &redis.Z{Score: now, Member: req.UserID})
-	pipe.ZAdd(ctx, "queue:all", &redis.Z{Score: now, Member: req.UserID})
+	pipe.ZAdd(ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), redis.Z{Score: now, Member: req.UserID})
+	pipe.ZAdd(ctx, fmt.Sprintf("queue:%s", req.Category), redis.Z{Score: now, Member: req.UserID})
+	pipe.ZAdd(ctx, "queue:all", redis.Z{Score: now, Member: req.UserID})
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, Resp{OK: false, Info: "redis error"})

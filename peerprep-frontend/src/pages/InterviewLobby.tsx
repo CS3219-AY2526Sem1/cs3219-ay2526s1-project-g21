@@ -113,10 +113,10 @@ export default function InterviewLobby() {
         ws.onmessage = (event) => {
             try {
                 const data: MatchEvent = JSON.parse(event.data);
-
-                if (data.user1 === user?.id || data.user2 === user?.id) {
+                console.log(data);
+                if (data.user1 == user?.id || data.user2 == user?.id) {
                     const matchId = data.matchId;
-                    const otherUserId = data.user1 === user?.id ? data.user2 : data.user1;
+                    const otherUserId = data.user1 == user?.id ? data.user2 : data.user1;
 
                     const matchMessage = `Matched with user ${otherUserId} for ${data.category} (${data.difficulty}). Room ID: ${matchId}`;
 
