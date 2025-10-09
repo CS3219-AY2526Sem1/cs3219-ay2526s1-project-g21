@@ -1,0 +1,119 @@
+{
+	"info": {
+		"_postman_id": "29b29c7e-70f4-406b-a343-5243fc1bb88d",
+		"name": "PeerPrep Question Service - MVP Tests",
+		"description": "Postman test suite for all Question Service endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "28083579"
+	},
+	"item": [
+		{
+			"name": "Health Check - /healthz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:8080/healthz"
+			},
+			"response": []
+		},
+		{
+			"name": "Readiness Check - /readyz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:8080/readyz"
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Questions (Empty List)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:8080/questions"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Question",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"test\",\n  \"difficulty\": \"Easy\",\n  \"random_field\": \"invalid\"\n}"
+				},
+				"url": "http://localhost:8080/questions"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Question Invalid",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "invalid json"
+				},
+				"url": "http://localhost:8080/questions"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Question by ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:8080/questions/test-id"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Question",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"title\": \"updated\",\n  \"difficulty\": \"Hard\"\n}"
+				},
+				"url": "http://localhost:8080/questions/test-id"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:8080/questions/random"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Question",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": "http://localhost:8080/questions/test-id"
+			},
+			"response": []
+		}
+	]
+}
