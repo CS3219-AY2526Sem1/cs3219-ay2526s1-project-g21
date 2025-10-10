@@ -49,6 +49,7 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 	return &QuestionRepository{col: col}, nil
 }
 
+// Get all questions
 func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -66,6 +67,7 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 	return results, nil
 }
 
+// Get question by ID
 func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -78,6 +80,7 @@ func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
 	return &q, nil
 }
 
+// Create a new question
 func (r *QuestionRepository) Create(question *models.Question) (*models.Question, error) {
 	if question.Title == "" {
 		return nil, errors.New("title required")
@@ -95,6 +98,7 @@ func (r *QuestionRepository) Create(question *models.Question) (*models.Question
 	return question, nil
 }
 
+// Update an existing question
 func (r *QuestionRepository) Update(id string, question *models.Question) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -110,6 +114,7 @@ func (r *QuestionRepository) Update(id string, question *models.Question) (*mode
 	return &updated, nil
 }
 
+// Delete a question by ID
 func (r *QuestionRepository) Delete(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -118,7 +123,30 @@ func (r *QuestionRepository) Delete(id string) error {
 	return err
 }
 
+// Get a random question
 func (r *QuestionRepository) GetRandom() (*models.Question, error) {
-	// return error to match current stub behavior
-	return nil, errors.New("no eligible question found")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// aggregation pipeline to get a random document
+	pipeline := []bson.M{
+		{"$sample": bson.M{"size": 1}},
+	}
+
+	cursor, err := r.col.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var questions []models.Question
+	if err := cursor.All(ctx, &questions); err != nil {
+		return nil, err
+	}
+
+	if len(questions) == 0 {
+		return nil, errors.New("no eligible question found")
+	}
+
+	return &questions[0], nil
 }

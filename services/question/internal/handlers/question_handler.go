@@ -122,7 +122,7 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
-	_, err := handler.repository.GetRandom()
+	question, err := handler.repository.GetRandom()
 	if err != nil {
 		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 			Code:    "no_eligible_question",
@@ -130,4 +130,6 @@ func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWri
 		})
 		return
 	}
+
+	utils.JSON(writer, http.StatusOK, question)
 }
