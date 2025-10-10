@@ -12,7 +12,7 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
-      <td className="px-6 py-4 text-sm text-gray-600">{question.topic_tags.join(", ")}</td>
+      <td className="px-6 py-4 text-sm text-gray-600">{question.topic_tags?.join(", ") || "No topics"}</td>
       <td className={`px-6 py-4 text-sm font-medium ${getDifficultyColor(question.difficulty)}`}>
         {question.difficulty}
       </td>
