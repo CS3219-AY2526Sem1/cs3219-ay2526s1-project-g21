@@ -128,25 +128,32 @@ func (r *QuestionRepository) GetRandom() (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// aggregation pipeline to get a random document
-	pipeline := []bson.M{
-		{"$sample": bson.M{"size": 1}},
+	// 1) only consider active questions
+	// 2) pick one random document
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"status": "active"}}},
+		{{"$sample", bson.M{"size": 1}}},
 	}
 
 	cursor, err := r.col.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
+	defer func() { _ = cursor.Close(ctx) }()
 
-	var questions []models.Question
-	if err := cursor.All(ctx, &questions); err != nil {
-		return nil, err
-	}
-
-	if len(questions) == 0 {
+	// advance to the first document (if any)
+	if !cursor.Next(ctx) {
+		// check for cursor errors, otherwise report no docs found
+		if cursorErr := cursor.Err(); cursorErr != nil {
+			return nil, cursorErr
+		}
 		return nil, errors.New("no eligible question found")
 	}
 
-	return &questions[0], nil
+	var picked models.Question
+	if err := cursor.Decode(&picked); err != nil {
+		return nil, err
+	}
+
+	return &picked, nil
 }
