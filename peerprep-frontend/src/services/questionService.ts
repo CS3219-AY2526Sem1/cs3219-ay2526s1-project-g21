@@ -1,118 +1,157 @@
 import type { Question } from "@/types/question";
+import { getAllQuestions } from "@/api/questions";
 
 const mockQuestions: Question[] = [
   {
-    id: 1,
+    id: "1",
     title: "Jungwoo and Bananas",
-    topic: "Greedy",
+    topic_tags: ["Greedy"],
     difficulty: "Hard",
-    status: "Unsolved"
+    status: "active",
+    prompt_markdown: "# Jungwoo and Bananas\n\nSolve this greedy problem...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    id: 2,
+    id: "2", 
     title: "Find Duplicate Peak Element in Array",
-    topic: "Binary Search",
+    topic_tags: ["Binary Search"],
     difficulty: "Medium",
-    status: "Attempted"
+    status: "active",
+    prompt_markdown: "# Find Duplicate Peak Element\n\nUse binary search to find...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    id: 3,
-    title: "House Robbers I",
-    topic: "Dynamic Programming",
+    id: "3",
+    title: "House Robbers I", 
+    topic_tags: ["Dynamic Programming"],
     difficulty: "Easy",
-    status: "Unsolved"
+    status: "active",
+    prompt_markdown: "# House Robbers\n\nYou are a professional robber...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    id: 4,
+    id: "4",
     title: "Gas Stations",
-    topic: "Dynamic Programming",
-    difficulty: "Medium",
-    status: "Unsolved"
+    topic_tags: ["Dynamic Programming"],
+    difficulty: "Medium", 
+    status: "active",
+    prompt_markdown: "# Gas Stations\n\nFind the optimal gas station...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    id: 5,
+    id: "5",
     title: "Reverse a Linked List",
-    topic: "Linked List",
+    topic_tags: ["Linked List"], 
     difficulty: "Hard",
-    status: "Solved"
+    status: "active",
+    prompt_markdown: "# Reverse Linked List\n\nReverse a singly linked list...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
-    id: 6,
-    title: "Minimum Triangulation Score of Polygon",
-    topic: "Math",
-    difficulty: "Medium",
-    status: "Unsolved"
-  },
-  {
-    id: 7,
+    id: "6",
     title: "Two Sum",
-    topic: "Hash Table",
+    topic_tags: ["Hash Table"],
     difficulty: "Easy",
-    status: "Solved"
+    status: "active", 
+    prompt_markdown: "# Two Sum\n\nGiven an array of integers...",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   // TODO: Extra data to be used later for testing pagination... 
   // {
-  //   id: 8,
+  //   id: "8",
   //   title: "Valid Parentheses",
-  //   topic: "Stack",
+  //   topic_tags: ["Stack"],
   //   difficulty: "Easy",
-  //   status: "Solved"
+  //   status: "active",
+  //   prompt_markdown: "# Valid Parentheses\n\nGiven a string containing just the characters...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 9,
+  //   id: "9",
   //   title: "Merge Two Sorted Lists",
-  //   topic: "Linked List",
+  //   topic_tags: ["Linked List"],
   //   difficulty: "Easy",
-  //   status: "Attempted"
+  //   status: "active",
+  //   prompt_markdown: "# Merge Two Sorted Lists\n\nYou are given the heads of two sorted linked lists...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 10,
+  //   id: "10",
   //   title: "Best Time to Buy and Sell Stock",
-  //   topic: "Array",
+  //   topic_tags: ["Array"],
   //   difficulty: "Easy",
-  //   status: "Unsolved"
+  //   status: "active",
+  //   prompt_markdown: "# Best Time to Buy and Sell Stock\n\nYou are given an array prices...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 11,
+  //   id: "11",
   //   title: "Maximum Subarray",
-  //   topic: "Dynamic Programming",
+  //   topic_tags: ["Dynamic Programming"],
   //   difficulty: "Medium",
-  //   status: "Solved"
+  //   status: "active",
+  //   prompt_markdown: "# Maximum Subarray\n\nGiven an integer array nums...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 12,
+  //   id: "12",
   //   title: "Climbing Stairs",
-  //   topic: "Dynamic Programming",
+  //   topic_tags: ["Dynamic Programming"],
   //   difficulty: "Easy",
-  //   status: "Solved"
+  //   status: "active",
+  //   prompt_markdown: "# Climbing Stairs\n\nYou are climbing a staircase...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 13,
+  //   id: "13",
   //   title: "Binary Tree Inorder Traversal",
-  //   topic: "Tree",
+  //   topic_tags: ["Tree"],
   //   difficulty: "Easy",
-  //   status: "Attempted"
+  //   status: "active",
+  //   prompt_markdown: "# Binary Tree Inorder Traversal\n\nGiven the root of a binary tree...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 14,
+  //   id: "14",
   //   title: "Symmetric Tree",
-  //   topic: "Tree",
+  //   topic_tags: ["Tree"],
   //   difficulty: "Easy",
-  //   status: "Unsolved"
+  //   status: "active",
+  //   prompt_markdown: "# Symmetric Tree\n\nGiven the root of a binary tree...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // },
   // {
-  //   id: 15,
+  //   id: "15",
   //   title: "Maximum Depth of Binary Tree",
-  //   topic: "Tree",
+  //   topic_tags: ["Tree"],
   //   difficulty: "Easy",
-  //   status: "Solved"
+  //   status: "active",
+  //   prompt_markdown: "# Maximum Depth of Binary Tree\n\nGiven the root of a binary tree...",
+  //   created_at: new Date().toISOString(),
+  //   updated_at: new Date().toISOString(),
   // }
 ];
 
-// send back mock data for now.
-// TODO: Future API implementation - update when microservice is ready
 export const getQuestions = async (): Promise<Question[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return mockQuestions;
+  try {
+    const response = await getAllQuestions();
+    return response.items;
+  } catch (error) {
+    console.warn("Failed to fetch questions from API, falling back to mock data:", error);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return mockQuestions;
+  }
 };

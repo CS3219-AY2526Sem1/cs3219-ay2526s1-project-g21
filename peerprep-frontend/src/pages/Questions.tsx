@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ExternalLink, Flag } from "lucide-react";
 import type { Question } from "@/types/question";
-import { getDifficultyColor, getStatusColor } from "@/utils/questionUtils";
+import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
 
 interface QuestionsTableRowProps {
@@ -12,12 +12,12 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
-      <td className="px-6 py-4 text-sm text-gray-600">{question.topic}</td>
+      <td className="px-6 py-4 text-sm text-gray-600">{question.topic_tags.join(", ")}</td>
       <td className={`px-6 py-4 text-sm font-medium ${getDifficultyColor(question.difficulty)}`}>
         {question.difficulty}
       </td>
-      <td className={`px-6 py-4 text-sm font-medium ${getStatusColor(question.status)}`}>
-        {question.status}
+      <td className="px-6 py-4 text-sm font-medium text-gray-500">
+        Unsolved
       </td>
       <td className="px-6 py-4 text-sm">
         <div className="flex items-center gap-2">
