@@ -131,8 +131,8 @@ func (r *QuestionRepository) GetRandom() (*models.Question, error) {
 	// 1) only consider active questions
 	// 2) pick one random document
 	pipeline := mongo.Pipeline{
-		{{"$match", bson.M{"status": "active"}}},
-		{{"$sample", bson.M{"size": 1}}},
+		bson.D{{Key: "$match", Value: bson.M{"status": "active"}}},
+		bson.D{{Key: "$sample", Value: bson.M{"size": 1}}},
 	}
 
 	cursor, err := r.col.Aggregate(ctx, pipeline)
