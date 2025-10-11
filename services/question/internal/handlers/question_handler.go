@@ -107,9 +107,18 @@ func (handler *QuestionHandler) UpdateQuestionHandler(writer http.ResponseWriter
 }
 
 func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
 	id := chi.URLParam(request, "id")
 
 	if err := handler.repository.Delete(id); err != nil {
+		if err.Error() == "question not found" {
+			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+				Code:    "question_not_found",
+				Message: "Question not found",
+			})
+			return
+		}
+		
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
 			Message: "Failed to delete question",
@@ -117,7 +126,9 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	writer.WriteHeader(http.StatusNoContent)
+	utils.JSON(writer, http.StatusOK, map[string]string{
+		"message": "Question deleted successfully",
+	})
 }
 
 func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWriter, request *http.Request) {
