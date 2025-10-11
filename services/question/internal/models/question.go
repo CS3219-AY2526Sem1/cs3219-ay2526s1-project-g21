@@ -3,16 +3,16 @@ package models
 import "time"
 
 type Question struct {
-	ID             string     `json:"id" bson:"id"`                                     // uuid, can also be number
-	Title          string     `json:"title" bson:"title"`                               // question title
-	Difficulty     Difficulty `json:"difficulty" bson:"difficulty"`                     // enum
+	ID             string     `json:"id" bson:"id"`                                                         // uuid, can also be number
+	Title          string     `json:"title" bson:"title"`                                                   // question title
+	Difficulty     Difficulty `json:"difficulty" bson:"difficulty"`                                         // enum
 	TopicTags      []string   `json:"topic_tags,omitempty" bson:"topic_tags,omitempty" validate:"max=10"`
 	PromptMarkdown string     `json:"prompt_markdown" bson:"prompt_markdown"`
 	Constraints    string     `json:"constraints,omitempty" bson:"constraints,omitempty"`
 	TestCases      []TestCase `json:"test_cases,omitempty" bson:"test_cases,omitempty"`
 	ImageURLs      []string   `json:"image_urls,omitempty" bson:"image_urls,omitempty" validate:"max=5"` // optional; need to validate urls when used
 
-	Status           Status     `json:"status,omitempty" bson:"status,omitempty"`                 // active or deprecated. read the struct for more deets
+	Status           Status     `json:"status,omitempty" bson:"status,omitempty"`                   // active or deprecated. read the struct for more deets
 	Author           string     `json:"author,omitempty" bson:"author,omitempty"`
 	CreatedAt        time.Time  `json:"created_at" bson:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at" bson:"updated_at"`
