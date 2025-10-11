@@ -140,7 +140,7 @@ func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWri
 
 	// validate difficulty if provided
 	if difficulty != "" {
-		if difficulty != "Easy" && difficulty != "Medium" && difficulty != "Hard" {
+		if difficulty != string(models.Easy) && difficulty != string(models.Medium) && difficulty != string(models.Hard) {
 			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
 				Code:    "invalid_difficulty",
 				Message: "difficulty must be one of: Easy, Medium, Hard",
