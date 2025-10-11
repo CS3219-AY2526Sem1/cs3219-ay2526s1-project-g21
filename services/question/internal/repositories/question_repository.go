@@ -123,15 +123,28 @@ func (r *QuestionRepository) Delete(id string) error {
 	return err
 }
 
-// Get a random question
-func (r *QuestionRepository) GetRandom() (*models.Question, error) {
+// Get a random question with optional filters
+func (r *QuestionRepository) GetRandom(topics []string, difficulty string) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 1) only consider active questions
+	// build match criteria
+	matchCriteria := bson.M{"status": "active"}
+
+	// add difficulty filter if provided
+	if difficulty != "" {
+		matchCriteria["difficulty"] = difficulty
+	}
+
+	// add topic filter if provided
+	if len(topics) > 0 {
+		matchCriteria["topic_tags"] = bson.M{"$in": topics}
+	}
+
+	// 1) only consider active questions with optional filters
 	// 2) pick one random document
 	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"status": "active"}}},
+		bson.D{{Key: "$match", Value: matchCriteria}},
 		bson.D{{Key: "$sample", Value: bson.M{"size": 1}}},
 	}
 

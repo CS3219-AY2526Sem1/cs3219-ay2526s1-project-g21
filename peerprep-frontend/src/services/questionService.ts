@@ -1,5 +1,5 @@
-import type { Question } from "@/types/question";
-import { getAllQuestions } from "@/api/questions";
+import type { Question, RandomQuestionFilters } from "@/types/question";
+import { getAllQuestions, getRandomQuestion } from "@/api/questions";
 
 const mockQuestions: Question[] = [
   {
@@ -154,4 +154,8 @@ export const getQuestions = async (): Promise<Question[]> => {
     await new Promise(resolve => setTimeout(resolve, 100));
     return mockQuestions;
   }
+};
+
+export const getFilteredRandomQuestion = async (filters?: RandomQuestionFilters): Promise<Question> => {
+  return await getRandomQuestion(filters);
 };

@@ -23,3 +23,8 @@ export interface Question {
 
 export type Difficulty = Question["difficulty"];
 export type QuestionStatus = Question["status"];
+
+export interface RandomQuestionFilters {
+  difficulty?: Difficulty;
+  topics?: string[];
+}

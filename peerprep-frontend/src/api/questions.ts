@@ -1,4 +1,4 @@
-import { Question } from "@/types/question";
+import { Question, RandomQuestionFilters } from "@/types/question";
 
 // TODO: remove localhost call in prod
 const QUESTION_API_BASE = (import.meta as any).env?.VITE_QUESTION_API_BASE || "http://localhost:8082";
@@ -55,8 +55,26 @@ export async function questionApiFetch<T>(path: string, init?: RequestInit): Pro
   throw new Error("Response is not JSON");
 }
 
-export async function getRandomQuestion(): Promise<Question> {
-  return questionApiFetch<Question>("/questions/random");
+export async function getRandomQuestion(filters?: RandomQuestionFilters): Promise<Question> {
+  let path = "/questions/random";
+  
+  if (filters) {
+    const params = new URLSearchParams();
+    
+    if (filters.difficulty) {
+      params.append("difficulty", filters.difficulty);
+    }
+    
+    if (filters.topics && filters.topics.length > 0) {
+      params.append("topic", filters.topics.join(","));
+    }
+    
+    if (params.toString()) {
+      path += "?" + params.toString();
+    }
+  }
+  
+  return questionApiFetch<Question>(path);
 }
 
 export async function getAllQuestions(): Promise<{ total: number; items: Question[] }> {

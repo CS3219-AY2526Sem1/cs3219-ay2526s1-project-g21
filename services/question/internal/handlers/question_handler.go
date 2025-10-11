@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"peerprep/question/internal/models"
 	"peerprep/question/internal/repositories"
@@ -122,7 +123,32 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
-	question, err := handler.repository.GetRandom()
+	// parse query parameters
+	difficulty := request.URL.Query().Get("difficulty")
+	topicParam := request.URL.Query().Get("topic")
+
+	// validate difficulty if provided
+	if difficulty != "" {
+		if difficulty != "Easy" && difficulty != "Medium" && difficulty != "Hard" {
+			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+				Code:    "invalid_difficulty",
+				Message: "difficulty must be one of: Easy, Medium, Hard",
+			})
+			return
+		}
+	}
+
+	// parse topics (comma separated)
+	var topics []string
+	if topicParam != "" {
+		topics = strings.Split(topicParam, ",")
+		// trim whitespace from each topic
+		for i, topic := range topics {
+			topics[i] = strings.TrimSpace(topic)
+		}
+	}
+
+	question, err := handler.repository.GetRandom(topics, difficulty)
 	if err != nil {
 		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 			Code:    "no_eligible_question",

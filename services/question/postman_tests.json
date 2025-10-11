@@ -134,6 +134,166 @@
 			"response": []
 		},
 		{
+			"name": "Get Random Question - Filter by Difficulty (Easy)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Easy",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Easy"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Filter by Difficulty (Medium)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Medium",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Medium"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Filter by Difficulty (Hard)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Hard",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Hard"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Filter by Single Topic",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?topic=Array",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "topic",
+							"value": "Array"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Filter by Multiple Topics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?topic=Array,Hash Table",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "topic",
+							"value": "Array,Hash Table"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Filter by Difficulty and Topic",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Easy&topic=Array",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Easy"
+						},
+						{
+							"key": "topic",
+							"value": "Array"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - Invalid Difficulty",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Invalid",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Invalid"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Random Question - No Matching Filters",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/questions/random?difficulty=Hard&topic=NonExistentTopic",
+					"host": ["{{url}}"],
+					"path": ["questions", "random"],
+					"query": [
+						{
+							"key": "difficulty",
+							"value": "Hard"
+						},
+						{
+							"key": "topic",
+							"value": "NonExistentTopic"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Delete Question - LCS",
 			"request": {
 				"method": "DELETE",
