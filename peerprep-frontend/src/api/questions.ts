@@ -65,8 +65,8 @@ export async function getRandomQuestion(filters?: RandomQuestionFilters): Promis
       params.append("difficulty", filters.difficulty);
     }
     
-    if (filters.topics && filters.topics.length > 0) {
-      params.append("topic", filters.topics.join(","));
+    if (filters.topic_tags && filters.topic_tags.length > 0) {
+      params.append("topic", filters.topic_tags.join(","));
     }
     
     if (params.toString()) {

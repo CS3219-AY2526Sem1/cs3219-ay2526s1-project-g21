@@ -26,5 +26,5 @@ export type QuestionStatus = Question["status"];
 
 export interface RandomQuestionFilters {
   difficulty?: Difficulty;
-  topics?: string[];
+  topic_tags?: string[];
 }
