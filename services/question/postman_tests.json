@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "a67f4b31-ce80-4666-8cfe-5c88b63a21c1",
+		"_postman_id": "a6c753aa-312d-4c6a-9e43-2558a06133eb",
 		"name": "Question_service_tests",
 		"description": "Postman test suite for all Question Service endpoints.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
@@ -26,7 +26,7 @@
 			"response": []
 		},
 		{
-			"name": "Get All Questions (Empty List)",
+			"name": "Get All Questions (initial)",
 			"request": {
 				"method": "GET",
 				"header": [],
@@ -35,7 +35,7 @@
 			"response": []
 		},
 		{
-			"name": "Create Question",
+			"name": "Create Question - Duplicate ID",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -46,14 +46,14 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"id\": \"two-sum-001\",\n  \"title\": \"Two Sum\",\n  \"difficulty\": \"Easy\",\n  \"topic_tags\": [\"Array\", \"Hash Table\"],\n  \"prompt_markdown\": \"Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\\n\\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.\\n\\nYou can return the answer in any order.\",\n  \"constraints\": \"- 2 <= nums.length <= 10^4\\n- -10^9 <= nums[i] <= 10^9\\n- -10^9 <= target <= 10^9\\n- Only one valid answer exists.\",\n  \"test_cases\": [\n    {\n      \"input\": \"nums = [2,7,11,15], target = 9\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 9, we return [0, 1].\"\n    },\n    {\n      \"input\": \"nums = [3,2,4], target = 6\",\n      \"output\": \"[1,2]\",\n      \"description\": \"Because nums[1] + nums[2] == 6, we return [1, 2].\"\n    }\n  ],\n  \"image_urls\": [],\n  \"status\": \"active\",\n  \"author\": \"leetcode\"\n}"
+					"raw": "{\n  \"id\": \"1\",\n  \"title\": \"Two Sum\",\n  \"difficulty\": \"Easy\",\n  \"topic_tags\": [\"Array\", \"Hash Table\"],\n  \"prompt_markdown\": \"Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\\n\\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.\\n\\nYou can return the answer in any order.\",\n  \"constraints\": \"- 2 <= nums.length <= 10^4\\n- -10^9 <= nums[i] <= 10^9\\n- -10^9 <= target <= 10^9\\n- Only one valid answer exists.\",\n  \"test_cases\": [\n    {\n      \"input\": \"nums = [2,7,11,15], target = 9\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 9, we return [0, 1].\"\n    },\n    {\n      \"input\": \"nums = [3,2,4], target = 6\",\n      \"output\": \"[1,2]\",\n      \"description\": \"Because nums[1] + nums[2] == 6, we return [1, 2].\"\n    }\n  ],\n  \"image_urls\": [],\n  \"status\": \"active\",\n  \"author\": \"leetcode\"\n}"
 				},
 				"url": "{{url}}/questions"
 			},
 			"response": []
 		},
 		{
-			"name": "Create Question - Longest Common Subsequence",
+			"name": "Create Question - LCS",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -66,7 +66,7 @@
 					"mode": "raw",
 					"raw": "{\n  \"id\": \"lcs-1143\",\n  \"title\": \"Longest Common Subsequence\",\n  \"difficulty\": \"Medium\",\n  \"topic_tags\": [\"String\", \"Dynamic Programming\"],\n  \"prompt_markdown\": \"Given two strings `text1` and `text2`, return the length of their longest common subsequence. If there is no common subsequence, return `0`.\\n\\nA subsequence of a string is a new string generated from the original string with some characters (can be none) deleted without changing the relative order of the remaining characters.\\n\\nFor example, `\\\"ace\\\"` is a subsequence of `\\\"abcde\\\"`.\\n\\nA common subsequence of two strings is a subsequence that is common to both strings.\",\n  \"constraints\": \"- 1 <= text1.length, text2.length <= 1000\\n- text1 and text2 consist of only lowercase English characters.\",\n  \"test_cases\": [\n    {\n      \"input\": \"text1 = \\\"abcde\\\", text2 = \\\"ace\\\"\",\n      \"output\": \"3\",\n      \"description\": \"The longest common subsequence is \\\"ace\\\" and its length is 3.\"\n    },\n    {\n      \"input\": \"text1 = \\\"abc\\\", text2 = \\\"abc\\\"\",\n      \"output\": \"3\",\n      \"description\": \"The longest common subsequence is \\\"abc\\\" and its length is 3.\"\n    },\n    {\n      \"input\": \"text1 = \\\"abc\\\", text2 = \\\"def\\\"\",\n      \"output\": \"0\",\n      \"description\": \"There is no such common subsequence, so the result is 0.\"\n    }\n  ],\n  \"status\": \"active\",\n  \"author\": \"leetcode\"\n}"
 				},
-				"url": "http://localhost:8080/questions"
+				"url": "{{url}}/questions"
 			},
 			"response": []
 		},
@@ -84,12 +84,12 @@
 					"mode": "raw",
 					"raw": "invalid json"
 				},
-				"url": "http://localhost:8080/questions"
+				"url": "{{url}}/questions"
 			},
 			"response": []
 		},
 		{
-			"name": "Get Question by ID - Two Sum",
+			"name": "Get Question by ID",
 			"request": {
 				"method": "GET",
 				"header": [],
@@ -102,7 +102,7 @@
 			"request": {
 				"method": "GET",
 				"header": [],
-				"url": "http://localhost:8080/questions/99999"
+				"url": "{{url}}/questions/99999"
 			},
 			"response": []
 		},
@@ -118,7 +118,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"id\": \"two-sum-001\",\n  \"title\": \"Two Sum (Updated)\",\n  \"difficulty\": \"Medium\",\n  \"topic_tags\": [\"Array\", \"Hash Table\", \"Two Pointers\"],\n  \"prompt_markdown\": \"Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\\n\\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.\\n\\nYou can return the answer in any order.\\n\\n**Follow-up:** Can you come up with an algorithm that is less than O(n²) time complexity?\",\n  \"constraints\": \"- 2 <= nums.length <= 10^4\\n- -10^9 <= nums[i] <= 10^9\\n- -10^9 <= target <= 10^9\\n- Only one valid answer exists.\",\n  \"test_cases\": [\n    {\n      \"input\": \"nums = [2,7,11,15], target = 9\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 9, we return [0, 1].\"\n    },\n    {\n      \"input\": \"nums = [3,2,4], target = 6\",\n      \"output\": \"[1,2]\",\n      \"description\": \"Because nums[1] + nums[2] == 6, we return [1, 2].\"\n    },\n    {\n      \"input\": \"nums = [3,3], target = 6\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 6, we return [0, 1].\"\n    }\n  ],\n  \"status\": \"active\",\n  \"author\": \"leetcode\"\n}"
+					"raw": "{\n  \"id\": \"1\",\n  \"title\": \"Two Sum (Updated)\",\n  \"difficulty\": \"Medium\",\n  \"topic_tags\": [\"Array\", \"Hash Table\", \"Two Pointers\"],\n  \"prompt_markdown\": \"Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\\n\\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.\\n\\nYou can return the answer in any order.\\n\\n**Follow-up:** Can you come up with an algorithm that is less than O(n²) time complexity?\",\n  \"constraints\": \"- 2 <= nums.length <= 10^4\\n- -10^9 <= nums[i] <= 10^9\\n- -10^9 <= target <= 10^9\\n- Only one valid answer exists.\",\n  \"test_cases\": [\n    {\n      \"input\": \"nums = [2,7,11,15], target = 9\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 9, we return [0, 1].\"\n    },\n    {\n      \"input\": \"nums = [3,2,4], target = 6\",\n      \"output\": \"[1,2]\",\n      \"description\": \"Because nums[1] + nums[2] == 6, we return [1, 2].\"\n    },\n    {\n      \"input\": \"nums = [3,3], target = 6\",\n      \"output\": \"[0,1]\",\n      \"description\": \"Because nums[0] + nums[1] == 6, we return [0, 1].\"\n    }\n  ],\n  \"status\": \"active\",\n  \"author\": \"leetcode\"\n}"
 				},
 				"url": "{{url}}/questions/1"
 			},
@@ -140,8 +140,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Easy",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -159,8 +164,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Medium",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -178,8 +188,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Hard",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -197,8 +212,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?topic=Array",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "topic",
@@ -216,8 +236,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?topic=Array,Hash Table",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "topic",
@@ -235,8 +260,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Easy&topic=Array",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -258,8 +288,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Invalid",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -277,8 +312,13 @@
 				"header": [],
 				"url": {
 					"raw": "{{url}}/questions/random?difficulty=Hard&topic=NonExistentTopic",
-					"host": ["{{url}}"],
-					"path": ["questions", "random"],
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"questions",
+						"random"
+					],
 					"query": [
 						{
 							"key": "difficulty",
@@ -294,11 +334,11 @@
 			"response": []
 		},
 		{
-			"name": "Delete Question - LCS",
+			"name": "Delete Question - by id",
 			"request": {
 				"method": "DELETE",
 				"header": [],
-				"url": "http://localhost:8080/questions/valid-parentheses-020"
+				"url": "{{url}}/questions/10"
 			},
 			"response": []
 		},
@@ -307,7 +347,7 @@
 			"request": {
 				"method": "DELETE",
 				"header": [],
-				"url": "http://localhost:8080/questions/two-sum-001"
+				"url": "{{url}}/questions/two-sum-001"
 			},
 			"response": []
 		},
@@ -316,7 +356,7 @@
 			"request": {
 				"method": "GET",
 				"header": [],
-				"url": "http://localhost:8080/questions"
+				"url": "{{url}}/questions"
 			},
 			"response": []
 		}

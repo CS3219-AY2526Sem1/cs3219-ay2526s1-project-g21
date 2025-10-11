@@ -118,7 +118,7 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 			})
 			return
 		}
-		
+
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
 			Message: "Failed to delete question",
