@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
 
 type Question = {
@@ -45,6 +46,7 @@ export default function Editor() {
   const wsRef = useRef<WebSocket | null>(null);
   const isRoomValid = useMemo(() => Boolean(roomId && roomId.trim().length > 0), [roomId]);
 
+  const nav = useNavigate();
 
   const resetRunOutputs = () => {
     setStdout("");
@@ -137,9 +139,21 @@ export default function Editor() {
           setIsRunning(false);
           break;
         case "error":
-          if (typeof frame.data === "string" && frame.data === "version_mismatch") {
-            console.error("WS version mismatch:", frame.data);
-            break;
+          console.log("Error!");
+          if (typeof frame.data === "string") {
+            if (frame.data === "room_full") {
+              toast.error("Invalid Room!", {
+                position: "bottom-center",
+                duration: 5000,
+              });
+
+              nav(`/interview`);
+            }
+
+            if (frame.data === "version_mismatch") {
+              console.error("WS version mismatch:", frame.data);
+              break;
+            }
           }
           setRunError(typeof frame.data === "string" ? frame.data : "Unexpected error");
           setIsRunning(false);
@@ -238,7 +252,7 @@ export default function Editor() {
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-         >
+          >
             <option value="javascript">JavaScript</option>
             <option value="typescript">TypeScript</option>
             <option value="python">Python</option>
