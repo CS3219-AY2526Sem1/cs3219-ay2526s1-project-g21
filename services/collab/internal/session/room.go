@@ -30,6 +30,10 @@ func (r *Room) Join(c *Client) {
 	r.clients[c] = struct{}{}
 }
 
+func (r *Room) GetClientCount() int {
+	return len(r.clients)
+}
+
 func (r *Room) Leave(c *Client) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -70,7 +74,7 @@ func (r *Room) ApplyEdit(e models.Edit) (ok bool, newDoc models.DocState) {
 	}
 	text := r.doc.Text[:e.RangeStart] + e.Text + r.doc.Text[e.RangeEnd:]
 	r.doc.Text = text
-	r.doc.Version++
+	r.doc.Version += 100
 	return true, r.doc
 }
 

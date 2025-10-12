@@ -101,6 +101,14 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 
 	client := session.NewClient(conn)
 	room := h.hub.GetOrCreate(sessionID)
+	if room.GetClientCount() >= 2 {
+		_ = conn.WriteJSON(models.WSFrame{
+			Type: "error",
+			Data: "room_full",
+		})
+		return
+	}
+
 	room.Join(client)
 	defer func() {
 		if left := room.Leave(client); left == 0 {
