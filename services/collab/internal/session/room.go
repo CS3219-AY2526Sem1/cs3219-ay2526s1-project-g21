@@ -31,6 +31,8 @@ func (r *Room) Join(c *Client) {
 }
 
 func (r *Room) GetClientCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return len(r.clients)
 }
 
@@ -74,7 +76,7 @@ func (r *Room) ApplyEdit(e models.Edit) (ok bool, newDoc models.DocState) {
 	}
 	text := r.doc.Text[:e.RangeStart] + e.Text + r.doc.Text[e.RangeEnd:]
 	r.doc.Text = text
-	r.doc.Version += 100
+	r.doc.Version++
 	return true, r.doc
 }
 
