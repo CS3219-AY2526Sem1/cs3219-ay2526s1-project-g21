@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Question struct {
-	ID             string     `json:"id" bson:"id"`                 // uuid, can also be number
+	ID             int        `json:"id" bson:"id"`                 // int uuid
 	Title          string     `json:"title" bson:"title"`           // question title
 	Difficulty     Difficulty `json:"difficulty" bson:"difficulty"` // enum
 	TopicTags      []string   `json:"topic_tags,omitempty" bson:"topic_tags,omitempty" validate:"max=10"`

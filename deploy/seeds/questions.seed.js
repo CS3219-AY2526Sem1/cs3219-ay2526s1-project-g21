@@ -10,7 +10,7 @@ const col = db.getCollection("questions");
 const now = new Date();
 const docs = [
   {
-    id: "1",
+    id: 1,
     title: "Two Sum (Leetcode version)",
     difficulty: "Easy",
     topic_tags: ["Array", "Hash Table"],
@@ -31,7 +31,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "2",
+    id: 2,
     title: "Valid Anagram",
     difficulty: "Easy",
     topic_tags: ["Hash Table", "String"],
@@ -52,7 +52,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "3",
+    id: 3,
     title: "LRU Cache",
     difficulty: "Medium",
     topic_tags: ["Design", "Hash Table"],
@@ -73,7 +73,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "4",
+    id: 4,
     title: "Merge Two Sorted Lists",
     difficulty: "Easy",
     topic_tags: ["Linked List"],
@@ -94,7 +94,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "5",
+    id: 5,
     title: "Longest Substring Without Repeating Characters",
     difficulty: "Medium",
     topic_tags: ["Hash Table", "String", "Sliding Window"],
@@ -111,7 +111,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "6",
+    id: 6,
     title: "Reverse Linked List",
     difficulty: "Easy",
     topic_tags: ["Linked List"],
@@ -132,7 +132,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "7",
+    id: 7,
     title: "Container With Most Water",
     difficulty: "Medium",
     topic_tags: ["Array", "Two Pointers"],
@@ -152,7 +152,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "8",
+    id: 8,
     title: "Climbing Stairs",
     difficulty: "Easy",
     topic_tags: ["Dynamic Programming"],
@@ -169,7 +169,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "9",
+    id: 9,
     title: "Binary Tree Level Order Traversal",
     difficulty: "Medium",
     topic_tags: ["Tree", "Breadth-First Search"],
@@ -190,7 +190,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "10",
+    id: 10,
     title: "Maximum Subarray",
     difficulty: "Medium",
     topic_tags: ["Array", "Dynamic Programming"],
@@ -211,7 +211,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "11",
+    id: 11,
     title: "Best Time to Buy and Sell Stock",
     difficulty: "Easy",
     topic_tags: ["Array", "Dynamic Programming"],
@@ -232,7 +232,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "12",
+    id: 12,
     title: "Valid Parentheses",
     difficulty: "Easy",
     topic_tags: ["Stack", "String"],
@@ -249,7 +249,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "13",
+    id: 13,
     title: "Kth Largest Element in an Array",
     difficulty: "Medium",
     topic_tags: ["Heap", "Sorting"],
@@ -270,7 +270,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "14",
+    id: 14,
     title: "Coin Change",
     difficulty: "Medium",
     topic_tags: ["Dynamic Programming"],
@@ -291,7 +291,7 @@ const docs = [
     updated_at: now,
   },
   {
-    id: "15",
+    id: 15,
     title: "Word Break",
     difficulty: "Medium",
     topic_tags: ["Dynamic Programming", "String"],

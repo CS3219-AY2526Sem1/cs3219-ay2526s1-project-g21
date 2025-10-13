@@ -5,7 +5,7 @@ export interface TestCase {
 }
 
 export interface Question {
-  id: string;
+  id: number;
   title: string;
   difficulty: "Easy" | "Medium" | "Hard";
   topic_tags: string[];

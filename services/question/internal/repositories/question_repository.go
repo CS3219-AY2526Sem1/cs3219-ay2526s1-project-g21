@@ -68,7 +68,7 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 }
 
 // Get question by ID
-func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
+func (r *QuestionRepository) GetByID(id int) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -99,7 +99,7 @@ func (r *QuestionRepository) Create(question *models.Question) (*models.Question
 }
 
 // Update an existing question
-func (r *QuestionRepository) Update(id string, question *models.Question) (*models.Question, error) {
+func (r *QuestionRepository) Update(id int, question *models.Question) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -115,7 +115,7 @@ func (r *QuestionRepository) Update(id string, question *models.Question) (*mode
 }
 
 // Delete a question by ID
-func (r *QuestionRepository) Delete(id string) error {
+func (r *QuestionRepository) Delete(id int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
