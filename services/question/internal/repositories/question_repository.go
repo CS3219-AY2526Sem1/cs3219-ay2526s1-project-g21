@@ -40,6 +40,12 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 
 	col := db.Collection(colName)
 
+	// ensure ID is unique
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.M{"id": 1},
+		Options: options.Index().SetUnique(true),
+	})
+
 	// ensure Title is unique
 	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"title": 1},
