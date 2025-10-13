@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { handleFormChange } from "@/utils/form";
 import { startCase } from "lodash";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import InterviewFieldSelector from "@/components/InterviewFieldSelector";
 
 // --- Types ---
@@ -38,6 +39,7 @@ export default function InterviewLobby() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const nav = useNavigate();
 
     const difficulties: Difficulty[] = ["easy", "medium", "hard"];
 
@@ -124,6 +126,8 @@ export default function InterviewLobby() {
                         position: "bottom-center",
                         duration: 5000,
                     });
+
+                    nav(`/room/${matchId}`);
                 }
             } catch (err) {
                 console.error("Failed to parse WebSocket message", err);

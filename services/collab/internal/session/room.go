@@ -30,6 +30,12 @@ func (r *Room) Join(c *Client) {
 	r.clients[c] = struct{}{}
 }
 
+func (r *Room) GetClientCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.clients)
+}
+
 func (r *Room) Leave(c *Client) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
