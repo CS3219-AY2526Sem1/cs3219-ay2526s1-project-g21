@@ -40,6 +40,12 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 
 	col := db.Collection(colName)
 
+	// ensure ID is unique
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.M{"id": 1},
+		Options: options.Index().SetUnique(true),
+	})
+
 	// ensure Title is unique
 	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"title": 1},
@@ -49,6 +55,7 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 	return &QuestionRepository{col: col}, nil
 }
 
+// Get all questions
 func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -66,7 +73,8 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 	return results, nil
 }
 
-func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
+// Get question by ID
+func (r *QuestionRepository) GetByID(id int) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -78,6 +86,7 @@ func (r *QuestionRepository) GetByID(id string) (*models.Question, error) {
 	return &q, nil
 }
 
+// Create a new question
 func (r *QuestionRepository) Create(question *models.Question) (*models.Question, error) {
 	if question.Title == "" {
 		return nil, errors.New("title required")
@@ -95,7 +104,8 @@ func (r *QuestionRepository) Create(question *models.Question) (*models.Question
 	return question, nil
 }
 
-func (r *QuestionRepository) Update(id string, question *models.Question) (*models.Question, error) {
+// Update an existing question
+func (r *QuestionRepository) Update(id int, question *models.Question) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -110,15 +120,67 @@ func (r *QuestionRepository) Update(id string, question *models.Question) (*mode
 	return &updated, nil
 }
 
-func (r *QuestionRepository) Delete(id string) error {
+// Delete a question by ID
+func (r *QuestionRepository) Delete(id int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := r.col.DeleteOne(ctx, bson.M{"id": id})
-	return err
+	result, err := r.col.DeleteOne(ctx, bson.M{"id": id})
+	if err != nil {
+		return err
+	}
+
+	if result.DeletedCount == 0 {
+		return errors.New("question not found")
+	}
+
+	return nil
 }
 
-func (r *QuestionRepository) GetRandom() (*models.Question, error) {
-	// return error to match current stub behavior
-	return nil, errors.New("no eligible question found")
+// Get a random question with optional filters
+func (r *QuestionRepository) GetRandom(topics []string, difficulty string) (*models.Question, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// build match criteria
+	matchCriteria := bson.M{"status": "active"}
+
+	// add difficulty filter if provided
+	if difficulty != "" {
+		matchCriteria["difficulty"] = difficulty
+	}
+
+	// add topic filter if provided
+	if len(topics) > 0 {
+		matchCriteria["topic_tags"] = bson.M{"$in": topics}
+	}
+
+	// 1) only consider active questions with optional filters
+	// 2) pick one random document
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: matchCriteria}},
+		bson.D{{Key: "$sample", Value: bson.M{"size": 1}}},
+	}
+
+	cursor, err := r.col.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	// advance to the first document (if any)
+	if !cursor.Next(ctx) {
+		// check for cursor errors, otherwise report no docs found
+		if cursorErr := cursor.Err(); cursorErr != nil {
+			return nil, cursorErr
+		}
+		return nil, errors.New("no eligible question found")
+	}
+
+	var picked models.Question
+	if err := cursor.Decode(&picked); err != nil {
+		return nil, err
+	}
+
+	return &picked, nil
 }

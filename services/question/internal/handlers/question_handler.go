@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"peerprep/question/internal/models"
 	"peerprep/question/internal/repositories"
@@ -60,13 +62,22 @@ func (handler *QuestionHandler) CreateQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	writer.Header().Set("Location", "/questions/"+created.ID)
+	writer.Header().Set("Location", "/questions/"+strconv.Itoa(created.ID))
 	utils.JSON(writer, http.StatusCreated, created)
 }
 
 func (handler *QuestionHandler) GetQuestionByIDHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
-	id := chi.URLParam(request, "id")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
 
 	question, err := handler.repository.GetByID(id)
 	if err != nil {
@@ -82,7 +93,16 @@ func (handler *QuestionHandler) GetQuestionByIDHandler(writer http.ResponseWrite
 
 func (handler *QuestionHandler) UpdateQuestionHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
-	id := chi.URLParam(request, "id")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
 
 	var question models.Question
 	if err := json.NewDecoder(request.Body).Decode(&question); err != nil {
@@ -106,9 +126,27 @@ func (handler *QuestionHandler) UpdateQuestionHandler(writer http.ResponseWriter
 }
 
 func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter, request *http.Request) {
-	id := chi.URLParam(request, "id")
+	writer.Header().Set("Content-Type", "application/json")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
 
 	if err := handler.repository.Delete(id); err != nil {
+		if err.Error() == "question not found" {
+			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+				Code:    "question_not_found",
+				Message: "Question not found",
+			})
+			return
+		}
+
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
 			Message: "Failed to delete question",
@@ -116,13 +154,40 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	writer.WriteHeader(http.StatusNoContent)
+	utils.JSON(writer, http.StatusOK, map[string]string{
+		"message": "Question deleted successfully",
+	})
 }
 
 func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
-	_, err := handler.repository.GetRandom()
+	// parse query parameters
+	difficulty := request.URL.Query().Get("difficulty")
+	topicParam := request.URL.Query().Get("topic")
+
+	// validate difficulty if provided
+	if difficulty != "" {
+		if difficulty != string(models.Easy) && difficulty != string(models.Medium) && difficulty != string(models.Hard) {
+			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+				Code:    "invalid_difficulty",
+				Message: "difficulty must be one of: Easy, Medium, Hard",
+			})
+			return
+		}
+	}
+
+	// parse topics (comma separated)
+	var topics []string
+	if topicParam != "" {
+		topics = strings.Split(topicParam, ",")
+		// trim whitespace from each topic
+		for i, topic := range topics {
+			topics[i] = strings.TrimSpace(topic)
+		}
+	}
+
+	question, err := handler.repository.GetRandom(topics, difficulty)
 	if err != nil {
 		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 			Code:    "no_eligible_question",
@@ -130,4 +195,6 @@ func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWri
 		})
 		return
 	}
+
+	utils.JSON(writer, http.StatusOK, question)
 }
