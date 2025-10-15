@@ -18,14 +18,18 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.username, form.password);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
-    } finally {
-      setLoading(false);
       toast.success("Successfully logged in", {
         position: "bottom-center",
       });
+    } catch (err) {
+      let message = "Login failed";
+      if (err instanceof Error) {
+        const errMessageJson = JSON.parse(err.message)
+        message = errMessageJson.error;
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
     }
   };
 
