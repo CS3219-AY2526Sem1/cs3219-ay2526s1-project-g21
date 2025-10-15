@@ -8,6 +8,7 @@ import Forgot from "@/pages/Forgot";
 import Account from "@/pages/Account";
 import Questions from "@/pages/Questions";
 import Editor from "@/pages/Editor";
+import PageNotFound from "@/pages/PageNotFound";
 import { useAuth } from "@/context/AuthContext";
 import { Toaster } from 'react-hot-toast'
 
@@ -33,7 +34,7 @@ export default function App() {
           <Route path="/questions" element={<Protected><Questions /></Protected>} />
           <Route path="/room/:roomId" element={<Protected><Editor /></Protected>} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<PageNotFound />} />
         </Routes>
       </main>
     </div>
