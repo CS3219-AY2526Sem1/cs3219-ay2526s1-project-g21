@@ -2,14 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
-
-type Question = {
-  id: string;
-  title: string;
-  description: string;
-  difficulty?: "Easy" | "Medium" | "Hard";
-  tags?: string[];
-};
+import { getRoomStatus } from "@/api/match";
+import { RoomInfo, Question } from "@/types/question";
 
 type WSFrame =
   | { type: "init"; data: { sessionId: string; doc: { text: string; version: number }; language: string } }
@@ -34,6 +28,8 @@ export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
 
   const [question, setQuestion] = useState<Question | null>(null);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
+  const [roomLoading, setRoomLoading] = useState<boolean>(true);
   const [language, setLanguage] = useState<string>("python");
   const [code, setCode] = useState<string>(CODE_TEMPLATES["python"] ?? "");
   const [docVersion, setDocVersion] = useState<number>(0);
@@ -81,19 +77,42 @@ export default function Editor() {
     }
   };
 
+  // Fetch room status and question
   useEffect(() => {
-    // Placeholder: In the future, fetch the question based on room/session
-    // For now, hydrate with a sample prompt to validate layout and UX
-    const mock: Question = {
-      id: "sample-1",
-      title: "Two Sum",
-      description:
-        "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
-      difficulty: "Easy",
-      tags: ["Array", "Hash Table"],
+    if (!roomId) return;
+
+    const fetchRoomInfo = async () => {
+      try {
+        setRoomLoading(true);
+        const room = await getRoomStatus(roomId);
+        setRoomInfo(room);
+
+        if (room.status === "ready" && room.question) {
+          setQuestion(room.question);
+        } else if (room.status === "error") {
+          toast.error("Failed to load room. Please try again.", {
+            position: "bottom-center",
+            duration: 5000,
+          });
+          nav("/lobby");
+        } else {
+          // Room is still processing, wait and retry
+          setTimeout(fetchRoomInfo, 1000);
+        }
+      } catch (error) {
+        console.error("Failed to fetch room info:", error);
+        toast.error("Failed to load room. Please try again.", {
+          position: "bottom-center",
+          duration: 5000,
+        });
+        nav("/lobby");
+      } finally {
+        setRoomLoading(false);
+      }
     };
-    setQuestion(mock);
-  }, []);
+
+    fetchRoomInfo();
+  }, [roomId, nav]);
 
   // WebSocket collab setup
   useEffect(() => {
@@ -240,6 +259,26 @@ export default function Editor() {
     );
   };
 
+  // Show loading state while room is being set up
+  if (roomLoading || !roomInfo) {
+    return (
+      <div className="mx-auto w-full px-0 md:px-2">
+        <div className="mb-4 flex items-center justify-between px-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-black">Collaborative Editor</h1>
+            <p className="text-sm text-gray-500">Room: {roomId ?? "new"}</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Setting up room and fetching question...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full px-0 md:px-2">
       <div className="mb-4 flex items-center justify-between px-6">
@@ -283,11 +322,11 @@ export default function Editor() {
               )}
             </div>
             <p className="mt-3 text-sm leading-6 text-gray-700 whitespace-pre-wrap">
-              {question?.description}
+              {question?.prompt_markdown}
             </p>
-            {question?.tags?.length ? (
+            {question?.topic_tags?.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                {question.tags.map((t) => (
+                {question.topic_tags.map((t) => (
                   <span key={t} className="text-xs rounded-md bg-gray-100 px-2 py-1 text-gray-600">
                     {t}
                   </span>

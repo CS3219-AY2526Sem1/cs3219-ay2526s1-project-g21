@@ -28,3 +28,14 @@ export interface RandomQuestionFilters {
   difficulty?: Difficulty;
   topic_tags?: string[];
 }
+
+export interface RoomInfo {
+  matchId: string;
+  user1: string;
+  user2: string;
+  category: string;
+  difficulty: string;
+  status: "pending" | "processing" | "ready" | "error";
+  question?: Question;
+  createdAt: string;
+}
