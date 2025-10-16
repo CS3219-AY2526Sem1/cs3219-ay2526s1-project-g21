@@ -24,8 +24,13 @@ export default function Login() {
     } catch (err) {
       let message = "Login failed";
       if (err instanceof Error) {
-        const errMessageJson = JSON.parse(err.message)
-        message = errMessageJson.error;
+        try {
+          const errMessageJson = JSON.parse(err.message);
+          message = errMessageJson.error;
+        } catch {
+          // If parsing fails, use the raw error message
+          message = err.message;
+        }
       }
       setError(message);
     } finally {
