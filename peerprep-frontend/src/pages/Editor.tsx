@@ -40,7 +40,6 @@ export default function Editor() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const isRoomValid = useMemo(() => Boolean(roomId && roomId.trim().length > 0), [roomId]);
 
   const nav = useNavigate();
 
@@ -128,10 +127,10 @@ export default function Editor() {
 
   // WebSocket collab setup
   useEffect(() => {
-    if (!isRoomValid) return;
+    if (!roomInfo) return;
 
     // Get token from sessionStorage
-    const token = sessionStorage.getItem(`room_token_${roomId}`);
+    const token = sessionStorage.getItem(`room_token_${roomInfo.matchId}`);
     if (!token) {
       toast.error("No access token found. Please join a room first.", {
         position: "bottom-center",
@@ -141,15 +140,15 @@ export default function Editor() {
       return;
     }
 
-    const ws = new WebSocket(`${import.meta.env.VITE_COLLAB_SERVICE_WS}/ws/session/${roomId}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`http://localhost:8084/ws/session/${roomInfo.matchId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("Connected to collab service", roomId);
+      console.log("Connected to collab service", roomInfo.matchId);
       ws.send(
         JSON.stringify({
           type: "init",
-          data: { sessionId: roomId, language },
+          data: { sessionId: roomInfo.matchId, language },
         })
       );
     };
@@ -210,7 +209,7 @@ export default function Editor() {
     ws.onclose = () => console.log("Collab WS closed");
 
     return () => ws.close();
-  }, [roomId, language, isRoomValid]);
+  }, [roomInfo, language]);
 
   const handleChange = (evn: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = evn.target.value;
