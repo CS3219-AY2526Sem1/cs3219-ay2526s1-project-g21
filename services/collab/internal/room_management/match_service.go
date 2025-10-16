@@ -3,9 +3,12 @@ package room_management
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
 	"collab/internal/models"
@@ -18,7 +21,13 @@ type RoomManager struct {
 	rdb           *redis.Client
 	questionURL   string
 	roomStatusMap map[string]*models.RoomInfo
+	mu            sync.RWMutex
 }
+
+var (
+	ErrNoRerolls             = errors.New("no rerolls remaining")
+	ErrNoAlternativeQuestion = errors.New("no alternative question available")
+)
 
 func NewRoomManager(redisAddr, questionURL string) *RoomManager {
 	rdb := redis.NewClient(&redis.Options{
@@ -56,39 +65,41 @@ func (ms *RoomManager) SubscribeToMatches() {
 func (ms *RoomManager) processMatchEvent(event models.RoomInfo) {
 	ctx := context.Background()
 
-	// Update room status to processing
 	roomInfo := &models.RoomInfo{
-		MatchId:    event.MatchId,
-		User1:      event.User1,
-		User2:      event.User2,
-		Category:   event.Category,
-		Difficulty: event.Difficulty,
-		Status:     "processing",
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		MatchId:          event.MatchId,
+		User1:            event.User1,
+		User2:            event.User2,
+		Category:         event.Category,
+		Difficulty:       event.Difficulty,
+		Status:           "processing",
+		RerollsRemaining: 1,
+		CreatedAt:        time.Now().Format(time.RFC3339),
+		Token1:           event.Token1,
+		Token2:           event.Token2,
 	}
 
-	// Store in memory for quick access
+	ms.mu.Lock()
 	ms.roomStatusMap[event.MatchId] = roomInfo
+	ms.mu.Unlock()
 
-	// Update Redis with processing status
-	ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
+	ms.updateRoomStatusInRedis(ctx, roomInfo)
 
-	// Fetch question from question service
 	question, err := ms.fetchQuestion(event.Category, event.Difficulty)
 	if err != nil {
 		log.Printf("Failed to fetch question: %v", err)
+		ms.mu.Lock()
 		roomInfo.Status = "error"
-		ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
+		ms.mu.Unlock()
+		ms.updateRoomStatusInRedis(ctx, roomInfo)
 		return
 	}
 
-	// Update room with question info
+	ms.mu.Lock()
 	roomInfo.Question = question
 	roomInfo.Status = "ready"
-	ms.roomStatusMap[event.MatchId] = roomInfo
+	ms.mu.Unlock()
 
-	// Update Redis with ready status
-	ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
+	ms.updateRoomStatusInRedis(ctx, roomInfo)
 
 	log.Printf("Match service: Room %s is ready with question %d", event.MatchId, question.ID)
 }
@@ -115,41 +126,77 @@ func (ms *RoomManager) fetchQuestion(category string, difficulty string) (*model
 	return &question, nil
 }
 
+func (ms *RoomManager) fetchAlternativeQuestion(category string, difficulty string, currentID int) (*models.Question, error) {
+	const maxAttempts = 5
+	for i := 0; i < maxAttempts; i++ {
+		question, err := ms.fetchQuestion(category, difficulty)
+		if err != nil {
+			return nil, err
+		}
+		if question == nil {
+			continue
+		}
+		if currentID == 0 || question.ID != currentID {
+			return question, nil
+		}
+	}
+	return nil, ErrNoAlternativeQuestion
+}
+
 // Update room status in Redis
-func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo, token1, token2 string) {
+func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo) {
 	roomKey := "room:" + roomInfo.MatchId
 
-	data, err := json.Marshal(roomInfo)
-	if err != nil {
-		log.Printf("Match service: Failed to marshal room info: %v", err)
-		return
+	questionJSON := ""
+	if roomInfo.Question != nil {
+		data, err := json.Marshal(roomInfo.Question)
+		if err != nil {
+			log.Printf("Match service: Failed to marshal question info: %v", err)
+		} else {
+			questionJSON = string(data)
+		}
 	}
 
 	ms.rdb.HSet(ctx, roomKey, map[string]interface{}{
-		"matchId":    roomInfo.MatchId,
-		"user1":      roomInfo.User1,
-		"user2":      roomInfo.User2,
-		"category":   roomInfo.Category,
-		"difficulty": roomInfo.Difficulty,
-		"status":     roomInfo.Status,
-		"token1":     token1,
-		"token2":     token2,
-		"question":   string(data),
-		"createdAt":  roomInfo.CreatedAt,
+		"matchId":          roomInfo.MatchId,
+		"user1":            roomInfo.User1,
+		"user2":            roomInfo.User2,
+		"category":         roomInfo.Category,
+		"difficulty":       roomInfo.Difficulty,
+		"status":           roomInfo.Status,
+		"token1":           roomInfo.Token1,
+		"token2":           roomInfo.Token2,
+		"question":         questionJSON,
+		"rerollsRemaining": roomInfo.RerollsRemaining,
+		"createdAt":        roomInfo.CreatedAt,
 	})
 
-	// Set expiration for room data (24 hours)
 	ms.rdb.Expire(ctx, roomKey, 24*time.Hour)
 }
 
 // Get room status by match ID
 func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
-	// First check memory cache
+	ms.mu.RLock()
 	if roomInfo, exists := ms.roomStatusMap[matchId]; exists {
-		return roomInfo, nil
+		copy := cloneRoomInfo(roomInfo)
+		ms.mu.RUnlock()
+		return copy, nil
+	}
+	ms.mu.RUnlock()
+
+	roomInfo, err := ms.fetchRoomStatusFromRedis(matchId)
+	if err != nil {
+		return nil, err
 	}
 
-	// Fallback to Redis
+	ms.mu.Lock()
+	ms.roomStatusMap[matchId] = roomInfo
+	ms.mu.Unlock()
+
+	return cloneRoomInfo(roomInfo), nil
+}
+
+func (ms *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInfo, error) {
 	ctx := context.Background()
 	roomKey := "room:" + matchId
 
@@ -164,19 +211,29 @@ func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
 	}
 
 	roomInfo := &models.RoomInfo{
-		MatchId:    roomMap["matchId"],
-		User1:      roomMap["user1"],
-		User2:      roomMap["user2"],
-		Category:   roomMap["category"],
-		Difficulty: roomMap["difficulty"],
-		Status:     roomMap["status"],
-		CreatedAt:  roomMap["createdAt"],
+		MatchId:          roomMap["matchId"],
+		User1:            roomMap["user1"],
+		User2:            roomMap["user2"],
+		Category:         roomMap["category"],
+		Difficulty:       roomMap["difficulty"],
+		Status:           roomMap["status"],
+		RerollsRemaining: 0,
+		CreatedAt:        roomMap["createdAt"],
+		Token1:           roomMap["token1"],
+		Token2:           roomMap["token2"],
 	}
 
-	// Parse question if present
+	if val := roomMap["rerollsRemaining"]; val != "" {
+		if rr, err := strconv.Atoi(val); err == nil {
+			roomInfo.RerollsRemaining = rr
+		}
+	}
+
 	if questionData := roomMap["question"]; questionData != "" {
 		var question models.Question
-		if err := json.Unmarshal([]byte(questionData), &question); err == nil {
+		if err := json.Unmarshal([]byte(questionData), &question); err != nil {
+			log.Printf("Match service: Failed to decode question for room %s: %v", matchId, err)
+		} else {
 			roomInfo.Question = &question
 		}
 	}
@@ -184,21 +241,83 @@ func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
 	return roomInfo, nil
 }
 
+func cloneRoomInfo(src *models.RoomInfo) *models.RoomInfo {
+	if src == nil {
+		return nil
+	}
+	copy := *src
+	if src.Question != nil {
+		qCopy := *src.Question
+		copy.Question = &qCopy
+	}
+	return &copy
+}
+
+func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) {
+	ms.mu.Lock()
+	roomInfo, exists := ms.roomStatusMap[matchId]
+	if !exists {
+		ms.mu.Unlock()
+		loaded, err := ms.fetchRoomStatusFromRedis(matchId)
+		if err != nil {
+			return nil, err
+		}
+		ms.mu.Lock()
+		roomInfo, exists = ms.roomStatusMap[matchId]
+		if !exists {
+			ms.roomStatusMap[matchId] = loaded
+			roomInfo = loaded
+		}
+	}
+
+	if roomInfo.RerollsRemaining <= 0 {
+		ms.mu.Unlock()
+		return nil, ErrNoRerolls
+	}
+
+	roomInfo.RerollsRemaining--
+	category := roomInfo.Category
+	difficulty := roomInfo.Difficulty
+	currentQuestionID := 0
+	if roomInfo.Question != nil {
+		currentQuestionID = roomInfo.Question.ID
+	}
+	ms.mu.Unlock()
+
+	question, err := ms.fetchAlternativeQuestion(category, difficulty, currentQuestionID)
+	if err != nil {
+		log.Printf("Failed to reroll question for room %s: %v", matchId, err)
+		ms.mu.Lock()
+		roomInfo.RerollsRemaining++
+		ms.mu.Unlock()
+		return nil, err
+	}
+
+	ms.mu.Lock()
+	roomInfo.Question = question
+	roomInfo.Status = "ready"
+	updatedCopy := cloneRoomInfo(roomInfo)
+	ms.mu.Unlock()
+
+	ms.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	log.Printf("Match service: Room %s rerolled question to %d", matchId, question.ID)
+
+	return updatedCopy, nil
+}
+
 // ValidateRoomAccess validates if a user can access a room using their token
 func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
-	// Validate the JWT token
 	claims, err := utils.ValidateRoomToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	// Get room info
 	roomInfo, err := ms.GetRoomStatus(claims.MatchId)
 	if err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
 	}
 
-	// Verify the user is one of the matched users
 	if claims.UserId != roomInfo.User1 && claims.UserId != roomInfo.User2 {
 		return nil, fmt.Errorf("user not authorized for this room")
 	}

@@ -90,3 +90,11 @@ func (r *Room) Broadcast(sender *Client, frame models.WSFrame) {
 		c.Send(frame)
 	}
 }
+
+func (r *Room) BroadcastAll(frame models.WSFrame) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for c := range r.clients {
+		c.Send(frame)
+	}
+}

@@ -21,6 +21,13 @@ func (h *Hub) GetOrCreate(id string) *Room {
 	return r
 }
 
+func (h *Hub) Get(id string) (*Room, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	r, ok := h.rooms[id]
+	return r, ok
+}
+
 func (h *Hub) Delete(id string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

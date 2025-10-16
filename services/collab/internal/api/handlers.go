@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -63,6 +64,58 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, roomInfo)
 }
 
+func (h *Handlers) RerollQuestion(w http.ResponseWriter, r *http.Request) {
+	matchId := chi.URLParam(r, "matchId")
+	if matchId == "" {
+		http.Error(w, "matchId is required", http.StatusBadRequest)
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	token, err := utils.ExtractTokenFromHeader(authHeader)
+	if err != nil {
+		http.Error(w, "Authorization token required", http.StatusUnauthorized)
+		return
+	}
+
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
+	if err != nil {
+		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+		return
+	}
+
+	if roomInfo.MatchId != matchId {
+		http.Error(w, "Invalid room", http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.roomManager.RerollQuestion(matchId)
+	if err != nil {
+		switch {
+		case errors.Is(err, room_management.ErrNoRerolls):
+			http.Error(w, "No rerolls remaining for this room", http.StatusBadRequest)
+		case errors.Is(err, room_management.ErrNoAlternativeQuestion):
+			http.Error(w, "No different question available right now", http.StatusConflict)
+		default:
+			http.Error(w, "Failed to reroll question", http.StatusInternalServerError)
+			h.log.Error("failed to reroll question", "matchId", matchId, "error", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, updated)
+
+	if room, ok := h.hub.Get(matchId); ok {
+		room.BroadcastAll(models.WSFrame{
+			Type: "question",
+			Data: models.QuestionUpdate{
+				Question:         updated.Question,
+				RerollsRemaining: updated.RerollsRemaining,
+			},
+		})
+	}
+}
+
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
 	languages := []models.Language{models.LangPython, models.LangJava, models.LangCPP}
 	resp := make([]models.LanguageSpec, 0, len(languages))
@@ -109,7 +162,12 @@ func (h *Handlers) RunOnce(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.runner.RunOnce(ctx, req.Language, req.Code, limits)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, exec.ErrDockerUnavailable):
+			http.Error(w, "sandbox_unavailable", http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	writeJSON(w, models.RunResult{
@@ -270,7 +328,12 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 
 	sbx, err := exec.NewSandbox(image, limits)
 	if err != nil {
-		_ = conn.WriteJSON(errFrame("sandbox_error"))
+		switch {
+		case errors.Is(err, exec.ErrDockerUnavailable):
+			_ = conn.WriteJSON(errFrame("sandbox_unavailable"))
+		default:
+			_ = conn.WriteJSON(errFrame("sandbox_error"))
+		}
 		return
 	}
 
@@ -284,7 +347,11 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 	)
 	if runErr != nil {
 		h.log.Error("sandbox run failed", "language", run.Language, "error", runErr.Error())
-		_ = conn.WriteJSON(errFrame("sandbox_error: " + runErr.Error()))
+		if errors.Is(runErr, exec.ErrDockerUnavailable) {
+			_ = conn.WriteJSON(errFrame("sandbox_unavailable"))
+		} else {
+			_ = conn.WriteJSON(errFrame("sandbox_error: " + runErr.Error()))
+		}
 	}
 	_ = conn.WriteJSON(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
 }
