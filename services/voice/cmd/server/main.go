@@ -4,23 +4,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"voice/internal/api"
 )
 
 func main() {
-	// Start room cleanup routine
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			// This would be called on the room manager instance
-			// For now, we'll just log
-			log.Println("Running room cleanup...")
-		}
-	}()
 
 	// Get port from environment
 	port := os.Getenv("PORT")
