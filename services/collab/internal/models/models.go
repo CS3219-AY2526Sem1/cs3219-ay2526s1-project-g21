@@ -90,16 +90,7 @@ type LanguageChange struct {
 	Language Language `json:"language"`
 }
 
-// Match event from match service
-type MatchEvent struct {
-	MatchId    string `json:"matchId"`
-	User1      string `json:"user1"`
-	User2      string `json:"user2"`
-	Category   string `json:"category"`
-	Difficulty string `json:"difficulty"`
-}
-
-// Room status and question info
+// Room status and question info (used for both match events and room status)
 type RoomInfo struct {
 	MatchId    string    `json:"matchId"`
 	User1      string    `json:"user1"`
@@ -109,6 +100,8 @@ type RoomInfo struct {
 	Status     string    `json:"status"` // "pending", "ready", "error"
 	Question   *Question `json:"question,omitempty"`
 	CreatedAt  string    `json:"createdAt"`
+	Token1     string    `json:"token1,omitempty"`
+	Token2     string    `json:"token2,omitempty"`
 }
 
 // Question model (simplified from question service)

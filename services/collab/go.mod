@@ -6,6 +6,7 @@ require (
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/go-chi/chi/v5 v5.1.0
+	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/redis/go-redis/v9 v9.3.0
 )

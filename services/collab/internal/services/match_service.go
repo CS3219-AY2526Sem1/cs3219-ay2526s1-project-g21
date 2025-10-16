@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"collab/internal/models"
+	"collab/internal/utils"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -40,7 +41,7 @@ func (ms *MatchService) SubscribeToMatches() {
 	log.Println("Match service: Subscribed to match events")
 
 	for msg := range ch {
-		var event models.MatchEvent
+		var event models.RoomInfo
 		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
 			log.Printf("Match service: Failed to parse event: %v", err)
 			continue
@@ -52,7 +53,7 @@ func (ms *MatchService) SubscribeToMatches() {
 }
 
 // Process a match event by fetching question and creating room
-func (ms *MatchService) processMatchEvent(event models.MatchEvent) {
+func (ms *MatchService) processMatchEvent(event models.RoomInfo) {
 	ctx := context.Background()
 
 	// Update room status to processing
@@ -70,14 +71,14 @@ func (ms *MatchService) processMatchEvent(event models.MatchEvent) {
 	ms.roomStatusMap[event.MatchId] = roomInfo
 
 	// Update Redis with processing status
-	ms.updateRoomStatusInRedis(ctx, roomInfo)
+	ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
 
 	// Fetch question from question service
 	question, err := ms.fetchQuestion(event.Category, event.Difficulty)
 	if err != nil {
 		log.Printf("Match service: Failed to fetch question: %v", err)
 		roomInfo.Status = "error"
-		ms.updateRoomStatusInRedis(ctx, roomInfo)
+		ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
 		return
 	}
 
@@ -87,7 +88,7 @@ func (ms *MatchService) processMatchEvent(event models.MatchEvent) {
 	ms.roomStatusMap[event.MatchId] = roomInfo
 
 	// Update Redis with ready status
-	ms.updateRoomStatusInRedis(ctx, roomInfo)
+	ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
 
 	log.Printf("Match service: Room %s is ready with question %d", event.MatchId, question.ID)
 }
@@ -115,7 +116,7 @@ func (ms *MatchService) fetchQuestion(category, difficulty string) (*models.Ques
 }
 
 // Update room status in Redis
-func (ms *MatchService) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo) {
+func (ms *MatchService) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo, token1, token2 string) {
 	roomKey := "room:" + roomInfo.MatchId
 
 	data, err := json.Marshal(roomInfo)
@@ -131,6 +132,8 @@ func (ms *MatchService) updateRoomStatusInRedis(ctx context.Context, roomInfo *m
 		"category":   roomInfo.Category,
 		"difficulty": roomInfo.Difficulty,
 		"status":     roomInfo.Status,
+		"token1":     token1,
+		"token2":     token2,
 		"question":   string(data),
 		"createdAt":  roomInfo.CreatedAt,
 	})
@@ -176,6 +179,28 @@ func (ms *MatchService) GetRoomStatus(matchId string) (*models.RoomInfo, error) 
 		if err := json.Unmarshal([]byte(questionData), &question); err == nil {
 			roomInfo.Question = &question
 		}
+	}
+
+	return roomInfo, nil
+}
+
+// ValidateRoomAccess validates if a user can access a room using their token
+func (ms *MatchService) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
+	// Validate the JWT token
+	claims, err := utils.ValidateRoomToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	// Get room info
+	roomInfo, err := ms.GetRoomStatus(claims.MatchId)
+	if err != nil {
+		return nil, fmt.Errorf("room not found: %w", err)
+	}
+
+	// Verify the user is one of the matched users
+	if claims.UserId != roomInfo.User1 && claims.UserId != roomInfo.User2 {
+		return nil, fmt.Errorf("user not authorized for this room")
 	}
 
 	return roomInfo, nil
