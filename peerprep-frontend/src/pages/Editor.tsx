@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
+import VoiceChat from "@/components/VoiceChat";
+import { useAuth } from "@/context/AuthContext";
 
 type Question = {
   id: string;
@@ -32,6 +34,7 @@ const CODE_TEMPLATES: Record<string, string> = {
 
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
+  const { user } = useAuth();
 
   const [question, setQuestion] = useState<Question | null>(null);
   const [language, setLanguage] = useState<string>("python");
@@ -295,6 +298,15 @@ export default function Editor() {
               </div>
             ) : null}
           </div>
+          
+          {/* Voice Chat */}
+          {user && roomId && (
+            <VoiceChat
+              roomId={roomId}
+              userId={user.id.toString()}
+              username={user.username}
+            />
+          )}
         </div>
 
         {/* Code Editor */}
