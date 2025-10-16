@@ -1,4 +1,4 @@
-package services
+package room_management
 
 import (
 	"context"
@@ -14,18 +14,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type MatchService struct {
+type RoomManager struct {
 	rdb           *redis.Client
 	questionURL   string
 	roomStatusMap map[string]*models.RoomInfo
 }
 
-func NewMatchService(redisAddr, questionURL string) *MatchService {
+func NewRoomManager(redisAddr, questionURL string) *RoomManager {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
 
-	return &MatchService{
+	return &RoomManager{
 		rdb:           rdb,
 		questionURL:   questionURL,
 		roomStatusMap: make(map[string]*models.RoomInfo),
@@ -33,7 +33,7 @@ func NewMatchService(redisAddr, questionURL string) *MatchService {
 }
 
 // Subscribe to match events from Redis
-func (ms *MatchService) SubscribeToMatches() {
+func (ms *RoomManager) SubscribeToMatches() {
 	ctx := context.Background()
 	subscriber := ms.rdb.Subscribe(ctx, "matches")
 	ch := subscriber.Channel()
@@ -53,7 +53,7 @@ func (ms *MatchService) SubscribeToMatches() {
 }
 
 // Process a match event by fetching question and creating room
-func (ms *MatchService) processMatchEvent(event models.RoomInfo) {
+func (ms *RoomManager) processMatchEvent(event models.RoomInfo) {
 	ctx := context.Background()
 
 	// Update room status to processing
@@ -76,7 +76,7 @@ func (ms *MatchService) processMatchEvent(event models.RoomInfo) {
 	// Fetch question from question service
 	question, err := ms.fetchQuestion(event.Category, event.Difficulty)
 	if err != nil {
-		log.Printf("Match service: Failed to fetch question: %v", err)
+		log.Printf("Failed to fetch question: %v", err)
 		roomInfo.Status = "error"
 		ms.updateRoomStatusInRedis(ctx, roomInfo, event.Token1, event.Token2)
 		return
@@ -94,7 +94,7 @@ func (ms *MatchService) processMatchEvent(event models.RoomInfo) {
 }
 
 // Fetch a random question from the question service
-func (ms *MatchService) fetchQuestion(category, difficulty string) (*models.Question, error) {
+func (ms *RoomManager) fetchQuestion(category, difficulty string) (*models.Question, error) {
 	url := fmt.Sprintf("%s/questions/random?difficulty=%s", ms.questionURL, difficulty)
 
 	resp, err := http.Get(url)
@@ -116,7 +116,7 @@ func (ms *MatchService) fetchQuestion(category, difficulty string) (*models.Ques
 }
 
 // Update room status in Redis
-func (ms *MatchService) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo, token1, token2 string) {
+func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo, token1, token2 string) {
 	roomKey := "room:" + roomInfo.MatchId
 
 	data, err := json.Marshal(roomInfo)
@@ -143,7 +143,7 @@ func (ms *MatchService) updateRoomStatusInRedis(ctx context.Context, roomInfo *m
 }
 
 // Get room status by match ID
-func (ms *MatchService) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
+func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
 	// First check memory cache
 	if roomInfo, exists := ms.roomStatusMap[matchId]; exists {
 		return roomInfo, nil
@@ -185,7 +185,7 @@ func (ms *MatchService) GetRoomStatus(matchId string) (*models.RoomInfo, error) 
 }
 
 // ValidateRoomAccess validates if a user can access a room using their token
-func (ms *MatchService) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
+func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
 	// Validate the JWT token
 	claims, err := utils.ValidateRoomToken(token)
 	if err != nil {

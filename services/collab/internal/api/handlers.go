@@ -12,24 +12,24 @@ import (
 	"collab/internal/exec"
 	"collab/internal/format"
 	"collab/internal/models"
-	"collab/internal/services"
+	"collab/internal/room_management"
 	"collab/internal/session"
 	"collab/internal/utils"
 )
 
 type Handlers struct {
-	log          *utils.Logger
-	runner       *exec.Runner
-	hub          *session.Hub
-	matchService *services.MatchService
+	log         *utils.Logger
+	runner      *exec.Runner
+	hub         *session.Hub
+	roomManager *room_management.RoomManager
 }
 
-func NewHandlers(log *utils.Logger, matchService *services.MatchService) *Handlers {
+func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
 	return &Handlers{
-		log:          log,
-		runner:       exec.NewRunner(),
-		hub:          session.NewHub(),
-		matchService: matchService,
+		log:         log,
+		runner:      exec.NewRunner(),
+		hub:         session.NewHub(),
+		roomManager: roomManager,
 	}
 }
 
@@ -54,7 +54,7 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate token and get room info
-	roomInfo, err := h.matchService.ValidateRoomAccess(token)
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
 	if err != nil {
 		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
 		return
@@ -131,7 +131,7 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate token and get room info
-	roomInfo, err := h.matchService.ValidateRoomAccess(token)
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
 	if err != nil {
 		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
 		return

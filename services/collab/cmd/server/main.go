@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"collab/internal/room_management"
 	"collab/internal/routers"
-	"collab/internal/services"
 	"collab/internal/utils"
 )
 
@@ -25,13 +25,13 @@ func main() {
 
 	questionURL := os.Getenv("QUESTION_SERVICE_URL")
 	if questionURL == "" {
-		questionURL = "http://question-service:8080"
+		questionURL = "http://localhost:8082"
 	}
 
-	matchService := services.NewMatchService(redisAddr, questionURL)
+	roomManager := room_management.NewRoomManager(redisAddr, questionURL)
 
 	// Start Redis subscription in background
-	go matchService.SubscribeToMatches()
+	go roomManager.SubscribeToMatches()
 
 	r := chi.NewRouter()
 	r.Use(
@@ -42,7 +42,7 @@ func main() {
 		middleware.Timeout(60*time.Second),
 	)
 
-	r.Mount("/", routers.New(logger, matchService))
+	r.Mount("/", routers.New(logger, roomManager))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 

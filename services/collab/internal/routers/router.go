@@ -6,12 +6,12 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"collab/internal/api"
-	"collab/internal/services"
+	"collab/internal/room_management"
 	"collab/internal/utils"
 )
 
-func New(log *utils.Logger, matchService *services.MatchService) http.Handler {
-	h := api.NewHandlers(log, matchService)
+func New(log *utils.Logger, roomManager *room_management.RoomManager) http.Handler {
+	h := api.NewHandlers(log, roomManager)
 	r := chi.NewRouter()
 
 	r.Get("/api/v1/healthz", h.Health)
