@@ -48,6 +48,7 @@ services:
     environment:
       - PORT=8080
       - MONGO_URI=mongodb://mongo:27017
+      - QUESTION_SERVICE_URL=http://question:8080
     depends_on: [mongo, postgres]
     ports: ["8084:8080"]
 

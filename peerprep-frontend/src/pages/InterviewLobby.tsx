@@ -18,7 +18,7 @@ interface User {
 
 type Difficulty = "easy" | "medium" | "hard";
 
-type Category = "arrays" | "graphs" | "dynamic programming" | "greedy" | "linked list";
+type Category = "array" | "graphs" | "dynamic programming" | "greedy" | "linked list";
 
 interface InterviewHistoryItem {
     question: string;
@@ -38,7 +38,7 @@ export default function InterviewLobby() {
     const difficulties: Difficulty[] = ["easy", "medium", "hard"];
 
     const categories: Category[] = [
-        "arrays",
+        "array",
         "graphs",
         "dynamic programming",
         "greedy",

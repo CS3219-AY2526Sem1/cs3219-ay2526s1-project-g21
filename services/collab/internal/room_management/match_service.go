@@ -94,8 +94,8 @@ func (ms *RoomManager) processMatchEvent(event models.RoomInfo) {
 }
 
 // Fetch a random question from the question service
-func (ms *RoomManager) fetchQuestion(category, difficulty string) (*models.Question, error) {
-	url := fmt.Sprintf("%s/questions/random?difficulty=%s", ms.questionURL, difficulty)
+func (ms *RoomManager) fetchQuestion(category string, difficulty string) (*models.Question, error) {
+	url := fmt.Sprintf("%s/questions/random?difficulty=%s&topic=%s", ms.questionURL, difficulty, category)
 
 	resp, err := http.Get(url)
 	if err != nil {

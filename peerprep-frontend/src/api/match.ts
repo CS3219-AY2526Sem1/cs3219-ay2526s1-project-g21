@@ -22,7 +22,7 @@ export async function joinQueue(userId: number | undefined, category: string, di
 }
 
 export async function getRoomStatus(matchId: string, token: string): Promise<RoomInfo> {
-    const res = await fetch(`http://localhost:8082/api/v1/room/${matchId}`, {
+    const res = await fetch(`http://localhost:8084/api/v1/room/${matchId}`, {
         headers: {
             "Authorization": `Bearer ${token}`,
         },

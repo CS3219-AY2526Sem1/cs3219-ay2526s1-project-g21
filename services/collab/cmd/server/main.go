@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 
 	"collab/internal/room_management"
 	"collab/internal/routers"
@@ -41,6 +42,14 @@ func main() {
 		middleware.Recoverer,
 		middleware.Timeout(60*time.Second),
 	)
+
+	// CORS middleware
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 
 	r.Mount("/", routers.New(logger, roomManager))
 
