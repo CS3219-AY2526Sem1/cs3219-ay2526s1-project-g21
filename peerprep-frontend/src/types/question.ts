@@ -38,4 +38,6 @@ export interface RoomInfo {
   status: "pending" | "processing" | "ready" | "error";
   question?: Question;
   createdAt: string;
+  token1?: string;
+  token2?: string;
 }

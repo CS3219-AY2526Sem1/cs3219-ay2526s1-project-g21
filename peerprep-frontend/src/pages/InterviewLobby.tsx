@@ -27,13 +27,6 @@ interface InterviewHistoryItem {
     date: string;
 }
 
-interface MatchEvent {
-    matchId: string;
-    user1: number;
-    user2: number;
-    category: string;
-    difficulty: string;
-}
 
 export default function InterviewLobby() {
     const { token } = useAuth();
@@ -58,13 +51,13 @@ export default function InterviewLobby() {
     });
 
     // Function to wait for room to be ready
-    const waitForRoomReady = async (matchId: string) => {
+    const waitForRoomReady = async (matchId: string, userToken: string) => {
         const maxAttempts = 30; // 30 seconds max wait time
         let attempts = 0;
 
         const checkRoomStatus = async (): Promise<RoomInfo | null> => {
             try {
-                return await getRoomStatus(matchId);
+                return await getRoomStatus(matchId, userToken);
             } catch (error) {
                 console.error("Failed to get room status:", error);
                 return null;
@@ -168,11 +161,12 @@ export default function InterviewLobby() {
 
         ws.onmessage = async (event) => {
             try {
-                const data: MatchEvent = JSON.parse(event.data);
+                const data: RoomInfo = JSON.parse(event.data);
                 console.log("Received match event:", data);
-                if (data.user1 == user?.id || data.user2 == user?.id) {
+                if (data.user1 == user?.id?.toString() || data.user2 == user?.id?.toString()) {
                     const matchId = data.matchId;
-                    const otherUserId = data.user1 == user?.id ? data.user2 : data.user1;
+                    const otherUserId = data.user1 == user?.id?.toString() ? data.user2 : data.user1;
+                    const userToken = data.user1 == user?.id?.toString() ? data.token1 : data.token2;
 
                     const matchMessage = `Matched with user ${otherUserId} for ${data.category} (${data.difficulty}). Setting up room...`;
 
@@ -181,8 +175,15 @@ export default function InterviewLobby() {
                         duration: 5000,
                     });
 
+                    // Store token in sessionStorage for later use
+                    if (userToken) {
+                        sessionStorage.setItem(`room_token_${matchId}`, userToken);
+                    }
+
                     // Wait for room to be ready
-                    await waitForRoomReady(matchId);
+                    if (userToken) {
+                        await waitForRoomReady(matchId, userToken);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to parse WebSocket message", err);

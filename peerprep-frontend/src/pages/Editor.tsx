@@ -84,7 +84,19 @@ export default function Editor() {
     const fetchRoomInfo = async () => {
       try {
         setRoomLoading(true);
-        const room = await getRoomStatus(roomId);
+        
+        // Get token from sessionStorage
+        const token = sessionStorage.getItem(`room_token_${roomId}`);
+        if (!token) {
+          toast.error("No access token found. Please join a room first.", {
+            position: "bottom-center",
+            duration: 5000,
+          });
+          nav("/lobby");
+          return;
+        }
+
+        const room = await getRoomStatus(roomId, token);
         setRoomInfo(room);
 
         if (room.status === "ready" && room.question) {
@@ -118,7 +130,18 @@ export default function Editor() {
   useEffect(() => {
     if (!isRoomValid) return;
 
-    const ws = new WebSocket(`${import.meta.env.VITE_COLLAB_SERVICE_WS}/ws/session/${roomId}`);
+    // Get token from sessionStorage
+    const token = sessionStorage.getItem(`room_token_${roomId}`);
+    if (!token) {
+      toast.error("No access token found. Please join a room first.", {
+        position: "bottom-center",
+        duration: 5000,
+      });
+      nav("/lobby");
+      return;
+    }
+
+    const ws = new WebSocket(`${import.meta.env.VITE_COLLAB_SERVICE_WS}/ws/session/${roomId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
