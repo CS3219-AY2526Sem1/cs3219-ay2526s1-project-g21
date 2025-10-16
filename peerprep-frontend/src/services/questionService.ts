@@ -3,7 +3,7 @@ import { getAllQuestions, getRandomQuestion } from "@/api/questions";
 
 const mockQuestions: Question[] = [
   {
-    id: "1",
+    id: 1,
     title: "Jungwoo and Bananas",
     topic_tags: ["Greedy"],
     difficulty: "Hard",
@@ -13,7 +13,7 @@ const mockQuestions: Question[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "2", 
+    id: 2, 
     title: "Find Duplicate Peak Element in Array",
     topic_tags: ["Binary Search"],
     difficulty: "Medium",
@@ -23,7 +23,7 @@ const mockQuestions: Question[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "3",
+    id: 3,
     title: "House Robbers I", 
     topic_tags: ["Dynamic Programming"],
     difficulty: "Easy",
@@ -33,7 +33,7 @@ const mockQuestions: Question[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "4",
+    id: 4,
     title: "Gas Stations",
     topic_tags: ["Dynamic Programming"],
     difficulty: "Medium", 
@@ -43,7 +43,7 @@ const mockQuestions: Question[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "5",
+    id: 5,
     title: "Reverse a Linked List",
     topic_tags: ["Linked List"], 
     difficulty: "Hard",
@@ -53,7 +53,7 @@ const mockQuestions: Question[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: "6",
+    id: 6,
     title: "Two Sum",
     topic_tags: ["Hash Table"],
     difficulty: "Easy",

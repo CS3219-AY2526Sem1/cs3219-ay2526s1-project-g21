@@ -12,26 +12,55 @@ import (
 	"collab/internal/exec"
 	"collab/internal/format"
 	"collab/internal/models"
+	"collab/internal/room_management"
 	"collab/internal/session"
 	"collab/internal/utils"
 )
 
 type Handlers struct {
-	log    *utils.Logger
-	runner *exec.Runner
-	hub    *session.Hub
+	log         *utils.Logger
+	runner      *exec.Runner
+	hub         *session.Hub
+	roomManager *room_management.RoomManager
 }
 
-func NewHandlers(log *utils.Logger) *Handlers {
+func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
 	return &Handlers{
-		log:    log,
-		runner: exec.NewRunner(),
-		hub:    session.NewHub(),
+		log:         log,
+		runner:      exec.NewRunner(),
+		hub:         session.NewHub(),
+		roomManager: roomManager,
 	}
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+// Get room status by match ID (requires token)
+func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
+	matchId := chi.URLParam(r, "matchId")
+	if matchId == "" {
+		http.Error(w, "matchId is required", http.StatusBadRequest)
+		return
+	}
+
+	// Extract token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	token, err := utils.ExtractTokenFromHeader(authHeader)
+	if err != nil {
+		http.Error(w, "Authorization token required", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate token and get room info
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
+	if err != nil {
+		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+		return
+	}
+
+	writeJSON(w, roomInfo)
 }
 
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
@@ -93,6 +122,27 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { retu
 
 func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
+
+	// Extract token from query parameter
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Token required", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate token and get room info
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
+	if err != nil {
+		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify the session ID matches the room
+	if roomInfo.MatchId != sessionID {
+		http.Error(w, "Invalid room", http.StatusBadRequest)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return

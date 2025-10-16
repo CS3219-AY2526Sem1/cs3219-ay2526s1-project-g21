@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	mongoclient "peerprep/question/internal/repositories/mongo"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -142,17 +144,30 @@ func (r *QuestionRepository) GetRandom(topics []string, difficulty string) (*mod
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	fmt.Println("Selected topics: ", topics)
+	fmt.Println("Selected difficulty: ", difficulty)
+
 	// build match criteria
 	matchCriteria := bson.M{"status": "active"}
 
 	// add difficulty filter if provided
 	if difficulty != "" {
-		matchCriteria["difficulty"] = difficulty
+		matchCriteria["difficulty"] = bson.M{
+			"$regex":   "^" + difficulty + "$", // exact match
+			"$options": "i",                    // case-insensitive
+		}
+
 	}
 
-	// add topic filter if provided
 	if len(topics) > 0 {
-		matchCriteria["topic_tags"] = bson.M{"$in": topics}
+		regexTopics := make([]interface{}, len(topics))
+		for i, t := range topics {
+			regexTopics[i] = primitive.Regex{
+				Pattern: "^" + t + "$", // exact match
+				Options: "i",           // case-insensitive
+			}
+		}
+		matchCriteria["topic_tags"] = bson.M{"$in": regexTopics}
 	}
 
 	// 1) only consider active questions with optional filters
