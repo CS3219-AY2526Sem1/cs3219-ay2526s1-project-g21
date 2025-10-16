@@ -11,13 +11,14 @@ import (
 
 // Room holds the authoritative document state and connected clients for a session.
 type Room struct {
-	ID       string
-	mu       sync.Mutex
-	clients  map[*Client]struct{}
-	doc      models.DocState
-	language models.Language
-	otConf   text.OTBufferConfig
-	otBuffer *text.OTBuffer
+	ID         string
+	mu         sync.Mutex
+	clients    map[*Client]struct{}
+	doc        models.DocState
+	language   models.Language
+	otConf     text.OTBufferConfig
+	otBuffer   *text.OTBuffer
+	runHistory []models.WSFrame
 }
 
 const otRetentionSeconds int64 = 60
@@ -134,4 +135,34 @@ func (r *Room) resetOTBufferLocked() {
 	buf := text.NewOTBuffer(r.doc.Text, r.otConf)
 	buf.Version = int(r.doc.Version)
 	r.otBuffer = buf
+}
+
+func (r *Room) BeginRun() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	frame := models.WSFrame{Type: "run_reset"}
+	r.runHistory = []models.WSFrame{frame}
+	r.broadcastFrameLocked(frame)
+}
+
+func (r *Room) RecordRunFrame(frame models.WSFrame) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.runHistory = append(r.runHistory, frame)
+	r.broadcastFrameLocked(frame)
+}
+
+func (r *Room) ReplayRunHistory(c *Client) {
+	r.mu.Lock()
+	history := append([]models.WSFrame(nil), r.runHistory...)
+	r.mu.Unlock()
+	for _, frame := range history {
+		c.Send(frame)
+	}
+}
+
+func (r *Room) broadcastFrameLocked(frame models.WSFrame) {
+	for client := range r.clients {
+		client.Send(frame)
+	}
 }

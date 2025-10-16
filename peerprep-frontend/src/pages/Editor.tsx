@@ -14,6 +14,7 @@ type WSFrame =
   | { type: "stderr"; data: string }
   | { type: "exit"; data: { code: number; timedOut: boolean } }
   | { type: "language"; data: string }
+  | { type: "run_reset"; data?: null }
   | { type: "question"; data: { question: Question | null; rerollsRemaining: number } }
   | { type: "error"; data: string };
 
@@ -182,6 +183,13 @@ export default function Editor() {
         case "exit":
           setExitInfo({ code: frame.data.code, timedOut: frame.data.timedOut });
           setIsRunning(false);
+          break;
+        case "run_reset":
+          setStdout("");
+          setStderr("");
+          setExitInfo(null);
+          setRunError(null);
+          setIsRunning(true);
           break;
         case "question": {
           const nextQuestion = frame.data.question ?? null;

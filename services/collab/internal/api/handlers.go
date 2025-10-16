@@ -258,6 +258,8 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
+	room.ReplayRunHistory(client)
+
 	// Event loop
 	for {
 		var frame models.WSFrame
@@ -304,7 +306,8 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		case "run":
 			var run models.RunCmd
 			marshal(frame.Data, &run)
-			go h.runInSandbox(conn, run) // stream back stdout/stderr/exit
+			room.BeginRun()
+			go h.runInSandbox(room, run)
 
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
@@ -312,7 +315,7 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
+func (h *Handlers) runInSandbox(room *session.Room, run models.RunCmd) {
 	limits := exec.SandboxLimits{
 		WallTime: 10 * time.Second,
 		MemoryB:  512 * 1024 * 1024,
@@ -324,7 +327,7 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 	// _, image, fileName, cmds, err := h.runner.LangSpecPublic(run.Language)
 	_, image, _, cmds, err := h.runner.LangSpecPublic(run.Language)
 	if err != nil {
-		_ = conn.WriteJSON(errFrame("unsupported_language"))
+		room.RecordRunFrame(errFrame("unsupported_language"))
 		return
 	}
 
@@ -332,9 +335,9 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 	if err != nil {
 		switch {
 		case errors.Is(err, exec.ErrDockerUnavailable):
-			_ = conn.WriteJSON(errFrame("sandbox_unavailable"))
+			room.RecordRunFrame(errFrame("sandbox_unavailable"))
 		default:
-			_ = conn.WriteJSON(errFrame("sandbox_error"))
+			room.RecordRunFrame(errFrame("sandbox_error"))
 		}
 		return
 	}
@@ -344,18 +347,18 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 		fileNameFromLang(run.Language),
 		[]byte(run.Code),
 		cmds,
-		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stdout", Data: string(p)}) },
-		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stderr", Data: string(p)}) },
+		func(p []byte) { room.RecordRunFrame(models.WSFrame{Type: "stdout", Data: string(p)}) },
+		func(p []byte) { room.RecordRunFrame(models.WSFrame{Type: "stderr", Data: string(p)}) },
 	)
 	if runErr != nil {
 		h.log.Error("sandbox run failed", "language", run.Language, "error", runErr.Error())
 		if errors.Is(runErr, exec.ErrDockerUnavailable) {
-			_ = conn.WriteJSON(errFrame("sandbox_unavailable"))
+			room.RecordRunFrame(errFrame("sandbox_unavailable"))
 		} else {
-			_ = conn.WriteJSON(errFrame("sandbox_error: " + runErr.Error()))
+			room.RecordRunFrame(errFrame("sandbox_error: " + runErr.Error()))
 		}
 	}
-	_ = conn.WriteJSON(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
+	room.RecordRunFrame(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
 }
 
 func marshal(in any, out any) { b, _ := json.Marshal(in); _ = json.Unmarshal(b, out) }
