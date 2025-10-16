@@ -4,15 +4,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 )
 
 // Room represents a voice chat room
 type Room struct {
-	ID        string           `json:"id"`
-	Users     map[string]*User `json:"users"`
-	CreatedAt time.Time        `json:"createdAt"`
-	mu        sync.RWMutex     `json:"-"`
+	ID        string                     `json:"id"`
+	Users     map[string]*User           `json:"users"`
+	Conns     map[string]*websocket.Conn `json:"-"` // map userID -> websocket conn
+	CreatedAt time.Time                  `json:"createdAt"`
+	mu        sync.RWMutex               `json:"-"`
 }
 
 // User represents a user in a voice room
@@ -102,6 +104,10 @@ func (r *Room) RemoveUser(userID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.Users, userID)
+	if conn, ok := r.Conns[userID]; ok {
+		conn.Close()
+		delete(r.Conns, userID)
+	}
 }
 
 // GetUser returns a user by ID
@@ -112,7 +118,7 @@ func (r *Room) GetUser(userID string) (*User, bool) {
 	return user, exists
 }
 
-// GetUsers returns all users in the room
+// GetUsers returns a shallow copy of users in the room
 func (r *Room) GetUsers() map[string]*User {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -152,3 +158,53 @@ func (r *Room) GetRoomStatus() RoomStatus {
 		CreatedAt: r.CreatedAt,
 	}
 }
+
+// AddConn associates a websocket connection with a user in the room
+func (r *Room) AddConn(userID string, conn *websocket.Conn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Conns[userID] = conn
+}
+
+// RemoveConn removes and closes the websocket connection for a user
+func (r *Room) RemoveConn(userID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if conn, ok := r.Conns[userID]; ok {
+		conn.Close()
+		delete(r.Conns, userID)
+	}
+}
+
+// BroadcastJSON sends a JSON object to all connected websocket clients in the room
+func (r *Room) BroadcastJSON(v interface{}) {
+	r.mu.RLock()
+	conns := make([]*websocket.Conn, 0, len(r.Conns))
+	for _, c := range r.Conns {
+		conns = append(conns, c)
+	}
+	r.mu.RUnlock()
+
+	for _, c := range conns {
+		_ = c.WriteJSON(v) // ignore error for best-effort broadcast
+	}
+}
+
+// SendToUser sends a JSON object to a specific user if they are connected
+func (r *Room) SendToUser(userID string, v interface{}) error {
+	r.mu.RLock()
+	conn, ok := r.Conns[userID]
+	r.mu.RUnlock()
+	if !ok || conn == nil {
+		return ErrUserNotConnected
+	}
+	return conn.WriteJSON(v)
+}
+
+// ErrUserNotConnected is returned when a user has no active websocket connection
+var ErrUserNotConnected = &RoomError{"user not connected"}
+
+// RoomError is a simple error type for room operations
+type RoomError struct{ Msg string }
+
+func (e *RoomError) Error() string { return e.Msg }

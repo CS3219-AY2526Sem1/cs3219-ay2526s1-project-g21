@@ -24,9 +24,12 @@ func NewHandlers() *Handlers {
 	return &Handlers{
 		roomManager:  utils.NewRoomManager(),
 		upgrader:     websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
-		webrtcConfig: utils.GetWebRTCConfig(),
+		webrtcConfig: GetWebRTCConfig(),
 	}
 }
+
+// placeholder to avoid depending on utils for this example
+func GetWebRTCConfig() webrtc.Configuration { return webrtc.Configuration{} }
 
 // Health check endpoint
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +58,9 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 
 // Get WebRTC configuration
 func (h *Handlers) GetWebRTCConfig(w http.ResponseWriter, r *http.Request) {
-	config := models.WebRTCConfig{
+	config := struct {
+		ICEServers []webrtc.ICEServer `json:"iceServers"`
+	}{
 		ICEServers: h.webrtcConfig.ICEServers,
 	}
 
@@ -76,131 +81,110 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
+
+	// Make sure connection is closed when this handler returns
 	defer conn.Close()
 
-	// Get or create room
+	// The first message from client MUST be a join message with userId and username
+	var joinMsg models.SignalingMessage
+	if err := conn.ReadJSON(&joinMsg); err != nil {
+		log.Printf("failed to read initial join message: %v", err)
+		return
+	}
+	if joinMsg.Type != "join" {
+		log.Printf("first message must be 'join'")
+		return
+	}
+
+	// Extract user info from message data
+	dataMap, ok := joinMsg.Data.(map[string]interface{})
+	if !ok {
+		// try via marshalling back to bytes to decode properly
+		raw, _ := json.Marshal(joinMsg.Data)
+		var tmp map[string]interface{}
+		json.Unmarshal(raw, &tmp)
+		dataMap = tmp
+	}
+
+	userID, _ := dataMap["userId"].(string)
+	username, _ := dataMap["username"].(string)
+	if userID == "" || username == "" {
+		log.Printf("missing userId or username in join message")
+		return
+	}
+
 	room := h.roomManager.GetOrCreateRoom(roomID)
 
-	// Handle WebSocket messages
+	user := &models.User{ID: userID, Username: username, JoinedAt: time.Now()}
+	room.AddUser(user)
+	room.AddConn(userID, conn)
+
+	// Broadcast updated room status
+	h.broadcastRoomStatus(room)
+
+	log.Printf("User %s joined room %s", username, room.ID)
+
+	// Message loop
 	for {
 		var msg models.SignalingMessage
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			log.Printf("WebSocket read error: %v", err)
+		if err := conn.ReadJSON(&msg); err != nil {
+			log.Printf("WebSocket read error for user %s: %v", userID, err)
+			// remove user and connection
+			room.RemoveUser(userID)
+			room.RemoveConn(userID)
+			h.roomManagerDeleteIfEmpty(room)
+			h.broadcastRoomStatus(room)
 			break
 		}
 
 		msg.Timestamp = time.Now()
 		msg.RoomID = roomID
 
-		// Handle different message types
 		switch msg.Type {
-		case "join":
-			h.handleJoin(conn, room, &msg)
 		case "leave":
-			h.handleLeave(conn, room, &msg)
-		case "offer":
-			h.handleOffer(conn, room, &msg)
-		case "answer":
-			h.handleAnswer(conn, room, &msg)
-		case "ice-candidate":
-			h.handleICECandidate(conn, room, &msg)
+			room.RemoveUser(msg.From)
+			room.RemoveConn(msg.From)
+			h.roomManagerDeleteIfEmpty(room)
+			h.broadcastRoomStatus(room)
+		case "offer", "answer", "ice-candidate":
+			// forward to specific user
+			h.forwardToUser(room, &msg)
 		case "mute":
-			h.handleMute(conn, room, &msg)
+			if u, ok := room.GetUser(msg.From); ok {
+				u.IsMuted = true
+				h.broadcastRoomStatus(room)
+			}
 		case "unmute":
-			h.handleUnmute(conn, room, &msg)
+			if u, ok := room.GetUser(msg.From); ok {
+				u.IsMuted = false
+				h.broadcastRoomStatus(room)
+			}
 		default:
-			log.Printf("Unknown message type: %s", msg.Type)
+			log.Printf("unknown message type: %s", msg.Type)
 		}
 	}
 }
 
-func (h *Handlers) handleJoin(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	// Extract user info from message data
-	data, ok := msg.Data.(map[string]interface{})
-	if !ok {
-		log.Printf("Invalid join message data")
-		return
-	}
-
-	userID, _ := data["userId"].(string)
-	username, _ := data["username"].(string)
-
-	if userID == "" || username == "" {
-		log.Printf("Missing user ID or username")
-		return
-	}
-
-	// Create user
-	user := &models.User{
-		ID:       userID,
-		Username: username,
-		JoinedAt: time.Now(),
-	}
-
-	// Add user to room
-	room.AddUser(user)
-
-	// Send room status to all users
-	h.broadcastRoomStatus(room)
-
-	log.Printf("User %s joined room %s", username, room.ID)
-}
-
-func (h *Handlers) handleLeave(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	userID := msg.From
-	room.RemoveUser(userID)
-
-	// Send room status to remaining users
-	h.broadcastRoomStatus(room)
-
-	// Clean up empty rooms
-	h.roomManager.DeleteRoom(room.ID)
-
-	log.Printf("User %s left room %s", userID, room.ID)
-}
-
-func (h *Handlers) handleOffer(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	// Forward offer to target user
-	h.forwardToUser(room, msg)
-}
-
-func (h *Handlers) handleAnswer(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	// Forward answer to target user
-	h.forwardToUser(room, msg)
-}
-
-func (h *Handlers) handleICECandidate(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	// Forward ICE candidate to target user
-	h.forwardToUser(room, msg)
-}
-
-func (h *Handlers) handleMute(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	userID := msg.From
-	if user, exists := room.GetUser(userID); exists {
-		user.IsMuted = true
-		h.broadcastRoomStatus(room)
-	}
-}
-
-func (h *Handlers) handleUnmute(conn *websocket.Conn, room *models.Room, msg *models.SignalingMessage) {
-	userID := msg.From
-	if user, exists := room.GetUser(userID); exists {
-		user.IsMuted = false
-		h.broadcastRoomStatus(room)
-	}
-}
-
 func (h *Handlers) forwardToUser(room *models.Room, msg *models.SignalingMessage) {
-	// In a real implementation, you would forward the message to the specific user
-	// For now, we'll just log it
-	log.Printf("Forwarding %s message from %s to %s in room %s", msg.Type, msg.From, msg.To, msg.RoomID)
+	if msg.To == "" {
+		log.Printf("no target specified for %s from %s", msg.Type, msg.From)
+		return
+	}
+	if err := room.SendToUser(msg.To, msg); err != nil {
+		log.Printf("failed to forward message to %s: %v", msg.To, err)
+	}
 }
 
 func (h *Handlers) broadcastRoomStatus(room *models.Room) {
 	status := room.GetRoomStatus()
-
-	// In a real implementation, you would broadcast to all connected users
-	// For now, we'll just log it
+	room.BroadcastJSON(status)
 	log.Printf("Broadcasting room status for room %s: %d users", room.ID, status.UserCount)
+}
+
+// helper to delete room if empty
+func (h *Handlers) roomManagerDeleteIfEmpty(room *models.Room) {
+	if room.GetUserCount() == 0 {
+		h.roomManager.DeleteRoom(room.ID)
+		log.Printf("Deleted empty room %s", room.ID)
+	}
 }

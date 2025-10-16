@@ -2,7 +2,6 @@ package utils
 
 import (
 	"sync"
-	"time"
 
 	"voice/internal/models"
 )
@@ -53,29 +52,4 @@ func (rm *RoomManager) DeleteRoom(roomID string) {
 			delete(rm.rooms, roomID)
 		}
 	}
-}
-
-// CleanupEmptyRooms removes empty rooms older than 1 hour
-func (rm *RoomManager) CleanupEmptyRooms() {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	now := time.Now()
-	for roomID, room := range rm.rooms {
-		if room.GetUserCount() == 0 && now.Sub(room.CreatedAt) > time.Hour {
-			delete(rm.rooms, roomID)
-		}
-	}
-}
-
-// GetAllRooms returns all rooms
-func (rm *RoomManager) GetAllRooms() map[string]*models.Room {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-
-	rooms := make(map[string]*models.Room)
-	for id, room := range rm.rooms {
-		rooms[id] = room
-	}
-	return rooms
 }
