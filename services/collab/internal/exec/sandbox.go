@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -26,10 +27,12 @@ type Sandbox struct {
 	limits SandboxLimits
 }
 
+var ErrDockerUnavailable = errors.New("docker daemon unreachable")
+
 func NewSandbox(image string, limits SandboxLimits) (*Sandbox, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, err
+		return nil, translateDockerErr(err)
 	}
 	return &Sandbox{cli: cli, image: image, limits: limits}, nil
 }
@@ -41,7 +44,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 	defer cancel()
 
 	if err := s.ensureImage(ctx); err != nil {
-		return -1, false, err
+		return -1, false, translateDockerErr(err)
 	}
 
 	hostCfg := &container.HostConfig{
@@ -67,7 +70,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 
 	create, err := s.cli.ContainerCreate(ctx, conf, hostCfg, nil, nil, "")
 	if err != nil {
-		return -1, false, err
+		return -1, false, translateDockerErr(err)
 	}
 	cid := create.ID
 	defer func() {
@@ -75,13 +78,13 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 	}()
 
 	if err := s.cli.ContainerStart(ctx, cid, types.ContainerStartOptions{}); err != nil {
-		return -1, false, err
+		return -1, false, translateDockerErr(err)
 	}
 
 	// Copy code file
 	if err := s.copyFile(ctx, cid, "/workspace/"+fileName, code, 0600); err != nil {
 		_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-		return -1, false, err
+		return -1, false, translateDockerErr(err)
 	}
 
 	// Run steps (compile -> run)
@@ -89,7 +92,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 		execID, attachCloser, err := s.execStart(ctx, cid, cmd)
 		if err != nil {
 			_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-			return -1, false, err
+			return -1, false, translateDockerErr(err)
 		}
 
 		// Demux multiplexed docker stream
@@ -103,7 +106,7 @@ func (s *Sandbox) Run(ctx context.Context, fileName string, code []byte, cmds []
 		ir, ierr := s.cli.ContainerExecInspect(ctx, execID)
 		if ierr != nil {
 			_ = s.cli.ContainerKill(context.Background(), cid, "SIGKILL")
-			return -1, false, ierr
+			return -1, false, translateDockerErr(ierr)
 		}
 
 		if ir.ExitCode != 0 {
@@ -126,13 +129,13 @@ func (s *Sandbox) ensureImage(ctx context.Context) error {
 		defer cancel()
 		reader, pullErr := s.cli.ImagePull(pullCtx, s.image, types.ImagePullOptions{})
 		if pullErr != nil {
-			return pullErr
+			return translateDockerErr(pullErr)
 		}
 		defer reader.Close()
 		_, _ = io.Copy(io.Discard, reader)
 		return nil
 	}
-	return err
+	return translateDockerErr(err)
 }
 
 func (s *Sandbox) execStart(ctx context.Context, containerID string, cmd []string) (execID string, attach types.HijackedResponse, err error) {
@@ -144,15 +147,15 @@ func (s *Sandbox) execStart(ctx context.Context, containerID string, cmd []strin
 		Tty:          false,
 	})
 	if err != nil {
-		return "", types.HijackedResponse{}, err
+		return "", types.HijackedResponse{}, translateDockerErr(err)
 	}
 	attach, err = s.cli.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{Tty: false})
 	if err != nil {
-		return "", types.HijackedResponse{}, err
+		return "", types.HijackedResponse{}, translateDockerErr(err)
 	}
 	if err := s.cli.ContainerExecStart(ctx, execResp.ID, types.ExecStartCheck{Tty: false}); err != nil {
 		attach.Close()
-		return "", types.HijackedResponse{}, err
+		return "", types.HijackedResponse{}, translateDockerErr(err)
 	}
 	return execResp.ID, attach, nil
 }
@@ -188,12 +191,22 @@ func (s *Sandbox) runCommand(ctx context.Context, cid, cmd string) error {
 	attach.Close()
 	inspect, err := s.cli.ContainerExecInspect(ctx, execID)
 	if err != nil {
-		return err
+		return translateDockerErr(err)
 	}
 	if inspect.ExitCode != 0 {
 		return fmt.Errorf("command failed (%s) exit=%d", cmd, inspect.ExitCode)
 	}
 	return nil
+}
+
+func translateDockerErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if client.IsErrConnectionFailed(err) {
+		return ErrDockerUnavailable
+	}
+	return err
 }
 
 func (s *Sandbox) execWithInput(ctx context.Context, cid, command string, payload []byte) error {
