@@ -17,7 +17,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [tabId] = useState(() => crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+  const [tabId] = useState(() => {
+    const existing = sessionStorage.getItem("tabId");
+    if (existing) return existing;
+    const newId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+    sessionStorage.setItem("tabId", newId);
+    return newId;
+  });
   const isLoggedIn = useMemo(() => !!token, [token]);
   const navigate = useNavigate();
 
