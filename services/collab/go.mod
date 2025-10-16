@@ -11,7 +11,10 @@ require (
 	github.com/redis/go-redis/v9 v9.3.0
 )
 
-require github.com/go-chi/cors v1.2.2
+require (
+	github.com/Jeffail/leaps v0.9.1
+	github.com/go-chi/cors v1.2.2
+)
 
 require (
 	github.com/Microsoft/go-winio v0.4.21 // indirect
