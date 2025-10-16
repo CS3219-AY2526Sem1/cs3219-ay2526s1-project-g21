@@ -6,11 +6,12 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"collab/internal/api"
+	"collab/internal/services"
 	"collab/internal/utils"
 )
 
-func New(log *utils.Logger) http.Handler {
-	h := api.NewHandlers(log)
+func New(log *utils.Logger, matchService *services.MatchService) http.Handler {
+	h := api.NewHandlers(log, matchService)
 	r := chi.NewRouter()
 
 	r.Get("/api/v1/healthz", h.Health)
@@ -19,6 +20,9 @@ func New(log *utils.Logger) http.Handler {
 	r.Post("/api/v1/format", h.FormatCode)
 
 	r.Post("/api/v1/run", h.RunOnce)
+
+	// Room status endpoint
+	r.Get("/api/v1/room/{matchId}", h.GetRoomStatus)
 
 	r.Get("/ws/session/{id}", h.CollabWS)
 

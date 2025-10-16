@@ -89,3 +89,42 @@ type RunCmd struct {
 type LanguageChange struct {
 	Language Language `json:"language"`
 }
+
+// Match event from match service
+type MatchEvent struct {
+	MatchId    string `json:"matchId"`
+	User1      string `json:"user1"`
+	User2      string `json:"user2"`
+	Category   string `json:"category"`
+	Difficulty string `json:"difficulty"`
+}
+
+// Room status and question info
+type RoomInfo struct {
+	MatchId    string    `json:"matchId"`
+	User1      string    `json:"user1"`
+	User2      string    `json:"user2"`
+	Category   string    `json:"category"`
+	Difficulty string    `json:"difficulty"`
+	Status     string    `json:"status"` // "pending", "ready", "error"
+	Question   *Question `json:"question,omitempty"`
+	CreatedAt  string    `json:"createdAt"`
+}
+
+// Question model (simplified from question service)
+type Question struct {
+	ID             int        `json:"id"`
+	Title          string     `json:"title"`
+	Difficulty     string     `json:"difficulty"`
+	TopicTags      []string   `json:"topic_tags,omitempty"`
+	PromptMarkdown string     `json:"prompt_markdown"`
+	Constraints    string     `json:"constraints,omitempty"`
+	TestCases      []TestCase `json:"test_cases,omitempty"`
+	ImageURLs      []string   `json:"image_urls,omitempty"`
+}
+
+type TestCase struct {
+	Input       string `json:"input"`
+	Output      string `json:"output"`
+	Description string `json:"description,omitempty"`
+}

@@ -160,7 +160,7 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 		Difficulty: req.Difficulty,
 	}
 
-	// Store match info
+	// Store match info in Redis
 	matchKey := "match:" + matchID
 	rdb.HSet(ctx, matchKey, map[string]interface{}{
 		"id":         matchID,
@@ -169,10 +169,11 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 		"category":   req.Category,
 		"difficulty": req.Difficulty,
 		"created_at": time.Now().Format(time.RFC3339),
+		"status":     "pending", // Room creation pending
 	})
 	rdb.LPush(ctx, "matches", matchID)
 
-	// Publish match event to Redis
+	// Publish match event to Redis for collab service to process
 	data, _ := json.Marshal(match)
 	rdb.Publish(ctx, "matches", data)
 

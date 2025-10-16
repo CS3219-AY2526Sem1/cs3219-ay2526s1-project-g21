@@ -12,26 +12,46 @@ import (
 	"collab/internal/exec"
 	"collab/internal/format"
 	"collab/internal/models"
+	"collab/internal/services"
 	"collab/internal/session"
 	"collab/internal/utils"
 )
 
 type Handlers struct {
-	log    *utils.Logger
-	runner *exec.Runner
-	hub    *session.Hub
+	log          *utils.Logger
+	runner       *exec.Runner
+	hub          *session.Hub
+	matchService *services.MatchService
 }
 
-func NewHandlers(log *utils.Logger) *Handlers {
+func NewHandlers(log *utils.Logger, matchService *services.MatchService) *Handlers {
 	return &Handlers{
-		log:    log,
-		runner: exec.NewRunner(),
-		hub:    session.NewHub(),
+		log:          log,
+		runner:       exec.NewRunner(),
+		hub:          session.NewHub(),
+		matchService: matchService,
 	}
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+// Get room status by match ID
+func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
+	matchId := chi.URLParam(r, "matchId")
+	if matchId == "" {
+		http.Error(w, "matchId is required", http.StatusBadRequest)
+		return
+	}
+
+	roomInfo, err := h.matchService.GetRoomStatus(matchId)
+	if err != nil {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, roomInfo)
 }
 
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
