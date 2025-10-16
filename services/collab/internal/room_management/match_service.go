@@ -259,40 +259,47 @@ func cloneRoomInfo(src *models.RoomInfo) *models.RoomInfo {
 func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) {
 	ms.mu.Lock()
 	roomInfo, exists := ms.roomStatusMap[matchId]
+	ms.mu.Unlock()
+
 	if !exists {
-		ms.mu.Unlock()
 		loaded, err := ms.fetchRoomStatusFromRedis(matchId)
 		if err != nil {
 			return nil, err
 		}
+
 		ms.mu.Lock()
 		roomInfo, exists = ms.roomStatusMap[matchId]
 		if !exists {
 			ms.roomStatusMap[matchId] = loaded
 			roomInfo = loaded
 		}
+		ms.mu.Unlock()
 	}
 
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
 	if roomInfo.RerollsRemaining <= 0 {
-		ms.mu.Unlock()
 		return nil, ErrNoRerolls
 	}
 
 	roomInfo.RerollsRemaining--
+
 	category := roomInfo.Category
 	difficulty := roomInfo.Difficulty
 	currentQuestionID := 0
 	if roomInfo.Question != nil {
 		currentQuestionID = roomInfo.Question.ID
 	}
+
 	ms.mu.Unlock()
 
 	question, err := ms.fetchAlternativeQuestion(category, difficulty, currentQuestionID)
 	if err != nil {
-		log.Printf("Failed to reroll question for room %s: %v", matchId, err)
 		ms.mu.Lock()
 		roomInfo.RerollsRemaining++
 		ms.mu.Unlock()
+		log.Printf("Failed to reroll question for room %s: %v", matchId, err)
 		return nil, err
 	}
 
@@ -302,7 +309,7 @@ func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) 
 	updatedCopy := cloneRoomInfo(roomInfo)
 	ms.mu.Unlock()
 
-	ms.updateRoomStatusInRedis(context.Background(), roomInfo)
+	go ms.updateRoomStatusInRedis(context.Background(), roomInfo)
 
 	log.Printf("Match service: Room %s rerolled question to %d", matchId, question.ID)
 
