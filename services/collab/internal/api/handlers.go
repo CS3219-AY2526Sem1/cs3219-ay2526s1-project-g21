@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Jeffail/leaps/lib/text"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 
@@ -268,9 +269,10 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		case "edit":
 			var e models.Edit
 			marshal(frame.Data, &e)
-			ok, newDoc := room.ApplyEdit(e)
+			ok, newDoc, applyErr := room.ApplyEdit(e)
 			if !ok {
-				_ = conn.WriteJSON(models.WSFrame{Type: "error", Data: "version_mismatch"})
+				errType := mapOTError(applyErr)
+				_ = conn.WriteJSON(models.WSFrame{Type: "error", Data: errType})
 				_ = conn.WriteJSON(models.WSFrame{Type: "doc", Data: newDoc})
 				continue
 			}
@@ -374,4 +376,23 @@ func fileNameFromLang(l models.Language) string {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func mapOTError(err error) string {
+	if err == nil {
+		return "ot_error"
+	}
+	if errors.Is(err, text.ErrTransformTooOld) || errors.Is(err, text.ErrTransformSkipped) {
+		return "version_mismatch"
+	}
+	if errors.Is(err, text.ErrTransformOOB) || errors.Is(err, text.ErrTransformNegDelete) {
+		return "invalid_range"
+	}
+	if errors.Is(err, text.ErrTransformTooLong) {
+		return "transform_too_long"
+	}
+	if err.Error() == "version_mismatch" || err.Error() == "invalid_range" {
+		return err.Error()
+	}
+	return err.Error()
 }
