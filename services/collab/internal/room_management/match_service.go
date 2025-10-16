@@ -24,6 +24,10 @@ type RoomManager struct {
 	mu            sync.RWMutex
 }
 
+const (
+	maxFetchAttempts = 5
+)
+
 var (
 	ErrNoRerolls             = errors.New("no rerolls remaining")
 	ErrNoAlternativeQuestion = errors.New("no alternative question available")
@@ -127,8 +131,7 @@ func (ms *RoomManager) fetchQuestion(category string, difficulty string) (*model
 }
 
 func (ms *RoomManager) fetchAlternativeQuestion(category string, difficulty string, currentID int) (*models.Question, error) {
-	const maxAttempts = 5
-	for i := 0; i < maxAttempts; i++ {
+	for i := 0; i < maxFetchAttempts; i++ {
 		question, err := ms.fetchQuestion(category, difficulty)
 		if err != nil {
 			return nil, err
