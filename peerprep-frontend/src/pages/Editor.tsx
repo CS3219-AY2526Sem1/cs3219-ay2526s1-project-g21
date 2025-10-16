@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
+import { getMe } from "@/api/auth";
 
 type Question = {
   id: string;
@@ -34,7 +35,8 @@ const CODE_TEMPLATES: Record<string, string> = {
 
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { user } = useAuth();
+  const [user, setUser] = useState<{ id: number; username: string; email: string } | null>(null);
+  const { token } = useAuth();
 
   const [question, setQuestion] = useState<Question | null>(null);
   const [language, setLanguage] = useState<string>("python");
@@ -83,6 +85,11 @@ export default function Editor() {
       setDocVersion(currentVersion + 1);
     }
   };
+
+  useEffect(() => {
+    if (!token) return;
+    getMe(token).then((me) => setUser(me));
+  }, [token]);
 
   useEffect(() => {
     // Placeholder: In the future, fetch the question based on room/session
