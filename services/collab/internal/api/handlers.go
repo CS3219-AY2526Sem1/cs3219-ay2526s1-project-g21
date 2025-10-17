@@ -307,7 +307,7 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			var run models.RunCmd
 			marshal(frame.Data, &run)
 			room.BeginRun()
-			go h.runInSandbox(room, run)
+	go h.runInSandbox(room, run)
 
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
@@ -324,57 +324,22 @@ func (h *Handlers) runInSandbox(room *session.Room, run models.RunCmd) {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 
-	// _, image, fileName, cmds, err := h.runner.LangSpecPublic(run.Language)
-	_, image, _, cmds, err := h.runner.LangSpecPublic(run.Language)
-	if err != nil {
-		room.RecordRunFrame(errFrame("unsupported_language"))
-		return
-	}
-
-	sbx, err := exec.NewSandbox(image, limits)
-	if err != nil {
-		switch {
-		case errors.Is(err, exec.ErrDockerUnavailable):
-			room.RecordRunFrame(errFrame("sandbox_unavailable"))
-		default:
-			room.RecordRunFrame(errFrame("sandbox_error"))
-		}
-		return
-	}
-
-	exit, timedOut, runErr := sbx.Run(
-		ctx,
-		fileNameFromLang(run.Language),
-		[]byte(run.Code),
-		cmds,
-		func(p []byte) { room.RecordRunFrame(models.WSFrame{Type: "stdout", Data: string(p)}) },
-		func(p []byte) { room.RecordRunFrame(models.WSFrame{Type: "stderr", Data: string(p)}) },
-	)
-	if runErr != nil {
+	frames, runErr := h.runner.RunStream(ctx, run.Language, run.Code, limits)
+	if runErr != nil && !errors.Is(runErr, exec.ErrDockerUnavailable) {
 		h.log.Error("sandbox run failed", "language", run.Language, "error", runErr.Error())
-		if errors.Is(runErr, exec.ErrDockerUnavailable) {
-			room.RecordRunFrame(errFrame("sandbox_unavailable"))
-		} else {
-			room.RecordRunFrame(errFrame("sandbox_error: " + runErr.Error()))
-		}
 	}
-	room.RecordRunFrame(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
+	if len(frames) == 0 && runErr != nil {
+		room.RecordRunFrame(models.WSFrame{Type: "error", Data: runErr.Error()})
+		return
+	}
+	for _, frame := range frames {
+		room.RecordRunFrame(frame)
+	}
 }
 
 func marshal(in any, out any) { b, _ := json.Marshal(in); _ = json.Unmarshal(b, out) }
 
 func errFrame(msg string) models.WSFrame { return models.WSFrame{Type: "error", Data: msg} }
-
-func fileNameFromLang(l models.Language) string {
-	switch l {
-	case models.LangPython:
-		return "main.py"
-	case models.LangJava:
-		return "Main.java"
-	default:
-		return "main.cpp"
-	}
-}
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")

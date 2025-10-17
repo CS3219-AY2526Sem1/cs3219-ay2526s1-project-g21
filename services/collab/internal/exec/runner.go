@@ -1,16 +1,34 @@
 package exec
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"collab/internal/models"
 )
 
-type Runner struct{}
+type Runner struct {
+	client  *http.Client
+	baseURL string
+}
 
-func NewRunner() *Runner { return &Runner{} }
+func NewRunner() *Runner {
+	base := strings.TrimSpace(os.Getenv("SANDBOX_URL"))
+	if base == "" {
+		base = "http://localhost:8090"
+	}
+	base = strings.TrimRight(base, "/")
+	return &Runner{
+		client:  &http.Client{},
+		baseURL: base,
+	}
+}
 
 type RunOutput struct {
 	Stdout   string
@@ -19,37 +37,169 @@ type RunOutput struct {
 	TimedOut bool
 }
 
-func (r *Runner) LangSpecPublic(lang models.Language) (spec models.LanguageSpec, image string, fileName string, cmds [][]string, err error) {
-	return r.langSpec(lang)
+type SandboxLimits struct {
+	WallTime time.Duration
+	MemoryB  int64
+	NanoCPUs int64
 }
 
+type sandboxRequest struct {
+	Language string        `json:"language"`
+	Code     string        `json:"code"`
+	Limits   sandboxLimits `json:"limits"`
+}
+
+type sandboxLimits struct {
+	WallTimeMs  int64 `json:"wallTimeMs"`
+	MemoryBytes int64 `json:"memoryBytes"`
+	NanoCPUs    int64 `json:"nanoCPUs"`
+}
+
+type sandboxResponse struct {
+	Stdout string         `json:"stdout"`
+	Stderr string         `json:"stderr"`
+	Exit   runExit        `json:"exit"`
+	Events []sandboxEvent `json:"events"`
+	Error  string         `json:"error,omitempty"`
+}
+
+type runExit struct {
+	Code     int  `json:"code"`
+	TimedOut bool `json:"timedOut"`
+}
+
+type sandboxEvent struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+var ErrDockerUnavailable = errors.New("docker daemon unreachable")
+
 func (r *Runner) RunOnce(ctx context.Context, lang models.Language, code string, limits SandboxLimits) (RunOutput, error) {
-	spec, image, fileName, cmds, err := r.langSpec(lang)
+	resp, err := r.invokeSandbox(ctx, lang, code, limits)
 	if err != nil {
 		return RunOutput{}, err
 	}
-
-	sbx, err := NewSandbox(image, limits)
-	if err != nil {
-		return RunOutput{}, err
+	if mapped := mapSandboxError(resp.Error); mapped != nil {
+		return RunOutput{}, mapped
 	}
-	var out, errS strings.Builder
-
-	exit, timedOut, runErr := sbx.Run(ctx, fileName, []byte(code), cmds,
-		func(p []byte) { out.Write(p) },
-		func(p []byte) { errS.Write(p) },
-	)
-	_ = spec
-	if runErr != nil && !timedOut {
-		return RunOutput{}, runErr
-	}
-
 	return RunOutput{
-		Stdout:   out.String(),
-		Stderr:   errS.String(),
-		Exit:     exit,
-		TimedOut: timedOut,
+		Stdout:   resp.Stdout,
+		Stderr:   resp.Stderr,
+		Exit:     resp.Exit.Code,
+		TimedOut: resp.Exit.TimedOut,
 	}, nil
+}
+
+func (r *Runner) RunStream(ctx context.Context, lang models.Language, code string, limits SandboxLimits) ([]models.WSFrame, error) {
+	resp, err := r.invokeSandbox(ctx, lang, code, limits)
+	if err != nil {
+		return nil, err
+	}
+
+	frames := make([]models.WSFrame, 0, len(resp.Events))
+	for _, evt := range resp.Events {
+		switch evt.Type {
+		case "stdout", "stderr", "error":
+			var msg string
+			if err := json.Unmarshal(evt.Data, &msg); err != nil {
+				continue
+			}
+			frames = append(frames, models.WSFrame{Type: evt.Type, Data: msg})
+		case "exit":
+			var exitData runExit
+			if err := json.Unmarshal(evt.Data, &exitData); err != nil {
+				continue
+			}
+			frames = append(frames, models.WSFrame{
+				Type: "exit",
+				Data: map[string]any{"code": exitData.Code, "timedOut": exitData.TimedOut},
+			})
+		}
+	}
+	if resp.Error != "" && !hasErrorFrame(frames) {
+		frames = append(frames, models.WSFrame{Type: "error", Data: resp.Error})
+	}
+	return frames, mapSandboxError(resp.Error)
+}
+
+func hasErrorFrame(frames []models.WSFrame) bool {
+	for _, f := range frames {
+		if f.Type == "error" {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runner) invokeSandbox(ctx context.Context, lang models.Language, code string, limits SandboxLimits) (sandboxResponse, error) {
+	reqPayload := sandboxRequest{
+		Language: string(lang),
+		Code:     code,
+		Limits: sandboxLimits{
+			WallTimeMs:  limitsMillis(limits.WallTime, 10*time.Second),
+			MemoryBytes: limits.MemoryB,
+			NanoCPUs:    limits.NanoCPUs,
+		},
+	}
+	if reqPayload.Limits.MemoryBytes == 0 {
+		reqPayload.Limits.MemoryBytes = 512 * 1024 * 1024
+	}
+	if reqPayload.Limits.NanoCPUs == 0 {
+		reqPayload.Limits.NanoCPUs = 1_000_000_000
+	}
+
+	body, err := json.Marshal(reqPayload)
+	if err != nil {
+		return sandboxResponse{}, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+"/run", bytes.NewReader(body))
+	if err != nil {
+		return sandboxResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return sandboxResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	var sr sandboxResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return sandboxResponse{}, err
+	}
+	if resp.StatusCode >= 400 {
+		if sr.Error == "" {
+			sr.Error = resp.Status
+		}
+		return sandboxResponse{}, mapSandboxError(sr.Error)
+	}
+	return sr, nil
+}
+
+func limitsMillis(d time.Duration, fallback time.Duration) int64 {
+	if d <= 0 {
+		d = fallback
+	}
+	return int64(d / time.Millisecond)
+}
+
+func mapSandboxError(code string) error {
+	switch {
+	case code == "" || code == "success":
+		return nil
+	case code == "sandbox_unavailable":
+		return ErrDockerUnavailable
+	case code == "unsupported_language":
+		return errors.New("unsupported language")
+	}
+	return errors.New(code)
+}
+
+func (r *Runner) LangSpecPublic(lang models.Language) (spec models.LanguageSpec, image string, fileName string, cmds [][]string, err error) {
+	return r.langSpec(lang)
 }
 
 func (r *Runner) langSpec(lang models.Language) (models.LanguageSpec, string, string, [][]string, error) {
