@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [services/collab, services/match, services/question, services/user]
+        service: [services/collab, services/match, services/question, services/user, services/sandbox]
 
     steps:
       - uses: actions/checkout@v4
