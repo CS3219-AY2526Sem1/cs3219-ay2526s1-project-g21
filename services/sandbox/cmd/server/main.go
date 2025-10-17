@@ -10,6 +10,12 @@ import (
 	"sandbox/internal/runtime"
 )
 
+var (
+	executeFn      = runtime.Execute
+	listenAndServe = http.ListenAndServe
+	logFatalf      = log.Fatalf
+)
+
 type runRequest struct {
 	Language string        `json:"language"`
 	Code     string        `json:"code"`
@@ -36,8 +42,8 @@ func main() {
 	mux.HandleFunc("/run", runHandler)
 
 	log.Printf("sandbox service listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("sandbox server failed: %v", err)
+	if err := listenAndServe(addr, mux); err != nil {
+		logFatalf("sandbox server failed: %v", err)
 	}
 }
 
@@ -66,7 +72,7 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	result, err := runtime.Execute(ctx, lang, req.Code, limits)
+	result, err := executeFn(ctx, lang, req.Code, limits)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(errorResponse{Error: err.Error()})
