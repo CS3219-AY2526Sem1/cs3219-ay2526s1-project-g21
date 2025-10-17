@@ -80,7 +80,9 @@ func (r *Room) RemoveConn(userID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if conn, exists := r.Connections[userID]; exists {
-		conn.Close()
+		if conn != nil {
+			conn.Close()
+		}
 		delete(r.Connections, userID)
 	}
 }
