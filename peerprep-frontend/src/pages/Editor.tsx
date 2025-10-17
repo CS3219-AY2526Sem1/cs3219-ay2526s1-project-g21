@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
-import { getRoomStatus } from "@/api/match";
+import { getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 
 type WSFrame =
@@ -17,6 +17,8 @@ type WSFrame =
   | { type: "stderr"; data: string }
   | { type: "exit"; data: { code: number; timedOut: boolean } }
   | { type: "language"; data: string }
+  | { type: "run_reset"; data?: null }
+  | { type: "question"; data: { question: Question | null; rerollsRemaining: number } }
   | { type: "error"; data: string };
 
 const CODE_TEMPLATES: Record<string, string> = {
@@ -43,10 +45,13 @@ export default function Editor() {
   const [exitInfo, setExitInfo] = useState<{ code: number | null; timedOut: boolean } | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isRerolling, setIsRerolling] = useState<boolean>(false);
+  const [rerollsRemaining, setRerollsRemaining] = useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
 
   const nav = useNavigate();
+  const matchId = roomInfo?.matchId;
 
   const resetRunOutputs = () => {
     setStdout("");
@@ -107,6 +112,7 @@ export default function Editor() {
 
         const room = await getRoomStatus(roomId, token);
         setRoomInfo(room);
+        setRerollsRemaining(room.rerollsRemaining ?? 0);
 
         if (room.status === "ready" && room.question) {
           setQuestion(room.question);
@@ -137,10 +143,9 @@ export default function Editor() {
 
   // WebSocket collab setup
   useEffect(() => {
-    if (!roomInfo) return;
+    if (!matchId) return;
 
-    // Get token from sessionStorage
-    const token = sessionStorage.getItem(`room_token_${roomInfo.matchId}`);
+    const token = sessionStorage.getItem(`room_token_${matchId}`);
     if (!token) {
       toast.error("No access token found. Please join a room first.", {
         position: "bottom-center",
@@ -150,15 +155,15 @@ export default function Editor() {
       return;
     }
 
-    const ws = new WebSocket(`http://localhost:8084/ws/session/${roomInfo.matchId}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`http://localhost:8084/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("Connected to collab service", roomInfo.matchId);
+      console.log("Connected to collab service", matchId);
       ws.send(
         JSON.stringify({
           type: "init",
-          data: { sessionId: roomInfo.matchId, language },
+          data: { sessionId: matchId, language },
         })
       );
     };
@@ -189,6 +194,29 @@ export default function Editor() {
           setExitInfo({ code: frame.data.code, timedOut: frame.data.timedOut });
           setIsRunning(false);
           break;
+        case "run_reset":
+          setStdout("");
+          setStderr("");
+          setExitInfo(null);
+          setRunError(null);
+          setIsRunning(true);
+          break;
+        case "question": {
+          const nextQuestion = frame.data.question ?? null;
+          setQuestion(nextQuestion);
+          setRoomInfo((prev) => {
+            if (!prev) {
+              return prev;
+            }
+            return {
+              ...prev,
+              question: nextQuestion === null ? undefined : nextQuestion,
+              rerollsRemaining: frame.data.rerollsRemaining,
+            };
+          });
+          setRerollsRemaining(frame.data.rerollsRemaining ?? 0);
+          break;
+        }
         case "error":
           console.log("Error!");
           if (typeof frame.data === "string") {
@@ -205,6 +233,17 @@ export default function Editor() {
               console.error("WS version mismatch:", frame.data);
               break;
             }
+
+            if (frame.data === "sandbox_unavailable") {
+              const message = "Code execution sandbox is unavailable. Please start Docker and try again.";
+              toast.error(message, {
+                position: "bottom-center",
+                duration: 5000,
+              });
+              setRunError(message);
+              setIsRunning(false);
+              break;
+            }
           }
           setRunError(typeof frame.data === "string" ? frame.data : "Unexpected error");
           setIsRunning(false);
@@ -219,7 +258,7 @@ export default function Editor() {
     ws.onclose = () => console.log("Collab WS closed");
 
     return () => ws.close();
-  }, [roomInfo, language]);
+  }, [matchId, language, nav]);
 
   const handleChange = (evn: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = evn.target.value;
@@ -291,6 +330,49 @@ export default function Editor() {
     );
   };
 
+  const handleReroll = async () => {
+    if (!matchId) return;
+
+    const token = sessionStorage.getItem(`room_token_${matchId}`);
+    if (!token) {
+      toast.error("No access token found. Please join a room first.", {
+        position: "bottom-center",
+        duration: 5000,
+      });
+      nav("/lobby");
+      return;
+    }
+
+    if (rerollsRemaining <= 0) {
+      toast.error("No rerolls remaining for this room.", {
+        position: "bottom-center",
+        duration: 4000,
+      });
+      return;
+    }
+
+    try {
+      setIsRerolling(true);
+      const updatedRoom = await rerollQuestion(matchId, token);
+      setRoomInfo(updatedRoom);
+      setQuestion(updatedRoom.question ?? null);
+      setRerollsRemaining(updatedRoom.rerollsRemaining ?? 0);
+
+      toast.success("Loaded a new question!", {
+        position: "bottom-center",
+        duration: 4000,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reroll question";
+      toast.error(message || "Failed to reroll question", {
+        position: "bottom-center",
+        duration: 5000,
+      });
+    } finally {
+      setIsRerolling(false);
+    }
+  };
+
   // Show loading state while room is being set up
   if (roomLoading || !roomInfo) {
     return (
@@ -345,13 +427,25 @@ export default function Editor() {
         {/* Question panel */}
         <div className="order-2 lg:order-1 space-y-4 lg:w-1/2">
           <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-black">{question?.title ?? "Loading..."}</h2>
-              {question?.difficulty && (
-                <span className="text-xs rounded-full bg-gray-100 px-2 py-1 text-gray-600">
-                  {question.difficulty}
-                </span>
-              )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-black">{question?.title ?? "Loading..."}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {question?.difficulty && (
+                  <span className="text-xs rounded-full bg-gray-100 px-2 py-1 text-gray-600 capitalize">
+                    {question.difficulty.toLowerCase()}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleReroll}
+                  disabled={roomLoading || isRerolling || rerollsRemaining <= 0}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isRerolling ? "Rerolling..." : `Reroll (${rerollsRemaining} left)`}
+                </button>
+              </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-gray-700 whitespace-pre-wrap">
               {question?.prompt_markdown}

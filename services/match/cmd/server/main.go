@@ -238,6 +238,10 @@ func main() {
 	http.HandleFunc("/join", joinHandler)
 	http.HandleFunc("/ws", wsHandler)
 
-	log.Println("Listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Println("Listening on :" + port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

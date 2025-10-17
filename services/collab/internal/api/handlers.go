@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/Jeffail/leaps/lib/text"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 
@@ -19,16 +21,32 @@ import (
 
 type Handlers struct {
 	log         *utils.Logger
-	runner      *exec.Runner
+	runner      runner
 	hub         *session.Hub
-	roomManager *room_management.RoomManager
+	roomManager roomManager
+}
+
+type runner interface {
+	LangSpecPublic(models.Language) (models.LanguageSpec, string, string, [][]string, error)
+	RunOnce(ctx context.Context, lang models.Language, code string, limits exec.SandboxLimits) (exec.RunOutput, error)
+	RunStream(ctx context.Context, lang models.Language, code string, limits exec.SandboxLimits) ([]models.WSFrame, error)
+}
+
+type roomManager interface {
+	ValidateRoomAccess(token string) (*models.RoomInfo, error)
+	GetRoomStatus(matchId string) (*models.RoomInfo, error)
+	RerollQuestion(matchId string) (*models.RoomInfo, error)
 }
 
 func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
+	return NewHandlersWithDeps(log, exec.NewRunner(), session.NewHub(), roomManager)
+}
+
+func NewHandlersWithDeps(log *utils.Logger, runner runner, hub *session.Hub, roomManager roomManager) *Handlers {
 	return &Handlers{
 		log:         log,
-		runner:      exec.NewRunner(),
-		hub:         session.NewHub(),
+		runner:      runner,
+		hub:         hub,
 		roomManager: roomManager,
 	}
 }
@@ -61,6 +79,58 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, roomInfo)
+}
+
+func (h *Handlers) RerollQuestion(w http.ResponseWriter, r *http.Request) {
+	matchId := chi.URLParam(r, "matchId")
+	if matchId == "" {
+		http.Error(w, "matchId is required", http.StatusBadRequest)
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	token, err := utils.ExtractTokenFromHeader(authHeader)
+	if err != nil {
+		http.Error(w, "Authorization token required", http.StatusUnauthorized)
+		return
+	}
+
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
+	if err != nil {
+		http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+		return
+	}
+
+	if roomInfo.MatchId != matchId {
+		http.Error(w, "Invalid room", http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.roomManager.RerollQuestion(matchId)
+	if err != nil {
+		switch {
+		case errors.Is(err, room_management.ErrNoRerolls):
+			http.Error(w, "No rerolls remaining for this room", http.StatusBadRequest)
+		case errors.Is(err, room_management.ErrNoAlternativeQuestion):
+			http.Error(w, "No different question available right now", http.StatusConflict)
+		default:
+			http.Error(w, "Failed to reroll question", http.StatusInternalServerError)
+			h.log.Error("failed to reroll question", "matchId", matchId, "error", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, updated)
+
+	if room, ok := h.hub.Get(matchId); ok {
+		room.BroadcastAll(models.WSFrame{
+			Type: "question",
+			Data: models.QuestionUpdate{
+				Question:         updated.Question,
+				RerollsRemaining: updated.RerollsRemaining,
+			},
+		})
+	}
 }
 
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
@@ -109,7 +179,12 @@ func (h *Handlers) RunOnce(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.runner.RunOnce(ctx, req.Language, req.Code, limits)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, exec.ErrDockerUnavailable):
+			http.Error(w, "sandbox_unavailable", http.StatusServiceUnavailable)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	writeJSON(w, models.RunResult{
@@ -199,6 +274,8 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 
+	room.ReplayRunHistory(client)
+
 	// Event loop
 	for {
 		var frame models.WSFrame
@@ -210,9 +287,10 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		case "edit":
 			var e models.Edit
 			marshal(frame.Data, &e)
-			ok, newDoc := room.ApplyEdit(e)
+			ok, newDoc, applyErr := room.ApplyEdit(e)
 			if !ok {
-				_ = conn.WriteJSON(models.WSFrame{Type: "error", Data: "version_mismatch"})
+				errType := mapOTError(applyErr)
+				_ = conn.WriteJSON(models.WSFrame{Type: "error", Data: errType})
 				_ = conn.WriteJSON(models.WSFrame{Type: "doc", Data: newDoc})
 				continue
 			}
@@ -244,7 +322,8 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		case "run":
 			var run models.RunCmd
 			marshal(frame.Data, &run)
-			go h.runInSandbox(conn, run) // stream back stdout/stderr/exit
+			room.BeginRun()
+			go h.runInSandbox(room, run)
 
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
@@ -252,7 +331,7 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
+func (h *Handlers) runInSandbox(room *session.Room, run models.RunCmd) {
 	limits := exec.SandboxLimits{
 		WallTime: 10 * time.Second,
 		MemoryB:  512 * 1024 * 1024,
@@ -261,50 +340,43 @@ func (h *Handlers) runInSandbox(conn *websocket.Conn, run models.RunCmd) {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 
-	// _, image, fileName, cmds, err := h.runner.LangSpecPublic(run.Language)
-	_, image, _, cmds, err := h.runner.LangSpecPublic(run.Language)
-	if err != nil {
-		_ = conn.WriteJSON(errFrame("unsupported_language"))
-		return
-	}
-
-	sbx, err := exec.NewSandbox(image, limits)
-	if err != nil {
-		_ = conn.WriteJSON(errFrame("sandbox_error"))
-		return
-	}
-
-	exit, timedOut, runErr := sbx.Run(
-		ctx,
-		fileNameFromLang(run.Language),
-		[]byte(run.Code),
-		cmds,
-		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stdout", Data: string(p)}) },
-		func(p []byte) { _ = conn.WriteJSON(models.WSFrame{Type: "stderr", Data: string(p)}) },
-	)
-	if runErr != nil {
+	frames, runErr := h.runner.RunStream(ctx, run.Language, run.Code, limits)
+	if runErr != nil && !errors.Is(runErr, exec.ErrDockerUnavailable) {
 		h.log.Error("sandbox run failed", "language", run.Language, "error", runErr.Error())
-		_ = conn.WriteJSON(errFrame("sandbox_error: " + runErr.Error()))
 	}
-	_ = conn.WriteJSON(models.WSFrame{Type: "exit", Data: map[string]any{"code": exit, "timedOut": timedOut}})
+	if len(frames) == 0 && runErr != nil {
+		room.RecordRunFrame(models.WSFrame{Type: "error", Data: runErr.Error()})
+		return
+	}
+	for _, frame := range frames {
+		room.RecordRunFrame(frame)
+	}
 }
 
 func marshal(in any, out any) { b, _ := json.Marshal(in); _ = json.Unmarshal(b, out) }
 
 func errFrame(msg string) models.WSFrame { return models.WSFrame{Type: "error", Data: msg} }
 
-func fileNameFromLang(l models.Language) string {
-	switch l {
-	case models.LangPython:
-		return "main.py"
-	case models.LangJava:
-		return "Main.java"
-	default:
-		return "main.cpp"
-	}
-}
-
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func mapOTError(err error) string {
+	if err == nil {
+		return "ot_error"
+	}
+	if errors.Is(err, text.ErrTransformTooOld) || errors.Is(err, text.ErrTransformSkipped) {
+		return "version_mismatch"
+	}
+	if errors.Is(err, text.ErrTransformOOB) || errors.Is(err, text.ErrTransformNegDelete) {
+		return "invalid_range"
+	}
+	if errors.Is(err, text.ErrTransformTooLong) {
+		return "transform_too_long"
+	}
+	if err.Error() == "version_mismatch" || err.Error() == "invalid_range" {
+		return err.Error()
+	}
+	return err.Error()
 }
