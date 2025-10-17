@@ -21,16 +21,32 @@ import (
 
 type Handlers struct {
 	log         *utils.Logger
-	runner      *exec.Runner
+	runner      runner
 	hub         *session.Hub
-	roomManager *room_management.RoomManager
+	roomManager roomManager
+}
+
+type runner interface {
+	LangSpecPublic(models.Language) (models.LanguageSpec, string, string, [][]string, error)
+	RunOnce(ctx context.Context, lang models.Language, code string, limits exec.SandboxLimits) (exec.RunOutput, error)
+	RunStream(ctx context.Context, lang models.Language, code string, limits exec.SandboxLimits) ([]models.WSFrame, error)
+}
+
+type roomManager interface {
+	ValidateRoomAccess(token string) (*models.RoomInfo, error)
+	GetRoomStatus(matchId string) (*models.RoomInfo, error)
+	RerollQuestion(matchId string) (*models.RoomInfo, error)
 }
 
 func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
+	return NewHandlersWithDeps(log, exec.NewRunner(), session.NewHub(), roomManager)
+}
+
+func NewHandlersWithDeps(log *utils.Logger, runner runner, hub *session.Hub, roomManager roomManager) *Handlers {
 	return &Handlers{
 		log:         log,
-		runner:      exec.NewRunner(),
-		hub:         session.NewHub(),
+		runner:      runner,
+		hub:         hub,
 		roomManager: roomManager,
 	}
 }
@@ -307,7 +323,7 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			var run models.RunCmd
 			marshal(frame.Data, &run)
 			room.BeginRun()
-	go h.runInSandbox(room, run)
+			go h.runInSandbox(room, run)
 
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
