@@ -149,10 +149,7 @@ func (r *Runner) invokeSandbox(ctx context.Context, lang models.Language, code s
 		reqPayload.Limits.NanoCPUs = 1_000_000_000
 	}
 
-	body, err := json.Marshal(reqPayload)
-	if err != nil {
-		return sandboxResponse{}, err
-	}
+	body, _ := json.Marshal(reqPayload)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+"/run", bytes.NewReader(body))
 	if err != nil {

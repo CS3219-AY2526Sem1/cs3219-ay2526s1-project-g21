@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -15,24 +16,51 @@ import (
 	"collab/internal/utils"
 )
 
+var (
+	listenAndServe     = http.ListenAndServe
+	exitFunc           = defaultExit
+	defaultRedisAddr   = "redis:6379"
+	defaultQuestionURL = "http://localhost:8082"
+	defaultPort        = "8080"
+	exit               = os.Exit
+)
+
+func defaultExit(err error) {
+	log.Println(err)
+	exit(1)
+}
+
 func main() {
+	if err := run(context.Background()); err != nil {
+		exitFunc(err)
+	}
+}
+
+func run(parent context.Context) error {
 	logger := utils.NewLogger()
+
+	ctx := parent
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	// Initialize match service
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
-		redisAddr = "redis:6379"
+		redisAddr = defaultRedisAddr
 	}
 
 	questionURL := os.Getenv("QUESTION_SERVICE_URL")
 	if questionURL == "" {
-		questionURL = "http://localhost:8082"
+		questionURL = defaultQuestionURL
 	}
 
 	roomManager := room_management.NewRoomManager(redisAddr, questionURL)
 
 	// Start Redis subscription in background
-	go roomManager.SubscribeToMatches()
+	go roomManager.SubscribeToMatches(ctx)
 
 	r := chi.NewRouter()
 	r.Use(
@@ -53,13 +81,15 @@ func main() {
 
 	r.Mount("/", routers.New(logger, roomManager))
 
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
+	r.Get("/healthz", healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = defaultPort
 	}
 	addr := ":" + port
 	log.Printf("collab-svc listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	return listenAndServe(addr, r)
 }
+
+func healthHandler(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) }

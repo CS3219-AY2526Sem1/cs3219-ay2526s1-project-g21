@@ -45,24 +45,36 @@ func NewRoomManager(redisAddr, questionURL string) *RoomManager {
 	}
 }
 
-// Subscribe to match events from Redis
-func (ms *RoomManager) SubscribeToMatches() {
-	ctx := context.Background()
+// SubscribeToMatches listens for match events until the provided context is cancelled.
+func (ms *RoomManager) SubscribeToMatches(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	subscriber := ms.rdb.Subscribe(ctx, "matches")
+	defer subscriber.Close()
 	ch := subscriber.Channel()
 
 	log.Println("Match service: Subscribed to match events")
 
-	for msg := range ch {
-		var event models.RoomInfo
-		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-			log.Printf("Match service: Failed to parse event: %v", err)
-			continue
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			ms.handleMatchPayload(msg.Payload)
 		}
-
-		log.Printf("Match service: Received match event: %+v", event)
-		go ms.processMatchEvent(event)
 	}
+}
+
+func (ms *RoomManager) handleMatchPayload(payload string) {
+	var event models.RoomInfo
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		return
+	}
+	go ms.processMatchEvent(event)
 }
 
 // Process a match event by fetching question and creating room
@@ -136,9 +148,6 @@ func (ms *RoomManager) fetchAlternativeQuestion(category string, difficulty stri
 		if err != nil {
 			return nil, err
 		}
-		if question == nil {
-			continue
-		}
 		if currentID == 0 || question.ID != currentID {
 			return question, nil
 		}
@@ -152,10 +161,7 @@ func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *mo
 
 	questionJSON := ""
 	if roomInfo.Question != nil {
-		data, err := json.Marshal(roomInfo.Question)
-		if err != nil {
-			log.Printf("Match service: Failed to marshal question info: %v", err)
-		} else {
+		if data, err := json.Marshal(roomInfo.Question); err == nil {
 			questionJSON = string(data)
 		}
 	}
@@ -277,21 +283,17 @@ func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) 
 	}
 
 	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
 	if roomInfo.RerollsRemaining <= 0 {
+		ms.mu.Unlock()
 		return nil, ErrNoRerolls
 	}
-
 	roomInfo.RerollsRemaining--
-
 	category := roomInfo.Category
 	difficulty := roomInfo.Difficulty
 	currentQuestionID := 0
 	if roomInfo.Question != nil {
 		currentQuestionID = roomInfo.Question.ID
 	}
-
 	ms.mu.Unlock()
 
 	question, err := ms.fetchAlternativeQuestion(category, difficulty, currentQuestionID)

@@ -37,11 +37,7 @@ func ValidateRoomToken(tokenString string) (*RoomTokenClaims, error) {
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(*RoomTokenClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token")
+	return token.Claims.(*RoomTokenClaims), nil
 }
 
 // ExtractTokenFromHeader extracts the token from the Authorization header
