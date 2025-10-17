@@ -1,13 +1,10 @@
 import React from 'react';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
+import type { VoiceChatConfig } from '@/types/voiceChat';
 
-interface VoiceChatProps {
-  roomId: string;
-  userId: string;
-  username: string;
-}
+type VoiceChatProps = VoiceChatConfig;
 
-const VoiceChat: React.FC<VoiceChatProps> = ({ roomId, userId, username }) => {
+const VoiceChat: React.FC<VoiceChatProps> = ({ roomId, userId, username, token }) => {
   const {
     isConnected,
     isMuted,
@@ -18,7 +15,7 @@ const VoiceChat: React.FC<VoiceChatProps> = ({ roomId, userId, username }) => {
     disconnect,
     toggleMute,
     toggleDeaf,
-  } = useVoiceChat({ roomId, userId, username });
+  } = useVoiceChat({ roomId, userId, username, token });
 
   const handleConnect = () => {
     if (!isConnected) {

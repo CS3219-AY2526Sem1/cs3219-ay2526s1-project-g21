@@ -467,6 +467,7 @@ export default function Editor() {
               roomId={roomId}
               userId={user.id.toString()}
               username={user.username}
+              token={sessionStorage.getItem(`room_token_${roomId}`) || ''}
             />
           )}
         </div>
