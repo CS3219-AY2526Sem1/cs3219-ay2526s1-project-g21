@@ -17,7 +17,7 @@ import (
 type RoomManager struct {
 	rdb           *redis.Client
 	roomStatusMap map[string]*models.RoomInfo // Match metadata cache (from Redis)
-	rooms         map[string]*models.Room      // Active voice chat rooms (in-memory, per instance)
+	rooms         map[string]*models.Room     // Active voice chat rooms (in-memory, per instance)
 	mu            sync.RWMutex
 	instanceID    string // Unique ID for this service instance
 	ctx           context.Context
