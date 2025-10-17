@@ -5,22 +5,34 @@ import (
 	"net/http"
 	"os"
 
-	"voice/internal/api"
+	"voice/internal/routers"
+	"voice/internal/utils"
+)
+
+var (
+	listenAndServe   = http.ListenAndServe
+	defaultRedisAddr = "redis:6379"
+	defaultPort      = "8085"
 )
 
 func main() {
+	logger := utils.NewLogger()
 
-	// Get port from environment
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8084"
+		port = defaultPort
+	}
+
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = defaultRedisAddr
 	}
 
 	// Create router
-	router := api.NewRouter()
+	router := routers.NewRouter(logger, redisAddr)
 
 	// Start server
 	addr := ":" + port
 	log.Printf("Voice service listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, router))
+	log.Fatal(listenAndServe(addr, router))
 }

@@ -6,30 +6,31 @@ import (
 	"net/http"
 	"time"
 
+	"voice/internal/managers"
 	"voice/internal/models"
-	"voice/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v3"
+	"github.com/redis/go-redis/v9"
 )
 
 type Handlers struct {
-	roomManager  *utils.RoomManager
-	upgrader     websocket.Upgrader
-	webrtcConfig webrtc.Configuration
+	rdb         *redis.Client
+	roomManager *managers.RoomManager
+	upgrader    websocket.Upgrader
 }
 
-func NewHandlers() *Handlers {
+func NewHandlers(redisAddr string) *Handlers {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+
 	return &Handlers{
-		roomManager:  utils.NewRoomManager(),
-		upgrader:     websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
-		webrtcConfig: GetWebRTCConfig(),
+		rdb:         rdb,
+		roomManager: managers.NewRoomManager(redisAddr),
+		upgrader:    websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
 	}
 }
-
-// placeholder to avoid depending on utils for this example
-func GetWebRTCConfig() webrtc.Configuration { return webrtc.Configuration{} }
 
 // Health check endpoint
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
@@ -37,31 +38,24 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
-// Get room status
-func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
-	roomID := chi.URLParam(r, "roomId")
-	if roomID == "" {
-		http.Error(w, "roomId is required", http.StatusBadRequest)
-		return
-	}
-
-	room, exists := h.roomManager.GetRoom(roomID)
-	if !exists {
-		http.Error(w, "room not found", http.StatusNotFound)
-		return
-	}
-
-	status := room.GetRoomStatus()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
-}
-
-// Get WebRTC configuration
+// GetWebRTCConfig returns STUN/TURN server configuration for WebRTC
 func (h *Handlers) GetWebRTCConfig(w http.ResponseWriter, r *http.Request) {
-	config := struct {
-		ICEServers []webrtc.ICEServer `json:"iceServers"`
-	}{
-		ICEServers: h.webrtcConfig.ICEServers,
+	config := models.WebRTCConfig{
+		IceServers: []models.IceServer{
+			{
+				URLs: []string{
+					"stun:stun.l.google.com:19302",
+					"stun:stun1.l.google.com:19302",
+					"stun:stun2.l.google.com:19302",
+				},
+			},
+			// Add TURN servers here if needed for production
+			// {
+			// 	URLs:       []string{"turn:your-turn-server.com:3478"},
+			// 	Username:   "username",
+			// 	Credential: "password",
+			// },
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -76,13 +70,31 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "token is required", http.StatusUnauthorized)
+		return
+	}
+
+	roomInfo, err := h.roomManager.ValidateRoomAccess(token)
+	if err != nil {
+		log.Printf("Token validation failed: %v", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if roomInfo.MatchId != roomID {
+		log.Printf("RoomID mismatch: token has %s, request has %s", roomInfo.MatchId, roomID)
+		http.Error(w, "room mismatch", http.StatusForbidden)
+		return
+	}
+
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
 
-	// Make sure connection is closed when this handler returns
 	defer conn.Close()
 
 	// The first message from client MUST be a join message with userId and username
@@ -96,10 +108,8 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user info from message data
 	dataMap, ok := joinMsg.Data.(map[string]interface{})
 	if !ok {
-		// try via marshalling back to bytes to decode properly
 		raw, _ := json.Marshal(joinMsg.Data)
 		var tmp map[string]interface{}
 		json.Unmarshal(raw, &tmp)
@@ -113,11 +123,23 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if userID != roomInfo.User1 && userID != roomInfo.User2 {
+		log.Printf("UserID %s not authorized for room %s", userID, roomID)
+		return
+	}
+
 	room := h.roomManager.GetOrCreateRoom(roomID)
 
 	user := &models.User{ID: userID, Username: username, JoinedAt: time.Now()}
 	room.AddUser(user)
 	room.AddConn(userID, conn)
+
+	h.roomManager.PublishPresenceEvent(&models.PresenceEvent{
+		Type:     "user-joined",
+		RoomID:   roomID,
+		UserID:   userID,
+		Username: username,
+	})
 
 	// Broadcast updated room status
 	h.broadcastRoomStatus(room)
@@ -132,6 +154,14 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 			// remove user and connection
 			room.RemoveUser(userID)
 			room.RemoveConn(userID)
+
+			// Publish presence event
+			h.roomManager.PublishPresenceEvent(&models.PresenceEvent{
+				Type:   "user-left",
+				RoomID: roomID,
+				UserID: userID,
+			})
+
 			h.roomManagerDeleteIfEmpty(room)
 			h.broadcastRoomStatus(room)
 			break
@@ -144,6 +174,13 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		case "leave":
 			room.RemoveUser(msg.From)
 			room.RemoveConn(msg.From)
+
+			h.roomManager.PublishPresenceEvent(&models.PresenceEvent{
+				Type:   "user-left",
+				RoomID: roomID,
+				UserID: msg.From,
+			})
+
 			h.roomManagerDeleteIfEmpty(room)
 			h.broadcastRoomStatus(room)
 		case "offer", "answer", "ice-candidate":
@@ -152,11 +189,27 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		case "mute":
 			if u, ok := room.GetUser(msg.From); ok {
 				u.IsMuted = true
+
+				h.roomManager.PublishPresenceEvent(&models.PresenceEvent{
+					Type:    "user-muted",
+					RoomID:  roomID,
+					UserID:  msg.From,
+					IsMuted: true,
+				})
+
 				h.broadcastRoomStatus(room)
 			}
 		case "unmute":
 			if u, ok := room.GetUser(msg.From); ok {
 				u.IsMuted = false
+
+				h.roomManager.PublishPresenceEvent(&models.PresenceEvent{
+					Type:    "user-unmuted",
+					RoomID:  roomID,
+					UserID:  msg.From,
+					IsMuted: false,
+				})
+
 				h.broadcastRoomStatus(room)
 			}
 		default:

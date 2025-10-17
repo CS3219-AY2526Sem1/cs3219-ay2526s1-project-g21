@@ -1,16 +1,17 @@
-package api
+package routers
 
 import (
 	"net/http"
 
 	"voice/internal/handlers"
+	"voice/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter() http.Handler {
-	h := handlers.NewHandlers()
+func NewRouter(log *utils.Logger, redisAddr string) http.Handler {
+	h := handlers.NewHandlers(redisAddr)
 	r := chi.NewRouter()
 
 	// Middleware
@@ -39,10 +40,8 @@ func NewRouter() http.Handler {
 	// Health check
 	r.Get("/health", h.Health)
 
-	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Room management
-		r.Get("/room/{roomId}/status", h.GetRoomStatus)
+		// WebRTC configuration
 		r.Get("/webrtc/config", h.GetWebRTCConfig)
 
 		// WebSocket for voice chat
