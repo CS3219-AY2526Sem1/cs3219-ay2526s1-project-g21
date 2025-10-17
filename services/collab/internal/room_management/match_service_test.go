@@ -91,7 +91,7 @@ func TestSubscribeToMatchesInvalidPayload(t *testing.T) {
 
 func TestSubscribeToMatchesWithNilContext(t *testing.T) {
 	manager, _, _ := setupRoomManager(t, nil)
-	go manager.SubscribeToMatches(nil)
+	go manager.SubscribeToMatches(context.TODO())
 	time.Sleep(50 * time.Millisecond)
 	if err := manager.rdb.Publish(context.Background(), "matches", "bad").Err(); err != nil {
 		t.Fatalf("publish failed: %v", err)

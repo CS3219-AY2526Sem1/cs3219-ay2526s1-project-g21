@@ -35,7 +35,7 @@ func TestRunReturnsListenError(t *testing.T) {
 	t.Setenv("REDIS_ADDR", "localhost:0")
 	t.Setenv("QUESTION_SERVICE_URL", "http://localhost")
 
-	if err := run(nil); err == nil || err.Error() != "boom" {
+	if err := run(context.TODO()); err == nil || err.Error() != "boom" {
 		t.Fatalf("expected boom error, got %v", err)
 	}
 }
