@@ -37,6 +37,7 @@ export interface RoomInfo {
   difficulty: string;
   status: "pending" | "processing" | "ready" | "error";
   question?: Question;
+  rerollsRemaining?: number;
   createdAt: string;
   token1?: string;
   token2?: string;

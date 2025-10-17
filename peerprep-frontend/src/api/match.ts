@@ -34,3 +34,19 @@ export async function getRoomStatus(matchId: string, token: string): Promise<Roo
 
     return res.json();
 }
+
+export async function rerollQuestion(matchId: string, token: string): Promise<RoomInfo> {
+    const res = await fetch(`http://localhost:8084/api/v1/room/${matchId}/reroll`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+        },
+    });
+
+    if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || `Failed to reroll question: ${res.status}`);
+    }
+
+    return res.json();
+}
