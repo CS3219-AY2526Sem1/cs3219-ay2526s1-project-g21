@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -166,9 +167,17 @@ func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWri
 	difficulty := request.URL.Query().Get("difficulty")
 	topicParam := request.URL.Query().Get("topic")
 
+	fmt.Println("Difficulty: ", difficulty)
+	fmt.Println("Topic: ", topicParam)
+
 	// validate difficulty if provided
-	if difficulty != "" {
-		if difficulty != string(models.Easy) && difficulty != string(models.Medium) && difficulty != string(models.Hard) {
+	d := strings.ToLower(difficulty)
+
+	if d != "" {
+		if d != strings.ToLower(string(models.Easy)) &&
+			d != strings.ToLower(string(models.Medium)) &&
+			d != strings.ToLower(string(models.Hard)) {
+			fmt.Println("Invalid difficulty: ", difficulty)
 			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
 				Code:    "invalid_difficulty",
 				Message: "difficulty must be one of: Easy, Medium, Hard",

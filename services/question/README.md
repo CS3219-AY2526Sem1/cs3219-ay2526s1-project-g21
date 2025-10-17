@@ -30,7 +30,7 @@ The `/questions/random` endpoint supports query parameters:
 
 Examples:
 - `GET /questions/random?difficulty=Medium`
-- `GET /questions/random?topic=arrays,sorting`
+- `GET /questions/random?topic=array,sorting`
 - `GET /questions/random?difficulty=Hard&topic=dynamic-programming`
 
 ### Question schema (simplified)

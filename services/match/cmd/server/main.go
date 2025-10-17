@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
@@ -20,6 +22,7 @@ var (
 	upgrader    = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 	connections = make(map[*websocket.Conn]bool)
 	mu          sync.Mutex
+	jwtSecret   []byte
 )
 
 // --- Models ---
@@ -34,12 +37,29 @@ type Resp struct {
 	Info interface{} `json:"info"`
 }
 
-type MatchEvent struct {
+type RoomInfo struct {
 	MatchId    string `json:"matchId"`
 	User1      string `json:"user1"`
 	User2      string `json:"user2"`
 	Category   string `json:"category"`
 	Difficulty string `json:"difficulty"`
+	Status     string `json:"status"`
+	Token1     string `json:"token1"`
+	Token2     string `json:"token2"`
+	CreatedAt  string `json:"createdAt"`
+}
+
+// --- JWT Helper ---
+func generateRoomToken(matchId, userId string) (string, error) {
+	claims := jwt.MapClaims{
+		"matchId": matchId,
+		"userId":  userId,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(), // 24 hour expiry
+		"iat":     time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
 }
 
 // --- Helper ---
@@ -87,7 +107,7 @@ func subscribeToRedis() {
 	ch := subscriber.Channel()
 
 	for msg := range ch {
-		var event MatchEvent
+		var event RoomInfo
 		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
 			log.Println("Failed to parse event:", err)
 			continue
@@ -152,15 +172,33 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 	rdb.ZRem(ctx, "queue:all", u1, u2)
 
 	matchID := uuid.New().String()
-	match := MatchEvent{
+
+	// Generate JWT tokens for both users
+	token1, err := generateRoomToken(matchID, u1)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Resp{OK: false, Info: "failed to generate token"})
+		return
+	}
+
+	token2, err := generateRoomToken(matchID, u2)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, Resp{OK: false, Info: "failed to generate token"})
+		return
+	}
+
+	match := RoomInfo{
 		MatchId:    matchID,
 		User1:      u1,
 		User2:      u2,
 		Category:   req.Category,
 		Difficulty: req.Difficulty,
+		Status:     "pending",
+		Token1:     token1,
+		Token2:     token2,
+		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 
-	// Store match info
+	// Store match info in Redis
 	matchKey := "match:" + matchID
 	rdb.HSet(ctx, matchKey, map[string]interface{}{
 		"id":         matchID,
@@ -168,11 +206,14 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 		"user2":      u2,
 		"category":   req.Category,
 		"difficulty": req.Difficulty,
+		"token1":     token1,
+		"token2":     token2,
 		"created_at": time.Now().Format(time.RFC3339),
+		"status":     "pending", // Room creation pending
 	})
 	rdb.LPush(ctx, "matches", matchID)
 
-	// Publish match event to Redis
+	// Publish match event to Redis for collab service to process
 	data, _ := json.Marshal(match)
 	rdb.Publish(ctx, "matches", data)
 
@@ -180,6 +221,13 @@ func joinHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Initialize JWT secret
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "your-secret-key" // Default for development
+	}
+	jwtSecret = []byte(secret)
+
 	rdb = redis.NewClient(&redis.Options{
 		Addr: "redis:6379",
 	})

@@ -8,13 +8,31 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 
+	"collab/internal/room_management"
 	"collab/internal/routers"
 	"collab/internal/utils"
 )
 
 func main() {
 	logger := utils.NewLogger()
+
+	// Initialize match service
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379"
+	}
+
+	questionURL := os.Getenv("QUESTION_SERVICE_URL")
+	if questionURL == "" {
+		questionURL = "http://localhost:8082"
+	}
+
+	roomManager := room_management.NewRoomManager(redisAddr, questionURL)
+
+	// Start Redis subscription in background
+	go roomManager.SubscribeToMatches()
 
 	r := chi.NewRouter()
 	r.Use(
@@ -25,7 +43,15 @@ func main() {
 		middleware.Timeout(60*time.Second),
 	)
 
-	r.Mount("/", routers.New(logger))
+	// CORS middleware
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
+
+	r.Mount("/", routers.New(logger, roomManager))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 

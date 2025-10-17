@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMe } from "@/api/auth";
-import { joinQueue } from "@/api/match";
+import { joinQueue, getRoomStatus } from "@/api/match";
+import { RoomInfo } from "@/types/question";
 import { useAuth } from "@/context/AuthContext";
 import { handleFormChange } from "@/utils/form";
 import { startCase } from "lodash";
@@ -17,7 +18,7 @@ interface User {
 
 type Difficulty = "easy" | "medium" | "hard";
 
-type Category = "arrays" | "graphs" | "dynamic programming" | "greedy" | "linked list";
+type Category = "array" | "graphs" | "dynamic programming" | "greedy" | "linked list";
 
 interface InterviewHistoryItem {
     question: string;
@@ -26,13 +27,6 @@ interface InterviewHistoryItem {
     date: string;
 }
 
-interface MatchEvent {
-    matchId: string;
-    user1: number;
-    user2: number;
-    category: string;
-    difficulty: string;
-}
 
 export default function InterviewLobby() {
     const { token } = useAuth();
@@ -44,7 +38,7 @@ export default function InterviewLobby() {
     const difficulties: Difficulty[] = ["easy", "medium", "hard"];
 
     const categories: Category[] = [
-        "arrays",
+        "array",
         "graphs",
         "dynamic programming",
         "greedy",
@@ -55,6 +49,59 @@ export default function InterviewLobby() {
         category: categories[0],
         difficulty: difficulties[0],
     });
+
+    // Function to wait for room to be ready
+    const waitForRoomReady = async (matchId: string, userToken: string) => {
+        const maxAttempts = 30; // 30 seconds max wait time
+        let attempts = 0;
+
+        const checkRoomStatus = async (): Promise<RoomInfo | null> => {
+            try {
+                return await getRoomStatus(matchId, userToken);
+            } catch (error) {
+                console.error("Failed to get room status:", error);
+                return null;
+            }
+        };
+
+        const pollRoom = async (): Promise<void> => {
+            if (attempts >= maxAttempts) {
+                toast.error("Room setup timed out. Please try again.", {
+                    position: "bottom-center",
+                    duration: 5000,
+                });
+                return;
+            }
+
+            attempts++;
+            const roomInfo = await checkRoomStatus();
+
+            if (!roomInfo) {
+                // Room not found yet, wait and retry
+                setTimeout(pollRoom, 1000);
+                return;
+            }
+
+            if (roomInfo.status === "ready") {
+                toast.success("Room is ready! Redirecting...", {
+                    position: "bottom-center",
+                    duration: 3000,
+                });
+                nav(`/room/${matchId}`);
+            } else if (roomInfo.status === "error") {
+                toast.error("Failed to set up room. Please try again.", {
+                    position: "bottom-center",
+                    duration: 5000,
+                });
+            } else {
+                // Still processing, wait and retry
+                setTimeout(pollRoom, 1000);
+            }
+        };
+
+        // Start polling
+        setTimeout(pollRoom, 1000);
+    };
 
     const interviewHistoryHeaders: (keyof InterviewHistoryItem)[] = [
         "question",
@@ -112,22 +159,31 @@ export default function InterviewLobby() {
 
         ws.onopen = () => console.log("Connected to matchmaking WebSocket");
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
             try {
-                const data: MatchEvent = JSON.parse(event.data);
-                console.log(data);
-                if (data.user1 == user?.id || data.user2 == user?.id) {
+                const data: RoomInfo = JSON.parse(event.data);
+                console.log("Received match event:", data);
+                if (data.user1 == user?.id?.toString() || data.user2 == user?.id?.toString()) {
                     const matchId = data.matchId;
-                    const otherUserId = data.user1 == user?.id ? data.user2 : data.user1;
+                    const otherUserId = data.user1 == user?.id?.toString() ? data.user2 : data.user1;
+                    const userToken = data.user1 == user?.id?.toString() ? data.token1 : data.token2;
 
-                    const matchMessage = `Matched with user ${otherUserId} for ${data.category} (${data.difficulty}). Room ID: ${matchId}`;
+                    const matchMessage = `Matched with user ${otherUserId} for ${data.category} (${data.difficulty}). Setting up room...`;
 
                     toast.success(matchMessage, {
                         position: "bottom-center",
                         duration: 5000,
                     });
 
-                    nav(`/room/${matchId}`);
+                    // Store token in sessionStorage for later use
+                    if (userToken) {
+                        sessionStorage.setItem(`room_token_${matchId}`, userToken);
+                    }
+
+                    // Wait for room to be ready
+                    if (userToken) {
+                        await waitForRoomReady(matchId, userToken);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to parse WebSocket message", err);
