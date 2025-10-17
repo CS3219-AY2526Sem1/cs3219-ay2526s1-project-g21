@@ -49,8 +49,17 @@ services:
       - PORT=8080
       - MONGO_URI=mongodb://mongo:27017
       - QUESTION_SERVICE_URL=http://question:8080
-    depends_on: [mongo, postgres]
+      - SANDBOX_URL=http://sandbox:8090
+    depends_on: [mongo, postgres, sandbox]
     ports: ["8084:8080"]
+
+  sandbox:
+    build: ../services/sandbox
+    environment:
+      - SANDBOX_HTTP_ADDR=:8090
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports: ["8090:8090"]
 
   mongo-seed:
       image: mongo:7
