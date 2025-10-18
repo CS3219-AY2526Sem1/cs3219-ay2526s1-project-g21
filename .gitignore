@@ -1,0 +1,22 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+
+# Frontend
+**/node_modules
+**/build
+**/dist
+
+# Go
+vendor/
+**/*.local
+
+# Environment files
+.env

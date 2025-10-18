@@ -1,0 +1,209 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"peerprep/question/internal/models"
+	"peerprep/question/internal/repositories"
+	"peerprep/question/internal/utils"
+
+	"github.com/go-chi/chi/v5"
+)
+
+type QuestionHandler struct {
+	repository *repositories.QuestionRepository
+}
+
+func NewQuestionHandler(repository *repositories.QuestionRepository) *QuestionHandler {
+	return &QuestionHandler{repository: repository}
+}
+
+func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+
+	questions, err := handler.repository.GetAll()
+	if err != nil {
+		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "internal_error",
+			Message: "Failed to fetch questions",
+		})
+		return
+	}
+
+	response := models.QuestionsResponse{
+		Total: len(questions),
+		Items: questions,
+	}
+
+	utils.JSON(writer, http.StatusOK, response)
+}
+
+func (handler *QuestionHandler) CreateQuestionHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+
+	var question models.Question
+	if err := json.NewDecoder(request.Body).Decode(&question); err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_request",
+			Message: "Invalid request payload",
+		})
+		return
+	}
+
+	created, err := handler.repository.Create(&question)
+	if err != nil {
+		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "internal_error",
+			Message: "Failed to create question",
+		})
+		return
+	}
+
+	writer.Header().Set("Location", "/questions/"+strconv.Itoa(created.ID))
+	utils.JSON(writer, http.StatusCreated, created)
+}
+
+func (handler *QuestionHandler) GetQuestionByIDHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
+
+	question, err := handler.repository.GetByID(id)
+	if err != nil {
+		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+			Code:    "question_not_found",
+			Message: "Question not found",
+		})
+		return
+	}
+
+	utils.JSON(writer, http.StatusOK, question)
+}
+
+func (handler *QuestionHandler) UpdateQuestionHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
+
+	var question models.Question
+	if err := json.NewDecoder(request.Body).Decode(&question); err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_request",
+			Message: "Invalid request payload",
+		})
+		return
+	}
+
+	updated, err := handler.repository.Update(id, &question)
+	if err != nil {
+		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "internal_error",
+			Message: "Failed to update question",
+		})
+		return
+	}
+
+	utils.JSON(writer, http.StatusOK, updated)
+}
+
+func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	idStr := chi.URLParam(request, "id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+			Code:    "invalid_id",
+			Message: "Invalid question ID",
+		})
+		return
+	}
+
+	if err := handler.repository.Delete(id); err != nil {
+		if err.Error() == "question not found" {
+			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+				Code:    "question_not_found",
+				Message: "Question not found",
+			})
+			return
+		}
+
+		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "internal_error",
+			Message: "Failed to delete question",
+		})
+		return
+	}
+
+	utils.JSON(writer, http.StatusOK, map[string]string{
+		"message": "Question deleted successfully",
+	})
+}
+
+func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+
+	// parse query parameters
+	difficulty := request.URL.Query().Get("difficulty")
+	topicParam := request.URL.Query().Get("topic")
+
+	fmt.Println("Difficulty: ", difficulty)
+	fmt.Println("Topic: ", topicParam)
+
+	// validate difficulty if provided
+	d := strings.ToLower(difficulty)
+
+	if d != "" {
+		if d != strings.ToLower(string(models.Easy)) &&
+			d != strings.ToLower(string(models.Medium)) &&
+			d != strings.ToLower(string(models.Hard)) {
+			fmt.Println("Invalid difficulty: ", difficulty)
+			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+				Code:    "invalid_difficulty",
+				Message: "difficulty must be one of: Easy, Medium, Hard",
+			})
+			return
+		}
+	}
+
+	// parse topics (comma separated)
+	var topics []string
+	if topicParam != "" {
+		topics = strings.Split(topicParam, ",")
+		// trim whitespace from each topic
+		for i, topic := range topics {
+			topics[i] = strings.TrimSpace(topic)
+		}
+	}
+
+	question, err := handler.repository.GetRandom(topics, difficulty)
+	if err != nil {
+		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+			Code:    "no_eligible_question",
+			Message: "no eligible question found",
+		})
+		return
+	}
+
+	utils.JSON(writer, http.StatusOK, question)
+}
