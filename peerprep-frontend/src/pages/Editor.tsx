@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
+import VoiceChat from "@/components/VoiceChat";
+import { useAuth } from "@/context/AuthContext";
+import { getMe } from "@/api/auth";
 import { getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 
@@ -28,6 +31,8 @@ const CODE_TEMPLATES: Record<string, string> = {
 
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
+  const [user, setUser] = useState<{ id: number; username: string; email: string } | null>(null);
+  const { token } = useAuth();
 
   const [question, setQuestion] = useState<Question | null>(null);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
@@ -80,6 +85,11 @@ export default function Editor() {
       setDocVersion(currentVersion + 1);
     }
   };
+
+  useEffect(() => {
+    if (!token) return;
+    getMe(token).then((me) => setUser(me));
+  }, [token]);
 
   // Fetch room status and question
   useEffect(() => {
@@ -450,6 +460,16 @@ export default function Editor() {
               </div>
             ) : null}
           </div>
+          
+          {/* Voice Chat */}
+          {user && roomId && (
+            <VoiceChat
+              roomId={roomId}
+              userId={user.id.toString()}
+              username={user.username}
+              token={sessionStorage.getItem(`room_token_${roomId}`) || ''}
+            />
+          )}
         </div>
 
         {/* Code Editor */}

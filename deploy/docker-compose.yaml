@@ -53,6 +53,16 @@ services:
     depends_on: [mongo, postgres, sandbox]
     ports: ["8084:8080"]
 
+  voice:
+    build: ../services/voice
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [redis, mongo, postgres]
+    ports: ["8085:8080"]
+
   sandbox:
     build: ../services/sandbox
     environment:
