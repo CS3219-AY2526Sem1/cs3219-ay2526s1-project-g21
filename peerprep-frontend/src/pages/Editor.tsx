@@ -5,7 +5,7 @@ import CodeEditor from "@uiw/react-textarea-code-editor";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
-import { getRoomStatus, rerollQuestion } from "@/api/match";
+import { exitRoom, getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 
 type WSFrame =
@@ -98,7 +98,7 @@ export default function Editor() {
     const fetchRoomInfo = async () => {
       try {
         setRoomLoading(true);
-        
+
         // Get token from sessionStorage
         const token = sessionStorage.getItem(`room_token_${roomId}`);
         if (!token) {
@@ -373,6 +373,12 @@ export default function Editor() {
     }
   };
 
+  const handleExit = () => {
+    exitRoom(user?.id.toString());
+
+    nav("/")
+  }
+
   // Show loading state while room is being set up
   if (roomLoading || !roomInfo) {
     return (
@@ -420,6 +426,14 @@ export default function Editor() {
           >
             {isRunning ? "Running..." : "Run"}
           </button>
+          <button
+            type="button"
+            onClick={handleExit}
+            disabled={isRunning}
+            className="rounded-md bg-red-500 px-3 py-2 text-white text-sm hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Exit Session
+          </button>
         </div>
       </div>
 
@@ -460,7 +474,7 @@ export default function Editor() {
               </div>
             ) : null}
           </div>
-          
+
           {/* Voice Chat */}
           {user && roomId && (
             <VoiceChat
@@ -523,6 +537,7 @@ export default function Editor() {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
