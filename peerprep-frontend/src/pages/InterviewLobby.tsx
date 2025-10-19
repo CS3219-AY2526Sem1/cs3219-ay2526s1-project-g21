@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { getMe } from "@/api/auth";
 import { joinQueue, getRoomStatus, checkUserPreExistingMatch, cancelQueue, acceptMatch, exitRoom } from "@/api/match";
 import { RoomInfo, Category, Difficulty, MatchEvent } from "@/types/question";
@@ -38,6 +38,10 @@ export default function InterviewLobby() {
     const [inQueue, setInQueue] = useState(false);
     const [matchFound, setMatchFound] = useState(false);
     const [roomId, setRoomId] = useState<string | null>(null);
+
+    const criteria2MessageTimer = useRef<NodeJS.Timeout>();
+    const criteria3MessageTimer = useRef<NodeJS.Timeout>();
+    const exitMessageTimer = useRef<NodeJS.Timeout>();
 
     const criteria1LoadingText = "Searching for users with the same preferences..."
     const criteria2LoadingText = "Searching for other users with different preferred difficulty..."
@@ -153,22 +157,30 @@ export default function InterviewLobby() {
     const startSearching = () => {
         joinQueue(user?.id, form.category, form.difficulty)
         setInQueue(true);
-        setTimeout(() => {
-            setLoadingText(criteria2LoadingText)
-        }, 10000)
+        criteria2MessageTimer.current = setTimeout(() => {
+            if (!roomId) {
+                setLoadingText(criteria2LoadingText)
+            }
+        }, 100000)
 
-        setTimeout(() => {
+        criteria3MessageTimer.current = setTimeout(() => {
             setLoadingText(criteria3LoadingText)
-        }, 20000)
+        }, 200000)
 
-        setTimeout(() => {
+        exitMessageTimer.current = setTimeout(() => {
             setInQueue(false);
             cancelQueue(user?.id);
-            toast.error("Your partner didn't join in time :( Putting you back into the matchmaking queue", {
+            toast.error("Unable to find match at this time :( Please try again later", {
                 position: "bottom-center",
                 duration: 5000,
             });
-        }, 30000)
+        }, 300000)
+    }
+
+    const clearSearchMessageTimeouts = () => {
+        clearTimeout(criteria2MessageTimer.current);
+        clearTimeout(criteria3MessageTimer.current);
+        clearTimeout(exitMessageTimer.current);
     }
 
     const cancelSearching = () => {
@@ -269,6 +281,7 @@ export default function InterviewLobby() {
                         break;
 
                     case "match_pending":
+                        clearSearchMessageTimeouts();
                         setRoomId(data.matchId);
                         setInQueue(false);
                         setMatchFound(true);
