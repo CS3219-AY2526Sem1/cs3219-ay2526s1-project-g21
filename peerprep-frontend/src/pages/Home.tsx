@@ -3,12 +3,12 @@ import { Link } from "react-router-dom";
 
 export default function Home() {
   return (
-    <section className="mx-auto max-w-5xl px-6 py-14 text-center">
-      <h1 className="text-[40px] md:text-[56px] leading-[1.1] font-semibold text-black">
+    <section className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6">
+      <h1 className="text-4xl font-semibold leading-tight text-black md:text-6xl md:leading-[1.1]">
         Interview prep made easy
       </h1>
 
-      <p className="mt-6 text-lg md:text-xl text-[#4B5563] max-w-3xl mx-auto">
+      <p className="mx-auto mt-6 max-w-3xl text-base text-[#4B5563] sm:text-lg md:text-xl">
         PeerPrep makes it easier than ever to prepare for tech interviews.
         Simply pick a difficulty, pick a question category, and start practicing!
       </p>
@@ -17,20 +17,20 @@ export default function Home() {
         <img
           src={hero}
           alt="Two people practicing interview"
-          className="mx-auto w-full max-w-3xl"
+          className="mx-auto w-full max-w-3xl rounded-xl shadow-sm"
         />
       </div>
 
-      <div className="mt-10 flex items-center justify-center gap-4">
+      <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
         <Link
           to="/interview"
-          className="inline-flex items-center justify-center rounded-md bg-[#2F6FED] px-6 py-3 text-white text-base font-medium hover:brightness-95"
+          className="inline-flex w-full items-center justify-center rounded-md bg-[#2F6FED] px-6 py-3 text-base font-medium text-white hover:brightness-95 sm:w-auto"
         >
           Start Practicing
         </Link>
         <Link
           to="/questions"
-          className="inline-flex items-center justify-center rounded-md border border-[#D1D5DB] px-6 py-3 text-base font-medium text-black hover:bg-gray-50"
+          className="inline-flex w-full items-center justify-center rounded-md border border-[#D1D5DB] px-6 py-3 text-base font-medium text-black hover:bg-gray-50 sm:w-auto"
         >
           View Questions
         </Link>
