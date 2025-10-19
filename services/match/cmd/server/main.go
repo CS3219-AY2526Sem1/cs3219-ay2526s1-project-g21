@@ -69,20 +69,20 @@ type RoomInfo struct {
 }
 
 type PendingMatch struct {
-	MatchId      string
-	User1        string
-	User2        string
-	Category     string
-	Difficulty   string
-	User1Cat     string
-	User1Diff    string
-	User2Cat     string
-	User2Diff    string
-	Token1       string
-	Token2       string
-	Handshakes   map[string]bool
-	CreatedAt    time.Time
-	ExpiresAt    time.Time
+	MatchId    string
+	User1      string
+	User2      string
+	Category   string
+	Difficulty string
+	User1Cat   string
+	User1Diff  string
+	User2Cat   string
+	User2Diff  string
+	Token1     string
+	Token2     string
+	Handshakes map[string]bool
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
 }
 
 type HandshakeReq struct {
@@ -463,11 +463,11 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pendingMu.Lock()
-	
+
 	if !req.Accept {
 		// User rejected the match
 		log.Printf("User %s rejected match %s", req.UserID, req.MatchId)
-		
+
 		// Re-queue the other user
 		otherUser := pending.User1
 		otherUserCat := pending.User1Cat
@@ -477,7 +477,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 			otherUserCat = pending.User2Cat
 			otherUserDiff = pending.User2Diff
 		}
-		
+
 		// Get original join time
 		userKey := fmt.Sprintf("user:%s", otherUser)
 		userData, _ := rdb.HGetAll(ctx, userKey).Result()
@@ -487,7 +487,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 				originalTime = int64(jt)
 			}
 		}
-		
+
 		// Re-add other user to queue with original priority
 		rdb.HSet(ctx, userKey, map[string]interface{}{
 			"category":   otherUserCat,
@@ -498,34 +498,34 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 		rdb.ZAdd(ctx, fmt.Sprintf("queue:%s:%s", otherUserCat, otherUserDiff), redis.Z{Score: float64(originalTime), Member: otherUser})
 		rdb.ZAdd(ctx, fmt.Sprintf("queue:%s", otherUserCat), redis.Z{Score: float64(originalTime), Member: otherUser})
 		rdb.ZAdd(ctx, "queue:all", redis.Z{Score: float64(originalTime), Member: otherUser})
-		
+
 		// Notify other user they were re-queued
 		sendToUser(otherUser, map[string]interface{}{
 			"type":    "requeued",
 			"message": "Other user declined the match. You have been re-queued.",
 		})
-		
+
 		// Remove rejecting user from queue completely
 		removeUser(req.UserID, pending.User1Cat, pending.User1Diff)
 		if req.UserID == pending.User2 {
 			removeUser(req.UserID, pending.User2Cat, pending.User2Diff)
 		}
-		
+
 		delete(pendingMatches, req.MatchId)
 		pendingMu.Unlock()
-		
+
 		writeJSON(w, http.StatusOK, Resp{OK: true, Info: "match declined"})
 		return
 	}
-	
+
 	// User accepted
 	pending.Handshakes[req.UserID] = true
-	
+
 	// Check if both accepted
 	if len(pending.Handshakes) == 2 {
 		// Both accepted - confirm match
 		log.Printf("Match %s confirmed by both users", req.MatchId)
-		
+
 		room := &RoomInfo{
 			MatchId:    pending.MatchId,
 			User1:      pending.User1,
@@ -537,14 +537,14 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 			Token2:     pending.Token2,
 			CreatedAt:  pending.CreatedAt.Format(time.RFC3339),
 		}
-		
+
 		// Store in room maps
 		roomMu.Lock()
 		userToRoom[pending.User1] = pending.MatchId
 		userToRoom[pending.User2] = pending.MatchId
 		roomInfo[pending.MatchId] = room
 		roomMu.Unlock()
-		
+
 		// Notify both users
 		sendToUser(pending.User1, map[string]interface{}{
 			"type":       "match_confirmed",
@@ -553,7 +553,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 			"difficulty": pending.Difficulty,
 			"token":      pending.Token1,
 		})
-		
+
 		sendToUser(pending.User2, map[string]interface{}{
 			"type":       "match_confirmed",
 			"matchId":    pending.MatchId,
@@ -561,7 +561,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 			"difficulty": pending.Difficulty,
 			"token":      pending.Token2,
 		})
-		
+
 		// Clean up
 		delete(pendingMatches, req.MatchId)
 		rdb.Del(ctx, fmt.Sprintf("user:%s", pending.User1))
@@ -586,9 +586,9 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(room)
 		rdb.Publish(ctx, "matches", data)
 	}
-	
+
 	pendingMu.Unlock()
-	
+
 	writeJSON(w, http.StatusOK, Resp{OK: true, Info: "handshake received"})
 }
 
@@ -642,18 +642,18 @@ func pendingMatchExpirationLoop() {
 
 	for range ticker.C {
 		now := time.Now()
-		
+
 		pendingMu.Lock()
 		for matchId, pending := range pendingMatches {
 			if now.After(pending.ExpiresAt) {
 				log.Printf("Match %s expired - not all users accepted in time", matchId)
-				
+
 				// Re-queue users who accepted
 				for userId, accepted := range pending.Handshakes {
 					if accepted {
 						var cat, diff string
 						var originalTime float64
-						
+
 						if userId == pending.User1 {
 							cat = pending.User1Cat
 							diff = pending.User1Diff
@@ -661,7 +661,7 @@ func pendingMatchExpirationLoop() {
 							cat = pending.User2Cat
 							diff = pending.User2Diff
 						}
-						
+
 						userKey := fmt.Sprintf("user:%s", userId)
 						userData, _ := rdb.HGetAll(ctx, userKey).Result()
 						if joinedAt, ok := userData["joined_at"]; ok {
@@ -669,7 +669,7 @@ func pendingMatchExpirationLoop() {
 						} else {
 							originalTime = float64(time.Now().Unix())
 						}
-						
+
 						// Re-add to queue
 						rdb.HSet(ctx, userKey, map[string]interface{}{
 							"category":   cat,
@@ -680,14 +680,14 @@ func pendingMatchExpirationLoop() {
 						rdb.ZAdd(ctx, fmt.Sprintf("queue:%s:%s", cat, diff), redis.Z{Score: originalTime, Member: userId})
 						rdb.ZAdd(ctx, fmt.Sprintf("queue:%s", cat), redis.Z{Score: originalTime, Member: userId})
 						rdb.ZAdd(ctx, "queue:all", redis.Z{Score: originalTime, Member: userId})
-						
+
 						sendToUser(userId, map[string]interface{}{
 							"type":    "requeued",
 							"message": "Other user did not accept in time. You have been re-queued.",
 						})
 					}
 				}
-				
+
 				// Remove users who didn't accept
 				if !pending.Handshakes[pending.User1] {
 					removeUser(pending.User1, pending.User1Cat, pending.User1Diff)
@@ -703,7 +703,7 @@ func pendingMatchExpirationLoop() {
 						"message": "Match expired - you did not accept in time",
 					})
 				}
-				
+
 				delete(pendingMatches, matchId)
 			}
 		}
@@ -739,11 +739,11 @@ func tryMatchStage(category, difficulty string, stage int) {
 		}
 
 		u1, u2 := users[0], users[1]
-		
+
 		// Get their original preferences
 		user1Data, _ := rdb.HGetAll(ctx, fmt.Sprintf("user:%s", u1)).Result()
 		user2Data, _ := rdb.HGetAll(ctx, fmt.Sprintf("user:%s", u2)).Result()
-		
+
 		createPendingMatch(u1, u2,
 			user1Data["category"], user1Data["difficulty"],
 			user2Data["category"], user2Data["difficulty"], stage)
@@ -753,11 +753,11 @@ func tryMatchStage(category, difficulty string, stage int) {
 
 // --- Create Pending Match ---
 func createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
-	log.Printf("Creating pending match between %s (%s/%s) and %s (%s/%s) at stage %d", 
+	log.Printf("Creating pending match between %s (%s/%s) and %s (%s/%s) at stage %d",
 		u1, cat1, diff1, u2, cat2, diff2, stage)
 
 	var finalCat, finalDiff string
-	
+
 	switch stage {
 	case 1:
 		// Strict match - same category and difficulty
@@ -777,7 +777,7 @@ func createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
 	rdb.ZRem(ctx, fmt.Sprintf("queue:%s:%s", cat1, diff1), u1)
 	rdb.ZRem(ctx, fmt.Sprintf("queue:%s", cat1), u1)
 	rdb.ZRem(ctx, "queue:all", u1)
-	
+
 	rdb.ZRem(ctx, fmt.Sprintf("queue:%s:%s", cat2, diff2), u2)
 	rdb.ZRem(ctx, fmt.Sprintf("queue:%s", cat2), u2)
 	rdb.ZRem(ctx, "queue:all", u2)
@@ -836,7 +836,7 @@ func removeUser(userId, category, difficulty string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	
+
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		secret = "your-secret-key"
