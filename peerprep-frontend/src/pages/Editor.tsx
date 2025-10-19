@@ -374,7 +374,7 @@ export default function Editor() {
   };
 
   const handleExit = () => {
-    exitRoom(user?.id.toString());
+    exitRoom(user?.id);
 
     nav("/")
   }
