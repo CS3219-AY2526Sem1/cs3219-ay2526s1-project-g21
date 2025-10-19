@@ -1,5 +1,17 @@
 import { RoomInfo } from "@/types/question";
 
+export async function checkUserPreExistingMatch(userId: number | undefined) {
+    const res = await fetch(`http://localhost:8083/check?userId=${userId?.toString()}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+    })
+
+    const data = await res.json();
+    return data;
+}
+
 export async function joinQueue(userId: number | undefined, category: string, difficulty: string): Promise<void> {
     if (!userId) {
         console.error("User ID not provided for matchmaking");
@@ -21,13 +33,55 @@ export async function joinQueue(userId: number | undefined, category: string, di
     console.log(data);
 }
 
+export async function cancelQueue(userId: number | undefined) {
+    const res = await fetch(`http://localhost:8083/cancel`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId?.toString() }),
+    })
+
+    const data = await res.json();
+    return data;
+}
+
+export async function acceptMatch(userId: number | undefined, matchId: string | null) {
+    const res = await fetch('http://localhost:8083/handshake', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId?.toString(), matchId, accept: true })
+    });
+
+    console.log(res);
+}
+
+export async function exitRoom(userId: number | undefined) {
+    try {
+        const res = await fetch('http://localhost:8083/done', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: userId?.toString() })
+        });
+
+        console.log(res);
+    }
+    catch (e) {
+        console.log(e);
+    }
+}
+
 export async function getRoomStatus(matchId: string, token: string): Promise<RoomInfo> {
     const res = await fetch(`http://localhost:8084/api/v1/room/${matchId}`, {
         headers: {
             "Authorization": `Bearer ${token}`,
         },
     });
-    
+
     if (!res.ok) {
         throw new Error(`Failed to get room status: ${res.status}`);
     }
