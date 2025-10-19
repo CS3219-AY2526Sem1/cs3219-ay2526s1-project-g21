@@ -26,12 +26,12 @@ var (
 	connections = make(map[string]*websocket.Conn)
 	mu          sync.Mutex
 	jwtSecret   []byte
-	
+
 	// Maps for room tracking
 	userToRoom = make(map[string]string)
 	roomInfo   = make(map[string]*RoomInfo)
 	roomMu     sync.RWMutex
-	
+
 	// Pending matches awaiting handshake
 	pendingMatches = make(map[string]*PendingMatch)
 	pendingMu      sync.Mutex
