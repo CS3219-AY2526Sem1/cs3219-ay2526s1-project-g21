@@ -613,17 +613,17 @@ func matchmakingLoop() {
 
 			switch stage {
 			case 1:
-				if elapsed > 5 {
+				if elapsed > 100 {
 					rdb.HSet(ctx, key, "stage", 2)
 					tryMatchStage(category, difficulty, 2)
 				}
 			case 2:
-				if elapsed > 15 {
+				if elapsed > 200 {
 					rdb.HSet(ctx, key, "stage", 3)
 					tryMatchStage(category, difficulty, 3)
 				}
 			case 3:
-				if elapsed > 540 {
+				if elapsed > 300 {
 					removeUser(userId, category, difficulty)
 					sendToUser(userId, map[string]interface{}{
 						"type":    "timeout",
