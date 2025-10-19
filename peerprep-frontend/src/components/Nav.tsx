@@ -31,7 +31,7 @@ export default function NavBar() {
               to="/login"
               className="inline-flex items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-white text-sm font-medium hover:brightness-95"
             >
-              Log In
+              Login
             </NavLink>
           )}
         </nav>
@@ -41,6 +41,7 @@ export default function NavBar() {
           className="inline-flex items-center justify-center rounded-md border border-slate-300 p-2 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6FED] md:hidden"
           aria-label="Toggle navigation menu"
           aria-expanded={mobileOpen}
+          aria-controls="mobile-nav"
           onClick={() => setMobileOpen((prev) => !prev)}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -48,7 +49,7 @@ export default function NavBar() {
       </div>
 
       {mobileOpen ? (
-        <div className="border-t border-slate-200 bg-white md:hidden">
+        <div id="mobile-nav" className="border-t border-slate-200 bg-white md:hidden">
           <nav className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4">
             <NavLink to="/interview" className={link} onClick={closeMobileMenu}>
               Interview
@@ -82,7 +83,7 @@ export default function NavBar() {
                 className="inline-flex items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-white text-sm font-medium hover:brightness-95"
                 onClick={closeMobileMenu}
               >
-                Log In
+                Login
               </NavLink>
             )}
           </nav>
