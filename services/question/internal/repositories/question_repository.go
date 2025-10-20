@@ -199,3 +199,8 @@ func (r *QuestionRepository) GetRandom(topics []string, difficulty string) (*mod
 
 	return &picked, nil
 }
+
+var (
+	ErrNotFound       = errors.New("question not found")
+	ErrNotImplemented = errors.New("not implemented")
+)
