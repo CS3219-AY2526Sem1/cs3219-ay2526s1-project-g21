@@ -8,24 +8,32 @@ import (
 	"strings"
 
 	"peerprep/question/internal/models"
-	"peerprep/question/internal/repositories"
 	"peerprep/question/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 )
 
-type QuestionHandler struct {
-	repository *repositories.QuestionRepository
+type QuestionRepo interface {
+	GetAll() ([]models.Question, error)
+	Create(*models.Question) (*models.Question, error)
+	GetByID(int) (*models.Question, error)
+	Update(int, *models.Question) (*models.Question, error)
+	Delete(int) error
+	GetRandom([]string, string) (*models.Question, error)
 }
 
-func NewQuestionHandler(repository *repositories.QuestionRepository) *QuestionHandler {
-	return &QuestionHandler{repository: repository}
+type QuestionHandler struct {
+	repo QuestionRepo
+}
+
+func NewQuestionHandler(r QuestionRepo) *QuestionHandler {
+	return &QuestionHandler{repo: r}
 }
 
 func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
-	questions, err := handler.repository.GetAll()
+	questions, err := handler.repo.GetAll()
 	if err != nil {
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
@@ -54,7 +62,7 @@ func (handler *QuestionHandler) CreateQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	created, err := handler.repository.Create(&question)
+	created, err := handler.repo.Create(&question)
 	if err != nil {
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
@@ -80,7 +88,7 @@ func (handler *QuestionHandler) GetQuestionByIDHandler(writer http.ResponseWrite
 		return
 	}
 
-	question, err := handler.repository.GetByID(id)
+	question, err := handler.repo.GetByID(id)
 	if err != nil {
 		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 			Code:    "question_not_found",
@@ -114,7 +122,7 @@ func (handler *QuestionHandler) UpdateQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	updated, err := handler.repository.Update(id, &question)
+	updated, err := handler.repo.Update(id, &question)
 	if err != nil {
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
@@ -139,7 +147,7 @@ func (handler *QuestionHandler) DeleteQuestionHandler(writer http.ResponseWriter
 		return
 	}
 
-	if err := handler.repository.Delete(id); err != nil {
+	if err := handler.repo.Delete(id); err != nil {
 		if err.Error() == "question not found" {
 			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 				Code:    "question_not_found",
@@ -196,7 +204,7 @@ func (handler *QuestionHandler) GetRandomQuestionHandler(writer http.ResponseWri
 		}
 	}
 
-	question, err := handler.repository.GetRandom(topics, difficulty)
+	question, err := handler.repo.GetRandom(topics, difficulty)
 	if err != nil {
 		utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
 			Code:    "no_eligible_question",
