@@ -66,7 +66,7 @@ export default function Questions() {
 
   if (loading) {
     return (
-      <section className="mx-auto max-w-7xl px-6 py-14">
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="text-center">Loading questions...</div>
       </section>
     );
@@ -74,24 +74,24 @@ export default function Questions() {
 
   if (error) {
     return (
-      <section className="mx-auto max-w-7xl px-6 py-14">
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="text-center text-red-600">Error: {error}</div>
       </section>
     );
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-6 py-14">
-      <div className="flex items-center justify-between mb-8">
+    <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold text-black">All Questions</h1>
-        <div className="flex items-center gap-4">
-          <button className="inline-flex items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-white text-sm font-medium hover:brightness-95">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+          <button className="inline-flex w-full items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:brightness-95 sm:w-auto">
             Filter Questions
           </button>
           <input
             type="text"
             placeholder="Search Questions"
-            className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[#2F6FED] focus:border-transparent"
+            className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
           />
         </div>
       </div>
@@ -116,15 +116,15 @@ export default function Questions() {
           </table>
         </div>
 
-        <div className="px-6 py-3 bg-white border-t border-[#E5E7EB] flex items-center justify-between">
-          <div className="text-sm text-gray-700">
+        <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-4 py-3 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:text-left">
+          <div className="text-sm text-gray-700 sm:text-left">
             Showing 1 to {Math.min(6, questions.length)} of {questions.length} rows
           </div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-2 text-sm border border-[#D1D5DB] rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          <div className="flex items-center justify-center gap-2 sm:justify-end">
+            <button className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
               Previous
             </button>
-            <button className="px-3 py-2 text-sm border border-[#D1D5DB] rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
               Next
             </button>
           </div>
