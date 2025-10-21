@@ -1,0 +1,46 @@
+package models
+
+import "time"
+
+type Question struct {
+	ID             int        `json:"id" bson:"id"`                 // int uuid
+	Title          string     `json:"title" bson:"title"`           // question title
+	Difficulty     Difficulty `json:"difficulty" bson:"difficulty"` // enum
+	TopicTags      []string   `json:"topic_tags,omitempty" bson:"topic_tags,omitempty" validate:"max=10"`
+	PromptMarkdown string     `json:"prompt_markdown" bson:"prompt_markdown"`
+	Constraints    string     `json:"constraints,omitempty" bson:"constraints,omitempty"`
+	TestCases      []TestCase `json:"test_cases,omitempty" bson:"test_cases,omitempty"`
+	ImageURLs      []string   `json:"image_urls,omitempty" bson:"image_urls,omitempty" validate:"max=5"` // optional; need to validate urls when used
+
+	Status           Status     `json:"status,omitempty" bson:"status,omitempty"` // active or deprecated. read the struct for more deets
+	Author           string     `json:"author,omitempty" bson:"author,omitempty"`
+	CreatedAt        time.Time  `json:"created_at" bson:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at" bson:"updated_at"`
+	DeprecatedAt     *time.Time `json:"deprecated_at,omitempty" bson:"deprecated_at,omitempty"`
+	DeprecatedReason string     `json:"deprecated_reason,omitempty" bson:"deprecated_reason,omitempty"`
+}
+
+type Difficulty string
+
+const (
+	Easy   Difficulty = "Easy"
+	Medium Difficulty = "Medium"
+	Hard   Difficulty = "Hard"
+)
+
+// status describes lifecycle state of a question
+// like for example, if a question is deprecated
+// we'd still want to be able to fetch it for historical purposes
+type Status string
+
+const (
+	StatusActive     Status = "active"
+	StatusDeprecated Status = "deprecated"
+)
+
+// single testcase
+type TestCase struct {
+	Input       string `json:"input" bson:"input" validate:"required"`
+	Output      string `json:"output" bson:"output" validate:"required"`
+	Description string `json:"description,omitempty" bson:"description,omitempty"` // optional test case description
+}
