@@ -35,9 +35,23 @@ Note that the following services/databases will be setup locally:
 - question: http://localhost:8082
 - match:    http://localhost:8083
 - collab:   http://localhost:8084
+- voice:    http://localhost:8085
+- sandbox:  http://localhost:8090
+- prometheus: http://localhost:9090
+- grafana:  http://localhost:3000
 - MongoDB:  mongodb://localhost:27017  
 - Redis:    redis://localhost:6379
 - Postgres: postgres://localhost:5432
+
+## Observability (Prometheus + Grafana)
+- All Go services expose a `GET /metrics` endpoint with request counters and latency histograms labelled by service, path, and status.
+- Additional metrics capture in-flight request gauges plus request/response size histograms to spot back-pressure and payload regressions quickly.
+- Prometheus is bundled in `deploy/docker-compose.yaml` and scrapes every backend automatically; reach it via `http://localhost:9090` for ad-hoc queries.
+- Grafana is available at `http://localhost:3000` (default credentials `admin/admin`) with an auto-provisioned **PeerPrep Services Overview** dashboard that shows:
+  - Request rate broken down by service and status.
+  - 5xx error rate per service (rolling 5 minute window).
+  - Live health status using Prometheus `up` metrics.
+- Tweak or add dashboards by editing the files under `deploy/grafana/`; they are hot-reloaded when the container restarts.
 
 ## Structure
 - services/<svc> : Go microservice with chi router and health endpoints
