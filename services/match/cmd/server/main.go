@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+
+	"peerprep/match/internal/metrics"
 )
 
 var (
@@ -235,13 +237,15 @@ func main() {
 	// Subscribe to Redis in background
 	go subscribeToRedis()
 
-	http.HandleFunc("/join", joinHandler)
-	http.HandleFunc("/ws", wsHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", joinHandler)
+	mux.HandleFunc("/ws", wsHandler)
+	mux.Handle("/metrics", metrics.Handler())
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 	log.Println("Listening on :" + port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, metrics.Middleware("match")(mux)))
 }
