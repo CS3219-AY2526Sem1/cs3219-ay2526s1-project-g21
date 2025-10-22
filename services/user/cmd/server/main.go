@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"peerprep/user/internal/handlers"
+	"peerprep/user/internal/metrics"
 	"peerprep/user/internal/models"
 	"peerprep/user/internal/repositories"
 	"peerprep/user/internal/routers"
@@ -76,7 +77,14 @@ func main() {
 
 	// Set up router
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
+	r.Use(
+		middleware.RequestID,
+		middleware.RealIP,
+		middleware.Logger,
+		middleware.Recoverer,
+		middleware.Timeout(60*time.Second),
+		metrics.Middleware("user"),
+	)
 
 	// CORS
 	r.Use(cors.Handler(cors.Options{
@@ -87,6 +95,9 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
+
+	// Prometheus metrics endpoint
+	r.Handle("/metrics", metrics.Handler())
 
 	// Health check route
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
