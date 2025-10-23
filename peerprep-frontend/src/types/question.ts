@@ -23,6 +23,7 @@ export interface Question {
 
 export type Difficulty = Question["difficulty"];
 export type QuestionStatus = Question["status"];
+export type Category = "Array" | "Graphs" | "Dynamic Programming" | "Greedy" | "Linked List";
 
 export interface RandomQuestionFilters {
   difficulty?: Difficulty;
@@ -41,4 +42,42 @@ export interface RoomInfo {
   createdAt: string;
   token1?: string;
   token2?: string;
+  token: string;
+  type: "match_confirmed" | "match_pending" | "timeout" | "requeued"
 }
+
+type MatchConfirmEvent = {
+  type: "match_confirmed",
+  matchId: string,
+  token: string,
+  category: string,
+  difficulty: string
+}
+
+type MatchPendingEvent = {
+  type: "match_pending",
+  matchId: string,
+}
+
+type MatchRequeueEvent = {
+  type: "requeued"
+}
+
+type MatchTimeoutEvent = {
+  type: "timeout"
+}
+
+export type MatchEvent = {
+  type: "match_confirmed",
+  matchId: string,
+  token: string,
+  category: string,
+  difficulty: string
+} | {
+  type: "match_pending",
+  matchId: string,
+} | {
+  type: "requeued"
+} | {
+  type: "timeout"
+} 
