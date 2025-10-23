@@ -78,7 +78,7 @@ func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := r.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()
 	}
-	return nil, nil, fmt.Errorf("collab metrics: underlying ResponseWriter does not support hijacking")
+	return nil, nil, fmt.Errorf("voice metrics: underlying ResponseWriter does not support hijacking")
 }
 
 func (r *responseRecorder) Push(target string, opts *http.PushOptions) error {
