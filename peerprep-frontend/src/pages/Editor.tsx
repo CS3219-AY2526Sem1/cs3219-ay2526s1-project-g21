@@ -437,10 +437,10 @@ export default function Editor() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 px-6">
+      <div className="px-6 flex flex-col gap-4 lg:grid lg:grid-cols-2 xl:gap-6">
         {/* Question panel */}
-        <div className="order-2 lg:order-1 space-y-4 lg:w-1/2">
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 lg:pr-2">
+          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-black">{question?.title ?? "Loading..."}</h2>
@@ -487,9 +487,9 @@ export default function Editor() {
         </div>
 
         {/* Code Editor */}
-        <div className="order-1 lg:order-2 lg:w-1/2">
-          <div className="rounded-lg border border-gray-200 bg-white">
-            <div className="border-b border-gray-200 px-4 py-2 text-sm text-gray-600">
+        <div className="lg:pl-2">
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-2 text-sm text-gray-600">
               Editor — {language}
             </div>
             <div className="p-3">
@@ -502,6 +502,7 @@ export default function Editor() {
                 padding={15}
                 style={{
                   backgroundColor: "#1E1E1E ",
+                  minHeight: "320px",
                   height: "60vh",
                   borderRadius: "5px",
                   fontFamily:
