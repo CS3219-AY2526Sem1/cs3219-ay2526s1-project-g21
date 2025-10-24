@@ -35,6 +35,8 @@ var (
 	// Pending matches awaiting handshake
 	pendingMatches = make(map[string]*PendingMatch)
 	pendingMu      sync.Mutex
+
+	defaultRedisAddr = "redis:6379"
 )
 
 // Difficulty levels
@@ -843,8 +845,13 @@ func main() {
 	}
 	jwtSecret = []byte(secret)
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = defaultRedisAddr
+	}
+
 	rdb = redis.NewClient(&redis.Options{
-		Addr: "redis:6379",
+		Addr: redisAddr,
 	})
 
 	// Start background processes
@@ -852,12 +859,12 @@ func main() {
 	go matchmakingLoop()
 	go pendingMatchExpirationLoop()
 
-	http.HandleFunc("/join", joinHandler)
-	http.HandleFunc("/cancel", cancelHandler)
-	http.HandleFunc("/check", checkHandler)
-	http.HandleFunc("/done", doneHandler)
-	http.HandleFunc("/handshake", handshakeHandler)
-	http.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/api/v1/match/join", joinHandler)
+	http.HandleFunc("/api/v1/match/cancel", cancelHandler)
+	http.HandleFunc("/api/v1/match/check", checkHandler)
+	http.HandleFunc("/api/v1/match/done", doneHandler)
+	http.HandleFunc("/api/v1/match/handshake", handshakeHandler)
+	http.HandleFunc("/api/v1/match/ws", wsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
