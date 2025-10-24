@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,8 +17,8 @@ func TestNewRouterHealthEndpoint(t *testing.T) {
 	handler := New(logger, manager)
 	server := httptest.NewServer(handler)
 	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/api/v1/collab/healthz")
+	log.Println(server.URL)
+	resp, err := http.Get(server.URL + "/healthz")
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
