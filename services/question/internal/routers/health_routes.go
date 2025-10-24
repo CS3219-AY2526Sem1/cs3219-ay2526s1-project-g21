@@ -6,7 +6,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func HealthRoutes(router *chi.Mux, healthHandler *handlers.HealthHandler) {
-	router.Get("/healthz", healthHandler.HealthzHandler)
-	router.Get("/readyz", healthHandler.ReadyzHandler)
+// Currently not used as QuestionRoutes takes in both the main question handler and the health handler
+func HealthRoutes(r *chi.Mux, healthHandler *handlers.HealthHandler) {
+	r.Route("/api/v1/questions", func(r chi.Router) {
+		r.Get("/healthz", healthHandler.HealthzHandler)
+		r.Get("/readyz", healthHandler.ReadyzHandler)
+	})
 }

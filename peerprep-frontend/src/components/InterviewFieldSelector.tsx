@@ -1,9 +1,16 @@
 import React from "react";
+import { Difficulty, Category } from "@/types/question";
 import { startCase } from "lodash";
 
-type onFieldChangeCallbackFn = (e: React.ChangeEvent<HTMLSelectElement>) => void;
+type OnFieldChangeCallbackFn = (e: React.ChangeEvent<HTMLSelectElement>) => void;
 
-const InterviewFieldSelector = ({ name, fieldOptions, onChange }: { name: string, fieldOptions: Array<string>, onChange: onFieldChangeCallbackFn }) => {
+interface InterviewFieldSelectorProps {
+    name: string;
+    fieldOptions: readonly Difficulty[] | readonly Category[];
+    onChange: OnFieldChangeCallbackFn;
+}
+
+const InterviewFieldSelector: React.FC<InterviewFieldSelectorProps> = ({ name, fieldOptions, onChange }) => {
     return (
         <section className="flex w-full flex-col gap-4">
             <h3 className="text-2xl">

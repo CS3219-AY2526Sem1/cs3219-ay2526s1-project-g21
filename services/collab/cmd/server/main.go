@@ -79,9 +79,9 @@ func run(parent context.Context) error {
 		AllowCredentials: true,
 	}))
 
-	r.Mount("/", routers.New(logger, roomManager))
+	r.Mount("/api/v1/collab", routers.New(logger, roomManager))
 
-	r.Get("/healthz", healthHandler)
+	r.Get("/api/v1/collab/healthz", healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

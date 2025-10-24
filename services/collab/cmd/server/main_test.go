@@ -121,7 +121,7 @@ func TestMainHandlesError(t *testing.T) {
 
 func TestHealthHandler(t *testing.T) {
 	rec := httptest.NewRecorder()
-	healthHandler(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	healthHandler(rec, httptest.NewRequest(http.MethodGet, "/api/v1/collab/healthz", nil))
 	if rec.Body.String() != "ok" {
 		t.Fatalf("expected ok, got %q", rec.Body.String())
 	}
