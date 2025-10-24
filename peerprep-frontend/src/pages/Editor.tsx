@@ -29,6 +29,8 @@ const CODE_TEMPLATES: Record<string, string> = {
   java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}\n',
 };
 
+const COLLAB_WEBSOCKET_BASE = (import.meta as any).env?.VITE_COLLAB_WEBSOCKET_BASE || "ws://localhost:8084";
+
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
   const [user, setUser] = useState<{ id: number; username: string; email: string } | null>(null);
@@ -155,7 +157,7 @@ export default function Editor() {
       return;
     }
 
-    const ws = new WebSocket(`http://localhost:8084/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`${COLLAB_WEBSOCKET_BASE}/api/v1/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

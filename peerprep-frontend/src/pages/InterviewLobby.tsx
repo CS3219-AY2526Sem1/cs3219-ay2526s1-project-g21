@@ -11,6 +11,8 @@ import InterviewFieldSelector from "@/components/InterviewFieldSelector";
 import { BarLoader, } from "react-spinners";
 import useBeforeClose from "@/hooks/useBeforeClose";
 
+const MATCH_WEBSOCKET_BASE = (import.meta as any).env?.VITE_MATCH_WEBSOCKET_BASE || "ws://localhost:8083";
+
 const override: CSSProperties = {
     display: "block",
     margin: "0 auto",
@@ -46,6 +48,7 @@ export default function InterviewLobby() {
     const criteria1LoadingText = "Searching for users with the same preferences..."
     const criteria2LoadingText = "Searching for other users with different preferred difficulty..."
     const criteria3LoadingText = "Searching for other users with different preferred category..."
+
 
     const [loadingText, setLoadingText] = useState(criteria1LoadingText)
 
@@ -246,7 +249,7 @@ export default function InterviewLobby() {
 
         redirectToPreExistingMatch();
 
-        const ws = new WebSocket(`ws://localhost:8083/ws?userId=${user?.id}`);
+        const ws = new WebSocket(`${MATCH_WEBSOCKET_BASE}/api/v1/ws?userId=${user?.id}`);
 
         ws.onopen = () => console.log("Connected to matchmaking WebSocket");
 

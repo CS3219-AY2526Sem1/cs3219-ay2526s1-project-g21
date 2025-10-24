@@ -1,7 +1,11 @@
 import { RoomInfo } from "@/types/question";
 
+const MATCH_API_BASE = (import.meta as any).env?.VITE_MATCH_API_BASE || "http://localhost:8083";
+
+const COLLAB_API_BASE = (import.meta as any).env?.VITE_COLLAB_API_BASE || "http://localhost:8084";
+
 export async function checkUserPreExistingMatch(userId: number | undefined) {
-    const res = await fetch(`http://localhost:8083/check?userId=${userId?.toString()}`, {
+    const res = await fetch(`${MATCH_API_BASE}/api/v1/match/check?userId=${userId?.toString()}`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json'
@@ -18,7 +22,7 @@ export async function joinQueue(userId: number | undefined, category: string, di
         return;
     }
 
-    const res = await fetch("http://localhost:8083/join", {
+    const res = await fetch("${MATCH_API_BASE}/api/v1/match/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: userId.toString(), category, difficulty }),
@@ -34,7 +38,7 @@ export async function joinQueue(userId: number | undefined, category: string, di
 }
 
 export async function cancelQueue(userId: number | undefined) {
-    const res = await fetch(`http://localhost:8083/cancel`, {
+    const res = await fetch(`${MATCH_API_BASE}/api/v1/match/cancel`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -47,7 +51,7 @@ export async function cancelQueue(userId: number | undefined) {
 }
 
 export async function acceptMatch(userId: number | undefined, matchId: string | null) {
-    const res = await fetch('http://localhost:8083/handshake', {
+    const res = await fetch('${MATCH_API_BASE}/api/v1/match/handshake', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -60,7 +64,7 @@ export async function acceptMatch(userId: number | undefined, matchId: string | 
 
 export async function exitRoom(userId: number | undefined) {
     try {
-        const res = await fetch('http://localhost:8083/done', {
+        const res = await fetch('${MATCH_API_BASE}/api/v1/match/done', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -76,7 +80,7 @@ export async function exitRoom(userId: number | undefined) {
 }
 
 export async function getRoomStatus(matchId: string, token: string): Promise<RoomInfo> {
-    const res = await fetch(`http://localhost:8084/api/v1/room/${matchId}`, {
+    const res = await fetch(`${COLLAB_API_BASE}/api/v1/room/${matchId}`, {
         headers: {
             "Authorization": `Bearer ${token}`,
         },
@@ -90,7 +94,7 @@ export async function getRoomStatus(matchId: string, token: string): Promise<Roo
 }
 
 export async function rerollQuestion(matchId: string, token: string): Promise<RoomInfo> {
-    const res = await fetch(`http://localhost:8084/api/v1/room/${matchId}/reroll`, {
+    const res = await fetch(`${COLLAB_API_BASE}/api/v1/room/${matchId}/reroll`, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`,
