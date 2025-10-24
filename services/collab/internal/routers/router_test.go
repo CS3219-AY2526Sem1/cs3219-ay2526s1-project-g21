@@ -17,7 +17,7 @@ func TestNewRouterHealthEndpoint(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/healthz")
+	resp, err := http.Get(server.URL + "/api/v1/collab/healthz")
 	if err != nil {
 		t.Fatalf("health request failed: %v", err)
 	}
