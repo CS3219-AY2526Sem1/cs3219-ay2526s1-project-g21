@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/Jeffail/leaps/lib/text"
 
@@ -11,14 +12,18 @@ import (
 
 // Room holds the authoritative document state and connected clients for a session.
 type Room struct {
-	ID         string
-	mu         sync.Mutex
-	clients    map[*Client]struct{}
-	doc        models.DocState
-	language   models.Language
-	otConf     text.OTBufferConfig
-	otBuffer   *text.OTBuffer
-	runHistory []models.WSFrame
+	ID                string
+	mu                sync.Mutex
+	clients           map[*Client]struct{}
+	doc               models.DocState
+	language          models.Language
+	otConf            text.OTBufferConfig
+	otBuffer          *text.OTBuffer
+	runHistory        []models.WSFrame
+	startedAt         time.Time
+	lastDisconnectAt  *time.Time
+	allDisconnected   bool
+	sessionEndHandler func(sessionID string, finalCode string, language models.Language, duration time.Duration)
 }
 
 const otRetentionSeconds int64 = 60
@@ -29,19 +34,33 @@ func NewRoom(id string) *Room {
 	buf.Version = 0
 
 	return &Room{
-		ID:       id,
-		clients:  make(map[*Client]struct{}),
-		doc:      models.DocState{Text: "", Version: 0},
-		language: models.LangPython,
-		otConf:   cfg,
-		otBuffer: buf,
+		ID:              id,
+		clients:         make(map[*Client]struct{}),
+		doc:             models.DocState{Text: "", Version: 0},
+		language:        models.LangPython,
+		otConf:          cfg,
+		otBuffer:        buf,
+		startedAt:       time.Now(),
+		allDisconnected: false,
 	}
+}
+
+func (r *Room) SetSessionEndHandler(handler func(sessionID string, finalCode string, language models.Language, duration time.Duration)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sessionEndHandler = handler
 }
 
 func (r *Room) Join(c *Client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.clients[c] = struct{}{}
+
+	// Reset disconnect tracking if clients rejoin
+	if r.allDisconnected {
+		r.allDisconnected = false
+		r.lastDisconnectAt = nil
+	}
 }
 
 func (r *Room) GetClientCount() int {
@@ -54,7 +73,32 @@ func (r *Room) Leave(c *Client) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.clients, c)
-	return len(r.clients)
+	remaining := len(r.clients)
+
+	// Track when all clients disconnect
+	if remaining == 0 && !r.allDisconnected {
+		now := time.Now()
+		r.lastDisconnectAt = &now
+		r.allDisconnected = true
+
+		// Start a goroutine to check if session should end after 30 seconds
+		go r.checkSessionEnd()
+	}
+
+	return remaining
+}
+
+func (r *Room) checkSessionEnd() {
+	time.Sleep(30 * time.Second)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// If still no clients after 30 seconds, end the session
+	if len(r.clients) == 0 && r.allDisconnected && r.sessionEndHandler != nil {
+		duration := time.Since(r.startedAt)
+		r.sessionEndHandler(r.ID, r.doc.Text, r.language, duration)
+	}
 }
 
 func (r *Room) Snapshot() (models.DocState, models.Language) {
