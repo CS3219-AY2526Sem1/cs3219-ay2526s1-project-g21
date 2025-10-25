@@ -19,7 +19,7 @@ export interface ActiveRoomResponse {
  * Get user's interview history
  */
 export async function getUserHistory(userId: string): Promise<InterviewHistoryItem[]> {
-  const response = await fetch(`http://localhost:8080/api/history/${userId}`, {
+  const response = await fetch(`http://localhost:8081/api/history/${userId}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
