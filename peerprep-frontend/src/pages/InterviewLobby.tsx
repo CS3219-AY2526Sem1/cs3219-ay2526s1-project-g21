@@ -9,6 +9,7 @@ import { startCase } from "lodash";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import InterviewFieldSelector from "@/components/InterviewFieldSelector";
+import { InterviewDetailsModal } from "@/components/InterviewDetailsModal";
 
 // --- Types ---
 interface User {
@@ -99,12 +100,16 @@ export default function InterviewLobby() {
 
     const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [selectedInterview, setSelectedInterview] = useState<InterviewHistoryItem | null>(null);
 
     const interviewHistoryHeaders = [
-        "questionTitle",
-        "category",
-        "difficulty",
-        "endedAt",
+        "Question",
+        "Category",
+        "Difficulty",
+        "Language",
+        "Duration",
+        "Date",
+        "Actions",
     ] as const;
 
     const loadHistory = async (userId: number) => {
@@ -126,6 +131,12 @@ export default function InterviewLobby() {
         } catch {
             return isoDate;
         }
+    };
+
+    const formatDuration = (seconds: number) => {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${minutes}m ${secs}s`;
     };
 
     useEffect(() => {
@@ -199,7 +210,13 @@ export default function InterviewLobby() {
     }, [token, user?.id]);
 
     return (
-        <section className="mx-auto max-w-5xl px-6 flex flex-col gap-20">
+        <>
+            <InterviewDetailsModal
+                interview={selectedInterview}
+                currentUserId={String(user?.id || "")}
+                onClose={() => setSelectedInterview(null)}
+            />
+            <section className="mx-auto max-w-5xl px-6 flex flex-col gap-20">
             {/* New Interview Section */}
             <section>
                 <h1 className="text-3xl font-semibold text-black">Start a New Interview</h1>
@@ -247,13 +264,13 @@ export default function InterviewLobby() {
                         <tbody>
                             {historyLoading ? (
                                 <tr>
-                                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                                    <td colSpan={7} className="text-center py-8 text-gray-500">
                                         Loading history...
                                     </td>
                                 </tr>
                             ) : interviewHistory.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                                    <td colSpan={7} className="text-center py-8 text-gray-500">
                                         No past interviews yet
                                     </td>
                                 </tr>
@@ -273,7 +290,21 @@ export default function InterviewLobby() {
                                             {startCase(interviewItem.difficulty)}
                                         </td>
                                         <td className="text-left pl-4 py-4">
+                                            {startCase(interviewItem.language)}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
+                                            {formatDuration(interviewItem.durationSeconds)}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
                                             {formatDate(interviewItem.endedAt)}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
+                                            <button
+                                                onClick={() => setSelectedInterview(interviewItem)}
+                                                className="text-blue-600 hover:text-blue-800 underline"
+                                            >
+                                                View
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
@@ -283,5 +314,6 @@ export default function InterviewLobby() {
                 </section>
             </section>
         </section>
+        </>
     );
 }

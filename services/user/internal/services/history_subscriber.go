@@ -8,6 +8,7 @@ import (
 
 	"peerprep/user/internal/handlers"
 	"peerprep/user/internal/models"
+	"peerprep/user/internal/repositories"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -31,9 +32,10 @@ type SessionEndedEvent struct {
 type HistorySubscriber struct {
 	rdb            *redis.Client
 	historyHandler *handlers.HistoryHandler
+	userRepo       *repositories.UserRepository
 }
 
-func NewHistorySubscriber(redisAddr string, historyHandler *handlers.HistoryHandler) *HistorySubscriber {
+func NewHistorySubscriber(redisAddr string, historyHandler *handlers.HistoryHandler, userRepo *repositories.UserRepository) *HistorySubscriber {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
@@ -41,6 +43,7 @@ func NewHistorySubscriber(redisAddr string, historyHandler *handlers.HistoryHand
 	return &HistorySubscriber{
 		rdb:            rdb,
 		historyHandler: historyHandler,
+		userRepo:       userRepo,
 	}
 }
 
@@ -78,6 +81,22 @@ func (hs *HistorySubscriber) handleSessionEndedEvent(payload string) {
 
 	log.Printf("Received session_ended event for match %s", event.MatchID)
 
+	// Fetch usernames
+	user1Name := "Unknown"
+	user2Name := "Unknown"
+
+	if user1, err := hs.userRepo.GetUserByID(event.User1); err == nil {
+		user1Name = user1.Username
+	} else {
+		log.Printf("Failed to fetch user1 name for ID %s: %v", event.User1, err)
+	}
+
+	if user2, err := hs.userRepo.GetUserByID(event.User2); err == nil {
+		user2Name = user2.Username
+	} else {
+		log.Printf("Failed to fetch user2 name for ID %s: %v", event.User2, err)
+	}
+
 	// Parse timestamps
 	startedAt, err := time.Parse(time.RFC3339, event.StartedAt)
 	if err != nil {
@@ -95,7 +114,9 @@ func (hs *HistorySubscriber) handleSessionEndedEvent(payload string) {
 	history := &models.InterviewHistory{
 		MatchID:       event.MatchID,
 		User1ID:       event.User1,
+		User1Name:     user1Name,
 		User2ID:       event.User2,
+		User2Name:     user2Name,
 		QuestionID:    event.QuestionID,
 		QuestionTitle: event.QuestionTitle,
 		Category:      event.Category,

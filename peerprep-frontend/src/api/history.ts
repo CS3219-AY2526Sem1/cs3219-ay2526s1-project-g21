@@ -1,11 +1,19 @@
 export interface InterviewHistoryItem {
   matchId: string;
+  user1Id: string;
+  user1Name: string;
+  user2Id: string;
+  user2Name: string;
+  questionId: number;
   questionTitle: string;
   category: string;
   difficulty: string;
   language: string;
+  finalCode: string;
+  startedAt: string;
   endedAt: string;
   durationSeconds: number;
+  rerollsUsed: number;
 }
 
 export interface ActiveRoomResponse {
@@ -32,16 +40,8 @@ export async function getUserHistory(userId: string): Promise<InterviewHistoryIt
 
   const data = await response.json();
 
-  // Transform backend data to frontend format
-  return data.map((item: any) => ({
-    matchId: item.matchId,
-    questionTitle: item.questionTitle,
-    category: item.category,
-    difficulty: item.difficulty,
-    language: item.language,
-    endedAt: item.endedAt,
-    durationSeconds: item.durationSeconds,
-  }));
+  // Return all fields from backend
+  return data;
 }
 
 /**

@@ -84,7 +84,7 @@ func main() {
 	if redisAddr == "" {
 		redisAddr = "redis:6379"
 	}
-	historySubscriber := services.NewHistorySubscriber(redisAddr, historyHandler)
+	historySubscriber := services.NewHistorySubscriber(redisAddr, historyHandler, userRepo)
 
 	// Start Redis subscriber in background
 	go historySubscriber.SubscribeToSessionEnded(context.Background())
