@@ -216,12 +216,12 @@ export default function InterviewLobby() {
                 currentUserId={String(user?.id || "")}
                 onClose={() => setSelectedInterview(null)}
             />
-            <section className="mx-auto max-w-5xl px-6 flex flex-col gap-20">
+            <section className="mx-auto flex flex-col gap-16 px-4 py-12 sm:px-6 lg:max-w-5xl">
             {/* New Interview Section */}
             <section>
                 <h1 className="text-3xl font-semibold text-black">Start a New Interview</h1>
-                <section className="border border-gray-600 rounded-md flex flex-col gap-12 mt-8 px-10 py-6">
-                    <section className="flex gap-28">
+                <section className="mt-8 flex flex-col gap-10 rounded-xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-8">
+                    <section className="grid gap-6 md:grid-cols-2">
                         <InterviewFieldSelector
                             name="category"
                             fieldOptions={categories}
@@ -233,12 +233,12 @@ export default function InterviewLobby() {
                             onChange={(e) => handleFormChange(e, setForm)}
                         />
                     </section>
-                    <section className="flex gap-4 justify-center">
+                    <section className="flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center sm:gap-4">
                         <button
                             onClick={() =>
                                 joinQueue(user?.id, form.category, form.difficulty)
                             }
-                            className="rounded-md bg-[#2F6FED] px-7 py-2 text-lg font-medium text-white hover:brightness-95"
+                            className="w-full rounded-md bg-[#2F6FED] px-7 py-2.5 text-lg font-medium text-white hover:brightness-95 sm:w-auto"
                             disabled={!user}
                         >
                             Start Interviewing!
