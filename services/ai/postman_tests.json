@@ -1,0 +1,216 @@
+{
+	"info": {
+		"_postman_id": "b7d845bb-423e-4f5b-8f43-3569b07244fc",
+		"name": "AI_service_tests",
+		"description": "Postman test suite for all AI Service endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "28083579"
+	},
+	"item": [
+		{
+			"name": "Health Check - /healthz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "{{url}}/healthz"
+			},
+			"response": []
+		},
+		{
+			"name": "Readiness Check - /readyz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "{{url}}/readyz"
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - Python Basic",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def hello():\\n    print(\\\"Hello World\\\")\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-python-basic\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - Java Intermediate",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-java-intermediate\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - C++ Advanced",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - JavaScript Default Detail",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"const numbers = [1, 2, 3, 4, 5];\\nconst doubled = numbers.map(n => n * 2);\\nconsole.log(doubled);\",\n  \"language\": \"javascript\",\n  \"request_id\": \"test-js-default\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - No Request ID (Auto-generated)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\",\n  \"language\": \"python\",\n  \"detail_level\": \"intermediate\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Missing Code",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Missing Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"print('hello')\",\n  \"detail_level\": \"beginner\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Unsupported Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"puts 'Hello World'\",\n  \"language\": \"ruby\",\n  \"detail_level\": \"beginner\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Invalid Detail Level",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"expert\"\n}"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Invalid JSON",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n  // missing closing brace"
+				},
+				"url": "{{url}}/ai/explain"
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "url",
+			"value": "http://localhost:8086",
+			"type": "string"
+		}
+	]
+}
