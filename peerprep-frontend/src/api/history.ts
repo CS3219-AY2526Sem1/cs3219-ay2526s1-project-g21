@@ -12,6 +12,7 @@ export interface ActiveRoomResponse {
   active: boolean;
   matchId?: string;
   status?: string;
+  token?: string;
 }
 
 /**

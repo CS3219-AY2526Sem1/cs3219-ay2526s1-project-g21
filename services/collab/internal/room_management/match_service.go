@@ -383,3 +383,27 @@ func (ms *RoomManager) GetActiveRoomForUser(userID string) (*models.RoomInfo, er
 
 	return nil, fmt.Errorf("no active room found for user")
 }
+
+// MarkRoomAsEnded updates the room status to "ended" in Redis
+func (ms *RoomManager) MarkRoomAsEnded(matchID string) error {
+	ctx := context.Background()
+	roomKey := "room:" + matchID
+
+	// Update the status field to "ended"
+	if err := ms.rdb.HSet(ctx, roomKey, "status", "ended").Err(); err != nil {
+		return fmt.Errorf("failed to mark room as ended: %w", err)
+	}
+
+	// Update in-memory cache
+	ms.mu.Lock()
+	if roomInfo, exists := ms.roomStatusMap[matchID]; exists {
+		roomInfo.Status = "ended"
+	}
+	ms.mu.Unlock()
+
+	// Set a shorter TTL (1 minute) for ended rooms
+	ms.rdb.Expire(ctx, roomKey, 1*time.Minute)
+
+	log.Printf("Marked room %s as ended", matchID)
+	return nil
+}

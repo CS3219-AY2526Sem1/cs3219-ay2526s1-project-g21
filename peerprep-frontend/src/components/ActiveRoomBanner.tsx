@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { checkActiveRoom } from "../api/history";
 
 interface ActiveRoomBannerProps {
@@ -10,14 +10,27 @@ export function ActiveRoomBanner({ userId }: ActiveRoomBannerProps) {
   const [activeRoom, setActiveRoom] = useState<{ matchId: string; status: string } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const checkForActiveRoom = async () => {
+      // Don't show banner if user is already in a room page
+      const isInRoom = location.pathname.startsWith('/room/');
+      if (isInRoom) {
+        setIsVisible(false);
+        return;
+      }
+
       try {
         const response = await checkActiveRoom(userId);
         if (response.active && response.matchId) {
           setActiveRoom({ matchId: response.matchId, status: response.status || "ready" });
           setIsVisible(true);
+
+          // Store token in sessionStorage for rejoining
+          if (response.token) {
+            sessionStorage.setItem(`room_token_${response.matchId}`, response.token);
+          }
         } else {
           setActiveRoom(null);
           setIsVisible(false);
@@ -34,7 +47,7 @@ export function ActiveRoomBanner({ userId }: ActiveRoomBannerProps) {
     const interval = setInterval(checkForActiveRoom, 10000);
 
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [userId, location.pathname]);
 
   const handleRejoin = () => {
     if (activeRoom) {
