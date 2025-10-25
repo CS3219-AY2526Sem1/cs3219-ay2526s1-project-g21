@@ -336,3 +336,50 @@ func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error
 
 	return roomInfo, nil
 }
+
+// PublishSessionEnded publishes a session ended event to Redis
+func (ms *RoomManager) PublishSessionEnded(event models.SessionEndedEvent) error {
+	ctx := context.Background()
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session ended event: %w", err)
+	}
+
+	if err := ms.rdb.Publish(ctx, "session_ended", string(eventJSON)).Err(); err != nil {
+		return fmt.Errorf("failed to publish session ended event: %w", err)
+	}
+
+	log.Printf("Published session_ended event for match %s", event.MatchID)
+	return nil
+}
+
+// GetRoomInfoForSession retrieves room information for a session
+func (ms *RoomManager) GetRoomInfoForSession(matchID string) (*models.RoomInfo, error) {
+	return ms.GetRoomStatus(matchID)
+}
+
+// GetActiveRoomForUser checks if a user has an active room
+func (ms *RoomManager) GetActiveRoomForUser(userID string) (*models.RoomInfo, error) {
+	ctx := context.Background()
+
+	// Search for rooms in Redis where user is either user1 or user2
+	// We'll scan for room:* keys and check if the user is in any active room
+	iter := ms.rdb.Scan(ctx, 0, "room:*", 0).Iterator()
+	for iter.Next(ctx) {
+		roomKey := iter.Val()
+		roomMap := ms.rdb.HGetAll(ctx, roomKey).Val()
+
+		// Check if user is in this room and room is active (ready status)
+		if (roomMap["user1"] == userID || roomMap["user2"] == userID) && roomMap["status"] == "ready" {
+			matchID := roomMap["matchId"]
+			return ms.GetRoomStatus(matchID)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return nil, fmt.Errorf("no active room found for user")
+}

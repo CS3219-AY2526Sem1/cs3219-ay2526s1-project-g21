@@ -127,3 +127,20 @@ type TestCase struct {
 	Output      string `json:"output"`
 	Description string `json:"description,omitempty"`
 }
+
+// SessionEndedEvent is published when a session ends
+type SessionEndedEvent struct {
+	MatchID      string   `json:"matchId"`
+	User1        string   `json:"user1"`
+	User2        string   `json:"user2"`
+	QuestionID   int      `json:"questionId"`
+	QuestionTitle string  `json:"questionTitle"`
+	Category     string   `json:"category"`
+	Difficulty   string   `json:"difficulty"`
+	Language     string   `json:"language"`
+	FinalCode    string   `json:"finalCode"`
+	StartedAt    string   `json:"startedAt"`
+	EndedAt      string   `json:"endedAt"`
+	DurationSec  int      `json:"durationSeconds"`
+	RerollsUsed  int      `json:"rerollsUsed"`
+}

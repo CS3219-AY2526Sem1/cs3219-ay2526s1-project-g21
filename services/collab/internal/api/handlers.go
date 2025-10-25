@@ -36,6 +36,8 @@ type roomManager interface {
 	ValidateRoomAccess(token string) (*models.RoomInfo, error)
 	GetRoomStatus(matchId string) (*models.RoomInfo, error)
 	RerollQuestion(matchId string) (*models.RoomInfo, error)
+	GetActiveRoomForUser(userId string) (*models.RoomInfo, error)
+	PublishSessionEnded(event models.SessionEndedEvent) error
 }
 
 func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
@@ -79,6 +81,28 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, roomInfo)
+}
+
+// GetActiveRoom checks if a user has an active room
+func (h *Handlers) GetActiveRoom(w http.ResponseWriter, r *http.Request) {
+	userId := chi.URLParam(r, "userId")
+	if userId == "" {
+		http.Error(w, "userId is required", http.StatusBadRequest)
+		return
+	}
+
+	activeRoom, err := h.roomManager.GetActiveRoomForUser(userId)
+	if err != nil {
+		// No active room found
+		writeJSON(w, map[string]interface{}{"active": false})
+		return
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"active":  true,
+		"matchId": activeRoom.MatchId,
+		"status":  activeRoom.Status,
+	})
 }
 
 func (h *Handlers) RerollQuestion(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +258,13 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set up session end handler for this room (only once)
+	if room.GetClientCount() == 0 {
+		room.SetSessionEndHandler(func(sessID string, finalCode string, lang models.Language, duration time.Duration) {
+			h.handleSessionEnd(sessID, finalCode, lang, duration)
+		})
+	}
+
 	room.Join(client)
 	defer func() {
 		if left := room.Leave(client); left == 0 {
@@ -379,4 +410,45 @@ func mapOTError(err error) string {
 		return err.Error()
 	}
 	return err.Error()
+}
+
+func (h *Handlers) handleSessionEnd(sessionID string, finalCode string, lang models.Language, duration time.Duration) {
+	h.log.Info("Session ended", "sessionID", sessionID, "duration", duration.Seconds())
+
+	// Get room info to retrieve question details
+	roomInfo, err := h.roomManager.GetRoomStatus(sessionID)
+	if err != nil {
+		h.log.Error("Failed to get room info for ended session", "sessionID", sessionID, "error", err.Error())
+		return
+	}
+
+	// Build session ended event
+	event := models.SessionEndedEvent{
+		MatchID:      sessionID,
+		User1:        roomInfo.User1,
+		User2:        roomInfo.User2,
+		Category:     roomInfo.Category,
+		Difficulty:   roomInfo.Difficulty,
+		Language:     string(lang),
+		FinalCode:    finalCode,
+		EndedAt:      time.Now().Format(time.RFC3339),
+		DurationSec:  int(duration.Seconds()),
+		RerollsUsed:  1 - roomInfo.RerollsRemaining, // Initial rerolls (1) minus remaining
+	}
+
+	// Parse created at to get started at
+	if roomInfo.CreatedAt != "" {
+		event.StartedAt = roomInfo.CreatedAt
+	}
+
+	// Add question info if available
+	if roomInfo.Question != nil {
+		event.QuestionID = roomInfo.Question.ID
+		event.QuestionTitle = roomInfo.Question.Title
+	}
+
+	// Publish session ended event
+	if err := h.roomManager.PublishSessionEnded(event); err != nil {
+		h.log.Error("Failed to publish session ended event", "sessionID", sessionID, "error", err.Error())
+	}
 }

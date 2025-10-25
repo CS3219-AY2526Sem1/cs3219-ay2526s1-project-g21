@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"peerprep/user/internal/models"
 	"peerprep/user/internal/repositories"
 	"peerprep/user/internal/routers"
+	"peerprep/user/internal/services"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -65,7 +67,7 @@ func main() {
 	}
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&models.User{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.InterviewHistory{}); err != nil {
 		logger.Fatal("Failed to migrate database", zap.Error(err))
 	}
 
@@ -73,6 +75,19 @@ func main() {
 	userRepo := &repositories.UserRepository{DB: db}
 	userHandler := &handlers.UserHandler{Repo: userRepo}
 	authHandler := handlers.NewAuthHandler(userRepo)
+
+	historyRepo := &repositories.HistoryRepository{DB: db}
+	historyHandler := &handlers.HistoryHandler{Repo: historyRepo}
+
+	// Initialize Redis subscriber for session ended events
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379"
+	}
+	historySubscriber := services.NewHistorySubscriber(redisAddr, historyHandler)
+
+	// Start Redis subscriber in background
+	go historySubscriber.SubscribeToSessionEnded(context.Background())
 
 	// Set up router
 	r := chi.NewRouter()
@@ -94,6 +109,7 @@ func main() {
 	// Register routes
 	routers.UserRoutes(r, userHandler)
 	routers.AuthRoutes(r, authHandler)
+	routers.HistoryRoutes(r, historyHandler)
 
 	// Start server
 	port := os.Getenv("PORT")

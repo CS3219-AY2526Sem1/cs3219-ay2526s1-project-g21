@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMe } from "@/api/auth";
 import { joinQueue, getRoomStatus } from "@/api/match";
+import { getUserHistory, InterviewHistoryItem } from "@/api/history";
 import { RoomInfo } from "@/types/question";
 import { useAuth } from "@/context/AuthContext";
 import { handleFormChange } from "@/utils/form";
@@ -19,13 +20,6 @@ interface User {
 type Difficulty = "easy" | "medium" | "hard";
 
 type Category = "array" | "graphs" | "dynamic programming" | "greedy" | "linked list";
-
-interface InterviewHistoryItem {
-    question: string;
-    category: string;
-    difficulty: string;
-    date: string;
-}
 
 
 export default function InterviewLobby() {
@@ -103,34 +97,36 @@ export default function InterviewLobby() {
         setTimeout(pollRoom, 1000);
     };
 
-    const interviewHistoryHeaders: (keyof InterviewHistoryItem)[] = [
-        "question",
+    const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    const interviewHistoryHeaders = [
+        "questionTitle",
         "category",
         "difficulty",
-        "date",
-    ];
+        "endedAt",
+    ] as const;
 
-    // Placeholder interview history items
-    const interviewHistoryItems: InterviewHistoryItem[] = [
-        {
-            question: "Reverse a linked list",
-            category: "Linked List",
-            difficulty: "Hard",
-            date: "31/08/2025",
-        },
-        {
-            question: "Find value in 2d array",
-            category: "Binary Search",
-            difficulty: "Medium",
-            date: "15/09/2025",
-        },
-        {
-            question: "Best time to buy and sell stock",
-            category: "Two Pointers",
-            difficulty: "Easy",
-            date: "08/10/2025",
-        },
-    ];
+    const loadHistory = async (userId: number) => {
+        setHistoryLoading(true);
+        try {
+            const history = await getUserHistory(String(userId));
+            setInterviewHistory(history);
+        } catch (error) {
+            console.error("Failed to load interview history:", error);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const formatDate = (isoDate: string) => {
+        try {
+            const date = new Date(isoDate);
+            return date.toLocaleDateString();
+        } catch {
+            return isoDate;
+        }
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -142,7 +138,11 @@ export default function InterviewLobby() {
             }
             try {
                 const me = await getMe(token);
-                if (!cancelled) setUser(me);
+                if (!cancelled) {
+                    setUser(me);
+                    // Load interview history
+                    loadHistory(me.id);
+                }
             } catch (e) {
                 if (!cancelled)
                     setError(e instanceof Error ? e.message : "Failed to load account");
@@ -245,18 +245,39 @@ export default function InterviewLobby() {
                             </tr>
                         </thead>
                         <tbody>
-                            {interviewHistoryItems.map((interviewItem) => (
-                                <tr
-                                    key={interviewItem.question + interviewItem.date}
-                                    className="border-t border-black"
-                                >
-                                    {interviewHistoryHeaders.map((header) => (
-                                        <td key={header} className="text-left pl-4 py-4">
-                                            {interviewItem[header]}
-                                        </td>
-                                    ))}
+                            {historyLoading ? (
+                                <tr>
+                                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                                        Loading history...
+                                    </td>
                                 </tr>
-                            ))}
+                            ) : interviewHistory.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                                        No past interviews yet
+                                    </td>
+                                </tr>
+                            ) : (
+                                interviewHistory.map((interviewItem) => (
+                                    <tr
+                                        key={interviewItem.matchId}
+                                        className="border-t border-black"
+                                    >
+                                        <td className="text-left pl-4 py-4">
+                                            {interviewItem.questionTitle}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
+                                            {startCase(interviewItem.category)}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
+                                            {startCase(interviewItem.difficulty)}
+                                        </td>
+                                        <td className="text-left pl-4 py-4">
+                                            {formatDate(interviewItem.endedAt)}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </section>
