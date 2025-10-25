@@ -1,0 +1,19 @@
+.git
+.gitignore
+.vscode
+.idea
+
+bin
+dist
+*.out
+*.test
+
+.DS_Store
+
+node_modules
+venv
+
+# AI service specific files
+*.png
+*.pdf
+README.md
