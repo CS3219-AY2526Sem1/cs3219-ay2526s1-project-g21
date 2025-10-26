@@ -574,7 +574,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 		rdb.HSet(ctx, matchKey, map[string]interface{}{
 			"id":         req.MatchId,
 			"user1":      pending.User1,
-			"user2":      pending.User1,
+			"user2":      pending.User2,
 			"category":   pending.Category,
 			"difficulty": pending.Difficulty,
 			"token1":     pending.Token1,

@@ -1,6 +1,6 @@
 #!/bin/bash
 declare -A PARAMS=(
-    ["/collab/QUESTION_SERVIE_URL"]="localhost"
+    ["/collab/QUESTION_SERVICE_URL"]="localhost"
     ["/collab/REDIS_ADDR"]="localhost:6379"
     ["/collab/SANDBOX_URL"]="localhost:8090"
     
