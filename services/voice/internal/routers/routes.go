@@ -40,7 +40,7 @@ func NewRouter(log *utils.Logger, redisAddr string) http.Handler {
 	// Health check
 	r.Get("/health", h.Health)
 
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route("/api/v1/voice", func(r chi.Router) {
 		// WebRTC configuration
 		r.Get("/webrtc/config", h.GetWebRTCConfig)
 
