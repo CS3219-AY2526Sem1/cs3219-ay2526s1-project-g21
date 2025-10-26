@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# List of services in the order you want to deploy
 services=(
   "collab"
   "match"

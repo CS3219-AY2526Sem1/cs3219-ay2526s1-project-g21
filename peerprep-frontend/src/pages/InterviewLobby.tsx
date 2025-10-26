@@ -249,7 +249,7 @@ export default function InterviewLobby() {
 
     redirectToPreExistingMatch();
 
-    const ws = new WebSocket(`${MATCH_WEBSOCKET_BASE}/api/v1/ws?userId=${user?.id}`);
+    const ws = new WebSocket(`${MATCH_WEBSOCKET_BASE}/api/v1/match/ws?userId=${user?.id}`);
 
     ws.onopen = () => console.log("Connected to matchmaking WebSocket");
 

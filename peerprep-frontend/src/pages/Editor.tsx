@@ -157,7 +157,7 @@ export default function Editor() {
       return;
     }
 
-    const ws = new WebSocket(`${COLLAB_WEBSOCKET_BASE}/api/v1/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`${COLLAB_WEBSOCKET_BASE}/api/v1/collab/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
