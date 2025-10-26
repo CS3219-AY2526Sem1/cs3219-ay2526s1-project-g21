@@ -7,8 +7,9 @@ import type {
   WebRTCConfig,
 } from '@/types/voiceChat';
 
-const VOICE_SERVICE_URL = 'http://localhost:8085';
-const VOICE_SERVICE_WS = 'ws://localhost:8085';
+const VOICE_API_BASE = (import.meta as any).env?.VITE_VOICE_API_BASE || "http://localhost:8085";
+
+const VOICE_WEBSOCKET_BASE = (import.meta as any).env?.VITE_VOICE_WEBSOCKET_BASE || "ws://localhost:8085";
 
 export const useVoiceChat = (config: VoiceChatConfig) => {
   const [state, setState] = useState<VoiceChatState>({
@@ -35,7 +36,7 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await fetch(`${VOICE_SERVICE_URL}/api/v1/webrtc/config`);
+        const res = await fetch(`${VOICE_API_BASE}/api/v1/voice/webrtc/config`);
         if (res.ok) {
           const config: WebRTCConfig = await res.json();
           webrtcConfigRef.current = config;
@@ -108,7 +109,7 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
     peerConnection.onconnectionstatechange = () => {
       console.log(`Peer connection with ${remoteUserId}:`, peerConnection.connectionState);
       if (peerConnection.connectionState === 'failed' ||
-          peerConnection.connectionState === 'disconnected') {
+        peerConnection.connectionState === 'disconnected') {
         // Clean up this peer connection
         peerConnectionsRef.current.delete(remoteUserId);
         remoteStreamsRef.current.delete(remoteUserId);
@@ -130,35 +131,41 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
           participants: roomStatus.users || [],
         }));
 
-        // When we get room status, check if there are other users to connect to
         if (roomStatus.users) {
           const otherUsers = roomStatus.users.filter((u: { id: string }) => u.id !== currentConfig.userId);
           for (const user of otherUsers) {
-            // Only initiate call if we don't already have a connection
             if (!peerConnectionsRef.current.has(user.id)) {
-              console.log('Found user to connect to:', user.username);
+              console.log('Found user to connect to:', user.username, 'userId:', user.id);
 
-              // Create peer connection and initiate call inline to avoid dependency issues
-              const peerConnection = createPeerConnection(user.id);
-              if (peerConnection) {
-                try {
-                  const offer = await peerConnection.createOffer();
-                  await peerConnection.setLocalDescription(offer);
+              // Use lexicographic comparison to decide who initiates
+              const shouldCreateOffer = currentConfig.userId < user.id;
 
-                  if (wsRef.current) {
-                    const message: SignalingMessage = {
-                      type: 'offer',
-                      from: currentConfig.userId,
-                      to: user.id,
-                      roomId: currentConfig.roomId,
-                      data: offer,
-                      timestamp: new Date().toISOString(),
-                    };
-                    wsRef.current.send(JSON.stringify(message));
+              if (shouldCreateOffer) {
+                const peerConnection = createPeerConnection(user.id);
+                if (peerConnection) {
+                  try {
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                      const message: SignalingMessage = {
+                        type: 'offer',
+                        from: currentConfig.userId,
+                        to: user.id,
+                        roomId: currentConfig.roomId,
+                        data: offer,
+                        timestamp: new Date().toISOString(),
+                      };
+                      wsRef.current.send(JSON.stringify(message));
+                      console.log('Sent offer to', user.id);
+                    }
+                  } catch (error) {
+                    console.error('Error creating offer:', error);
                   }
-                } catch (error) {
-                  console.error('Error creating offer:', error);
                 }
+              } else {
+                console.log('Waiting for offer from', user.id);
+                createPeerConnection(user.id);
               }
             }
           }
@@ -171,6 +178,18 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
         console.log('Received offer from', offerMsg.from);
 
         let peerConnection = peerConnectionsRef.current.get(offerMsg.from);
+
+        if (peerConnection) {
+          console.log('Existing peer connection state:', peerConnection.signalingState);
+
+          if (peerConnection.signalingState !== 'stable') {
+            console.warn('Peer connection in wrong state, recreating');
+            peerConnection.close();
+            peerConnectionsRef.current.delete(offerMsg.from);
+            peerConnection = undefined;
+          }
+        }
+
         if (!peerConnection) {
           const newConnection = createPeerConnection(offerMsg.from);
           if (newConnection) {
@@ -181,11 +200,14 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
         if (peerConnection) {
           try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offerMsg.data));
+            console.log('Set remote description (offer) from', offerMsg.from);
+
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
+            console.log('Created and set local description (answer) for', offerMsg.from);
 
             // Send answer
-            if (wsRef.current) {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
               const answerMessage: SignalingMessage = {
                 type: 'answer',
                 from: currentConfig.userId,
@@ -195,6 +217,7 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
                 timestamp: new Date().toISOString(),
               };
               wsRef.current.send(JSON.stringify(answerMessage));
+              console.log('Sent answer to', offerMsg.from);
             }
           } catch (error) {
             console.error('Error handling offer:', error);
@@ -206,30 +229,48 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
       case 'answer': {
         const answerMsg = message as SignalingMessage;
         console.log('Received answer from', answerMsg.from);
+
         const peerConnection = peerConnectionsRef.current.get(answerMsg.from);
         if (peerConnection) {
-          try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(answerMsg.data));
-          } catch (error) {
-            console.error('Error handling answer:', error);
+          console.log('Peer connection state before setting answer:', peerConnection.signalingState);
+
+          if (peerConnection.signalingState === 'have-local-offer') {
+            try {
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(answerMsg.data));
+              console.log('Set remote description (answer) from', answerMsg.from);
+            } catch (error) {
+              console.error('Error handling answer:', error);
+            }
+          } else {
+            console.warn('Received answer but peer connection is in wrong state:', peerConnection.signalingState);
           }
+        } else {
+          console.warn('Received answer but no peer connection found for', answerMsg.from);
         }
         break;
       }
 
       case 'ice-candidate': {
         const candidateMsg = message as SignalingMessage;
+        console.log('Received ICE candidate from', candidateMsg.from);
+
         const peerConnection = peerConnectionsRef.current.get(candidateMsg.from);
         if (peerConnection) {
           try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidateMsg.data));
+            if (peerConnection.remoteDescription) {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(candidateMsg.data));
+              console.log('Added ICE candidate from', candidateMsg.from);
+            } else {
+              console.warn('Received ICE candidate but no remote description yet');
+            }
           } catch (error) {
             console.error('Error adding ICE candidate:', error);
           }
+        } else {
+          console.warn('Received ICE candidate but no peer connection for', candidateMsg.from);
         }
         break;
       }
-
       default:
         console.log('Unknown message type:', message.type);
     }
@@ -256,7 +297,7 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
       localStreamRef.current = stream;
 
       // Connect to WebSocket with token
-      const wsUrl = `${VOICE_SERVICE_WS}/api/v1/room/${currentConfig.roomId}/voice?token=${encodeURIComponent(currentConfig.token)}`;
+      const wsUrl = `${VOICE_WEBSOCKET_BASE}/api/v1/voice/room/${currentConfig.roomId}/voice?token=${encodeURIComponent(currentConfig.token)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

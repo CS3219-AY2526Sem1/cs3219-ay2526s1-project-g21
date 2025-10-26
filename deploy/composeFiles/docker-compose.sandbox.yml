@@ -1,0 +1,10 @@
+services:
+  sandbox:
+    build: ./services/sandbox
+    environment:
+      - SANDBOX_HTTP_ADDR=:8090
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8090:8090"
+    restart: unless-stopped

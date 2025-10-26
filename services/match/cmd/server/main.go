@@ -17,6 +17,8 @@ import (
 	"github.com/go-chi/cors"
 )
 
+const defaultRedisAddr = "localhost:6379"
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -26,8 +28,13 @@ func main() {
 	}
 	jwtSecret := []byte(secret)
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: "redis:6379",
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = defaultRedisAddr
+	}
+
+	rdb = redis.NewClient(&redis.Options{
+		Addr: redisAddr,
 	})
 	mm := match_management.NewMatchManager(jwtSecret, rdb)
 
