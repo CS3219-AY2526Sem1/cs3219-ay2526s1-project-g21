@@ -11,7 +11,7 @@ import (
 )
 
 type UserHandler struct {
-	Repo      *repositories.UserRepository
+	Repo      UserRepository
 	JWTSecret string
 }
 
