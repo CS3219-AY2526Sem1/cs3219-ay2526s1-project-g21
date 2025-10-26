@@ -20,12 +20,47 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	gormOpen         func(string) (*gorm.DB, error)
+	httpListenServe  func(string, http.Handler) error
+	dbConnectTimeout time.Duration
+	runAutoMigrate   func(*gorm.DB, ...interface{}) error
+	newLogger        func(...zap.Option) (*zap.Logger, error)
+	logFatalFn       func(error)
+	exitFunc         func(int)
+	newDialector     func(string) gorm.Dialector
+)
+
+func resetServerGlobals() {
+	gormOpen = defaultGormOpen
+	httpListenServe = http.ListenAndServe
+	dbConnectTimeout = 30 * time.Second
+	runAutoMigrate = (*gorm.DB).AutoMigrate
+	newLogger = zap.NewProduction
+	logFatalFn = defaultLogFatal
+	exitFunc = os.Exit
+	newDialector = postgres.Open
+}
+
+func init() {
+	resetServerGlobals()
+}
+
+func defaultGormOpen(dsn string) (*gorm.DB, error) {
+	return gorm.Open(newDialector(dsn), &gorm.Config{})
+}
+
+func defaultLogFatal(err error) {
+	log.Print(err)
+	exitFunc(1)
+}
+
 func connectWithRetry(dsn string, maxWait time.Duration, logger *zap.Logger) (*gorm.DB, error) {
 	start := time.Now()
 	var lastErr error
 	backoff := 500 * time.Millisecond
 	for {
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		db, err := gormOpen(dsn)
 		if err == nil {
 			// Verify connection
 			var sqlDB *sql.DB
@@ -33,6 +68,8 @@ func connectWithRetry(dsn string, maxWait time.Duration, logger *zap.Logger) (*g
 			if err == nil {
 				if pingErr := sqlDB.Ping(); pingErr == nil {
 					return db, nil
+				} else {
+					err = pingErr
 				}
 			}
 		}
@@ -48,8 +85,11 @@ func connectWithRetry(dsn string, maxWait time.Duration, logger *zap.Logger) (*g
 	}
 }
 
-func main() {
-	logger, _ := zap.NewProduction()
+func run() error {
+	logger, err := newLogger()
+	if err != nil {
+		return err
+	}
 	defer logger.Sync()
 
 	// Initialize database connection
@@ -59,20 +99,22 @@ func main() {
 	dsn := fmt.Sprintf("host=postgres user=%s password=%s dbname=%s port=5432 sslmode=disable",
 		dbUser, dbPass, dbName)
 
-	db, err := connectWithRetry(dsn, 30*time.Second, logger)
+	db, err := connectWithRetry(dsn, dbConnectTimeout, logger)
 	if err != nil {
-		logger.Fatal("Failed to connect to the database", zap.Error(err))
+		logger.Error("Failed to connect to the database", zap.Error(err))
+		return err
 	}
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&models.User{}); err != nil {
-		logger.Fatal("Failed to migrate database", zap.Error(err))
+	if err := runAutoMigrate(db, &models.User{}); err != nil {
+		logger.Error("Failed to migrate database", zap.Error(err))
+		return err
 	}
 
 	// Initialize repository and handlers
 	userRepo := &repositories.UserRepository{DB: db}
-	userHandler := &handlers.UserHandler{Repo: userRepo}
 	authHandler := handlers.NewAuthHandler(userRepo)
+	userHandler := &handlers.UserHandler{Repo: userRepo, JWTSecret: authHandler.JWTSecret}
 
 	// Set up router
 	r := chi.NewRouter()
@@ -102,5 +144,11 @@ func main() {
 	}
 	addr := ":" + port
 	log.Printf("user-svc listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	return httpListenServe(addr, r)
+}
+
+func main() {
+	if err := run(); err != nil {
+		logFatalFn(err)
+	}
 }
