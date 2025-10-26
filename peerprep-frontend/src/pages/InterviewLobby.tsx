@@ -49,6 +49,9 @@ export default function InterviewLobby() {
   const criteria2LoadingText = "Searching for other users with different preferred difficulty..."
   const criteria3LoadingText = "Searching for other users with different preferred category..."
 
+  const criteria1Timeout = 100000; // in miliseconds - 100 seconds
+  const criteria2Timeout = 200000; // in miliseconds - 200 seconds
+  const exitTimeout = 300000; // in miliseconds - 300 seconds  
 
   const [loadingText, setLoadingText] = useState(criteria1LoadingText)
 
@@ -164,11 +167,11 @@ export default function InterviewLobby() {
       if (!roomId) {
         setLoadingText(criteria2LoadingText)
       }
-    }, 100000)
+    }, criteria1Timeout)
 
     criteria3MessageTimer.current = setTimeout(() => {
       setLoadingText(criteria3LoadingText)
-    }, 200000)
+    }, criteria2Timeout)
 
     exitMessageTimer.current = setTimeout(() => {
       setInQueue(false);
@@ -177,7 +180,7 @@ export default function InterviewLobby() {
         position: "bottom-center",
         duration: 5000,
       });
-    }, 300000)
+    }, exitTimeout)
   }
 
   const clearSearchMessageTimeouts = () => {

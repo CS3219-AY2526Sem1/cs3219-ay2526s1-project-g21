@@ -39,6 +39,13 @@ var (
 	defaultRedisAddr = "redis:6379"
 )
 
+const (
+	MatchHandshakeTimeout = 15
+	STAGE1_TIMEOUT        = 100
+	STAGE2_TIMEOUT        = 200
+	STAGE3_TIMEOUT        = 300
+)
+
 // Difficulty levels
 const (
 	DifficultyEasy   = "easy"
@@ -578,7 +585,7 @@ func handshakeHandler(w http.ResponseWriter, r *http.Request) {
 			"category":   pending.Category,
 			"difficulty": pending.Difficulty,
 			"token1":     pending.Token1,
-			"token2":     pending.Token1,
+			"token2":     pending.Token2,
 			"created_at": time.Now().Format(time.RFC3339),
 			"status":     "pending", // Room creation pending
 		})
@@ -615,17 +622,17 @@ func matchmakingLoop() {
 
 			switch stage {
 			case 1:
-				if elapsed > 100 {
+				if elapsed > STAGE1_TIMEOUT {
 					rdb.HSet(ctx, key, "stage", 2)
 					tryMatchStage(category, difficulty, 2)
 				}
 			case 2:
-				if elapsed > 200 {
+				if elapsed > STAGE2_TIMEOUT {
 					rdb.HSet(ctx, key, "stage", 3)
 					tryMatchStage(category, difficulty, 3)
 				}
 			case 3:
-				if elapsed > 300 {
+				if elapsed > STAGE3_TIMEOUT {
 					removeUser(userId, category, difficulty)
 					sendToUser(userId, map[string]interface{}{
 						"type":    "timeout",
@@ -802,7 +809,7 @@ func createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
 		Token2:     token2,
 		Handshakes: make(map[string]bool),
 		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(15 * time.Second),
+		ExpiresAt:  time.Now().Add(MatchHandshakeTimeout * time.Second),
 	}
 
 	pendingMu.Lock()
@@ -815,7 +822,7 @@ func createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
 		"matchId":    matchID,
 		"category":   finalCat,
 		"difficulty": finalDiff,
-		"expiresIn":  15,
+		"expiresIn":  MatchHandshakeTimeout,
 	})
 
 	sendToUser(u2, map[string]interface{}{
@@ -823,7 +830,7 @@ func createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
 		"matchId":    matchID,
 		"category":   finalCat,
 		"difficulty": finalDiff,
-		"expiresIn":  15,
+		"expiresIn":  MatchHandshakeTimeout,
 	})
 }
 

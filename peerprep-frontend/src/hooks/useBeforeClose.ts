@@ -2,15 +2,22 @@ import { useEffect } from "react";
 
 export default function useBeforeClose(onClose: () => void) {
     useEffect(() => {
-        const handleBeforeUnload = () => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
             onClose();
         };
 
-        // Fires when the user is about to close/refresh/navigate away
+        const handlePageHide = () => {
+            onClose();
+        }
+
         window.addEventListener("beforeunload", handleBeforeUnload);
+        window.addEventListener("pagehide", handlePageHide);
 
         return () => {
             window.removeEventListener("beforeunload", handleBeforeUnload);
+            window.removeEventListener("pagehide", handlePageHide);
         };
     }, [onClose]);
 }
