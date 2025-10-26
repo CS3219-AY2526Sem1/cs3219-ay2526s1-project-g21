@@ -33,7 +33,7 @@ func main() {
 		redisAddr = defaultRedisAddr
 	}
 
-	rdb = redis.NewClient(&redis.Options{
+	rdb := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
 	mm := match_management.NewMatchManager(jwtSecret, rdb)

@@ -18,6 +18,13 @@ import (
 	"match/internal/utils"
 )
 
+const (
+	MatchHandshakeTimeout = 15
+	STAGE1_TIMEOUT        = 100
+	STAGE2_TIMEOUT        = 200
+	STAGE3_TIMEOUT        = 300
+)
+
 type MatchManager struct {
 	ctx         context.Context
 	rdb         *redis.Client
@@ -89,17 +96,17 @@ func (matchManager *MatchManager) StartMatchmakingLoop() {
 
 			switch stage {
 			case 1:
-				if elapsed > 100 {
+				if elapsed > STAGE1_TIMEOUT {
 					matchManager.rdb.HSet(matchManager.ctx, key, "stage", 2)
 					matchManager.tryMatchStage(category, difficulty, 2)
 				}
 			case 2:
-				if elapsed > 200 {
+				if elapsed > STAGE2_TIMEOUT {
 					matchManager.rdb.HSet(matchManager.ctx, key, "stage", 3)
 					matchManager.tryMatchStage(category, difficulty, 3)
 				}
 			case 3:
-				if elapsed > 300 {
+				if elapsed > STAGE3_TIMEOUT {
 					matchManager.removeUser(userId, category, difficulty)
 					matchManager.sendToUser(userId, map[string]interface{}{
 						"type":    "timeout",
@@ -276,7 +283,7 @@ func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, 
 		Token2:     token2,
 		Handshakes: make(map[string]bool),
 		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(15 * time.Second),
+		ExpiresAt:  time.Now().Add(MatchHandshakeTimeout * time.Second),
 	}
 
 	matchManager.pendingMu.Lock()
@@ -289,7 +296,7 @@ func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, 
 		"matchId":    matchID,
 		"category":   finalCat,
 		"difficulty": finalDiff,
-		"expiresIn":  15,
+		"expiresIn":  MatchHandshakeTimeout,
 	})
 
 	matchManager.sendToUser(u2, map[string]interface{}{
@@ -297,7 +304,7 @@ func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, 
 		"matchId":    matchID,
 		"category":   finalCat,
 		"difficulty": finalDiff,
-		"expiresIn":  15,
+		"expiresIn":  MatchHandshakeTimeout,
 	})
 }
 
