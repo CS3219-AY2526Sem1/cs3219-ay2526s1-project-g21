@@ -113,8 +113,9 @@ func run() error {
 	}
 
 	// Auto-migrate models
-	if err := db.AutoMigrate(&models.User{}, &models.InterviewHistory{}); err != nil {
-		logger.Fatal("Failed to migrate database", zap.Error(err))
+	if err := runAutoMigrate(db, &models.User{}, &models.InterviewHistory{}); err != nil {
+		logger.Error("Failed to migrate database", zap.Error(err))
+		return err
 	}
 
 	// Initialize repository and handlers
@@ -125,15 +126,18 @@ func run() error {
 	historyRepo := &repositories.HistoryRepository{DB: db}
 	historyHandler := &handlers.HistoryHandler{Repo: historyRepo}
 
-	// Initialize Redis subscriber for session ended events
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "redis:6379"
-	}
-	historySubscriber := services.NewHistorySubscriber(redisAddr, historyHandler, userRepo)
+	// Initialize Redis subscriber for session ended events (skip in test mode)
+	skipRedis := os.Getenv("SKIP_REDIS_SUBSCRIBER")
+	if skipRedis == "" {
+		redisAddr := os.Getenv("REDIS_ADDR")
+		if redisAddr == "" {
+			redisAddr = "redis:6379"
+		}
+		historySubscriber := services.NewHistorySubscriber(redisAddr, historyHandler, userRepo)
 
-	// Start Redis subscriber in background
-	go historySubscriber.SubscribeToSessionEnded(context.Background())
+		// Start Redis subscriber in background
+		go historySubscriber.SubscribeToSessionEnded(context.Background())
+	}
 
 	// Set up router
 	r := chi.NewRouter()
