@@ -38,7 +38,7 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSON(w, http.StatusOK, response)
 }
 
-// generateRequestID creates a simple request ID 
+// generateRequestID creates a simple request ID
 // TODO: replace with proper UUID or remove completely
 func generateRequestID() string {
 	return "req_" + time.Now().Format("20060102150405")
