@@ -249,10 +249,7 @@ func (matchManager *MatchManager) DoneHandler(w http.ResponseWriter, r *http.Req
 
 	_, otherStillInRoom := matchManager.userToRoom[otherUser]
 	if otherStillInRoom {
-		data, _ := json.Marshal(room)
-		matchManager.rdb.Publish(matchManager.ctx, "matches", data)
-		// Notify the partner that this user left
-		log.Printf("User %s left room %s, notifying partner %s", req.UserID, roomId, otherUser)
+		log.Printf("User %s left room %s, partner %s still in room", req.UserID, roomId, otherUser)
 		matchManager.sendToUser(otherUser, map[string]interface{}{
 			"type":    "partner_left",
 			"message": "Your partner has left the room",

@@ -62,17 +62,47 @@ func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
 
 // --- Redis Subscriber ---
 func (matchManager *MatchManager) SubscribeToRedis() {
-	subscriber := matchManager.rdb.Subscribe(matchManager.ctx, "matches")
+	subscriber := matchManager.rdb.Subscribe(matchManager.ctx, "matches", "session_ended")
 	ch := subscriber.Channel()
 
 	for msg := range ch {
-		var event map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-			log.Println("Failed to parse event:", err)
-			continue
+		// Handle different event types based on channel
+		if msg.Channel == "session_ended" {
+			matchManager.handleSessionEndedEvent(msg.Payload)
+		} else {
+			var event map[string]interface{}
+			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+				log.Println("Failed to parse event:", err)
+				continue
+			}
+			log.Printf("Redis event received: %v", event)
 		}
-		log.Printf("Redis event received: %v", event)
 	}
+}
+
+// Handle session_ended events to clean up match service state
+func (matchManager *MatchManager) handleSessionEndedEvent(payload string) {
+	var event struct {
+		MatchID string `json:"matchId"`
+		User1   string `json:"user1"`
+		User2   string `json:"user2"`
+	}
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		log.Printf("Failed to parse session_ended event: %v", err)
+		return
+	}
+
+	matchManager.roomMu.Lock()
+	defer matchManager.roomMu.Unlock()
+
+	// Remove both users from tracking
+	delete(matchManager.userToRoom, event.User1)
+	delete(matchManager.userToRoom, event.User2)
+
+	// Remove room info
+	delete(matchManager.roomInfo, event.MatchID)
+
+	log.Printf("Cleaned up match service state for ended session %s", event.MatchID)
 }
 
 func (matchManager *MatchManager) StartMatchmakingLoop() {

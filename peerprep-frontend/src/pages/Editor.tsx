@@ -19,7 +19,8 @@ type WSFrame =
   | { type: "language"; data: string }
   | { type: "run_reset"; data?: null }
   | { type: "question"; data: { question: Question | null; rerollsRemaining: number } }
-  | { type: "error"; data: string };
+  | { type: "error"; data: string }
+  | { type: "session_ended"; data: { reason?: string } };
 
 const CODE_TEMPLATES: Record<string, string> = {
   javascript: 'console.log("Hello from JavaScript!");\n',
@@ -251,8 +252,23 @@ export default function Editor() {
           setIsRunning(false);
           console.error("WS error:", frame.data);
           break;
+        case "session_ended": {
+          const reason = (frame.data && typeof frame.data === "object" && (frame.data as any).reason) || "session_ended";
+          toast((reason === "partner_left" ? "Your partner left the session." : "Session ended."), {
+            position: "bottom-center",
+            duration: 3000,
+          });
+
+          if (matchId) sessionStorage.removeItem(`room_token_${matchId}`);
+          try {
+            wsRef.current?.close();
+          } catch (e) {
+            // ignore
+          }
+          nav("/");
+          break;
+        }
         default:
-          // ignore cursor/chat/stdout/stderr for now
           break;
       }
     };
@@ -375,19 +391,15 @@ export default function Editor() {
     }
   };
 
-  const handleExit = () => {
-    exitRoom(user?.id);
+  const handleExit = async () => {
     if (matchId && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({ type: "end_session" }))
       } catch (e) {
         console.error("Failed to send end_session frame:", e)
       }
-      // close the websocket from client side
       wsRef.current.close()
     }
-
-    // Clear stored token for this room and navigate home
     if (matchId) sessionStorage.removeItem(`room_token_${matchId}`)
     nav("/")
   }

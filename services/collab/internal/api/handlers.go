@@ -365,6 +365,9 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			go h.runInSandbox(room, run)
 
 		case "end_session":
+			if err := h.roomManager.MarkRoomAsEnded(sessionID); err != nil {
+				h.log.Error("Failed to mark room as ended", "sessionID", sessionID, "error", err.Error())
+			}
 			room.BroadcastAll(models.WSFrame{Type: "session_ended", Data: map[string]string{"reason": "partner_left"}})
 			room.EndSessionNow()
 			return
