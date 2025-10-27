@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"match/internal/match_management"
+	"match/internal/metrics"
 	"match/internal/routers"
 
 	"github.com/go-chi/chi/v5"
@@ -62,6 +63,7 @@ func main() {
 	)
 
 	routers.MatchRoutes(r, mm)
+	r.Handle("/api/v1/match/metrics", metrics.Handler())
 
 	port := os.Getenv("PORT")
 	if port == "" {

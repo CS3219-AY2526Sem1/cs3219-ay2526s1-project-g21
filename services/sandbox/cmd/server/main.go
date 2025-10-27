@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"sandbox/internal/metrics"
 	"sandbox/internal/runtime"
 )
 
@@ -40,9 +41,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", runHandler)
+	mux.Handle("/metrics", metrics.Handler())
 
 	log.Printf("sandbox service listening on %s", addr)
-	if err := listenAndServe(addr, mux); err != nil {
+	if err := listenAndServe(addr, metrics.Middleware("sandbox")(mux)); err != nil {
 		logFatalf("sandbox server failed: %v", err)
 	}
 }

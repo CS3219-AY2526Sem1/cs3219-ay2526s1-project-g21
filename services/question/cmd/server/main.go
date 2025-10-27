@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"peerprep/question/internal/handlers"
+	"peerprep/question/internal/metrics"
 	"peerprep/question/internal/repositories"
 	"peerprep/question/internal/routers"
 
@@ -49,8 +50,9 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
+	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second), metrics.Middleware("question"))
 
+	router.Handle("api/v1/questions/metrics", metrics.Handler())
 	routers.QuestionRoutes(router, questionHandler, healthHandler)
 
 	port := os.Getenv("PORT")
