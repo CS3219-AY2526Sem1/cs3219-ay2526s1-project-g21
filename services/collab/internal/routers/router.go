@@ -22,9 +22,9 @@ func New(log *utils.Logger, roomManager *room_management.RoomManager) http.Handl
 	r.Post("/run", h.RunOnce)
 
 	// Room status endpoint
-	r.Get("/api/v1/room/{matchId}", h.GetRoomStatus)
-	r.Post("/api/v1/room/{matchId}/reroll", h.RerollQuestion)
-	r.Get("/api/v1/room/active/{userId}", h.GetActiveRoom)
+	r.Get("/room/{matchId}", h.GetRoomStatus)
+	r.Post("/room/{matchId}/reroll", h.RerollQuestion)
+	r.Get("/room/active/{userId}", h.GetActiveRoom)
 
 	r.Get("/ws/session/{id}", h.CollabWS)
 

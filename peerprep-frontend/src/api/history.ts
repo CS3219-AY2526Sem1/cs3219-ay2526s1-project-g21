@@ -48,7 +48,7 @@ export async function getUserHistory(userId: string): Promise<InterviewHistoryIt
  * Check if user has an active room
  */
 export async function checkActiveRoom(userId: string): Promise<ActiveRoomResponse> {
-  const response = await fetch(`http://localhost:8084/api/v1/room/active/${userId}`, {
+  const response = await fetch(`http://localhost:8084/api/v1/collab/room/active/${userId}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
