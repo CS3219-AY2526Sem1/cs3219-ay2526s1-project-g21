@@ -377,7 +377,18 @@ export default function Editor() {
 
   const handleExit = () => {
     exitRoom(user?.id);
+    if (matchId && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: "end_session" }))
+      } catch (e) {
+        console.error("Failed to send end_session frame:", e)
+      }
+      // close the websocket from client side
+      wsRef.current.close()
+    }
 
+    // Clear stored token for this room and navigate home
+    if (matchId) sessionStorage.removeItem(`room_token_${matchId}`)
     nav("/")
   }
 

@@ -364,6 +364,11 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			room.BeginRun()
 			go h.runInSandbox(room, run)
 
+		case "end_session":
+			room.BroadcastAll(models.WSFrame{Type: "session_ended", Data: map[string]string{"reason": "partner_left"}})
+			room.EndSessionNow()
+			return
+
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
 		}

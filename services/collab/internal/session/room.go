@@ -23,6 +23,7 @@ type Room struct {
 	startedAt         time.Time
 	lastDisconnectAt  *time.Time
 	allDisconnected   bool
+	sessionEnded      bool
 	sessionEndHandler func(sessionID string, finalCode string, language models.Language, duration time.Duration)
 }
 
@@ -76,7 +77,7 @@ func (r *Room) Leave(c *Client) int {
 	remaining := len(r.clients)
 
 	// Track when all clients disconnect
-	if remaining == 0 && !r.allDisconnected {
+	if remaining == 0 && !r.allDisconnected && !r.sessionEnded {
 		now := time.Now()
 		r.lastDisconnectAt = &now
 		r.allDisconnected = true
@@ -172,6 +173,25 @@ func (r *Room) BroadcastAll(frame models.WSFrame) {
 	defer r.mu.Unlock()
 	for c := range r.clients {
 		c.Send(frame)
+	}
+}
+
+func (r *Room) EndSessionNow() {
+	r.mu.Lock()
+	if r.sessionEnded {
+		r.mu.Unlock()
+		return
+	}
+	handler := r.sessionEndHandler
+	finalCode := r.doc.Text
+	lang := r.language
+	started := r.startedAt
+	r.sessionEnded = true
+	r.mu.Unlock()
+
+	if handler != nil {
+		duration := time.Since(started)
+		go handler(r.ID, finalCode, lang, duration)
 	}
 }
 
