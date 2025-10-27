@@ -145,8 +145,11 @@ func run() error {
 	// Prometheus metrics endpoint
 	r.Handle("/metrics", metrics.Handler())
 
-	// Health check route
-	r.Get("/api/v1/users/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	healthHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("ok"))
+	}
+	r.Get("/healthz", healthHandler)
+	r.Get("/api/v1/users/healthz", healthHandler)
 
 	// Register routes
 	routers.UserRoutes(r, userHandler)
