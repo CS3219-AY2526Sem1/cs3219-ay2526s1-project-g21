@@ -6,11 +6,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func QuestionRoutes(router *chi.Mux, questionHandler *handlers.QuestionHandler) {
-	router.Get("/questions", questionHandler.GetQuestionsHandler)
-	router.Post("/questions", questionHandler.CreateQuestionHandler)
-	router.Get("/questions/{id}", questionHandler.GetQuestionByIDHandler)
-	router.Put("/questions/{id}", questionHandler.UpdateQuestionHandler)
-	router.Delete("/questions/{id}", questionHandler.DeleteQuestionHandler)
-	router.Get("/questions/random", questionHandler.GetRandomQuestionHandler)
+func QuestionRoutes(r *chi.Mux, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
+	r.Route("/api/v1/questions", func(r chi.Router) {
+		r.Get("/", questionHandler.GetQuestionsHandler)
+		r.Post("/", questionHandler.CreateQuestionHandler)
+		r.Get("/{id}", questionHandler.GetQuestionByIDHandler)
+		r.Put("/{id}", questionHandler.UpdateQuestionHandler)
+		r.Delete("/{id}", questionHandler.DeleteQuestionHandler)
+		r.Get("/random", questionHandler.GetRandomQuestionHandler)
+
+		r.Get("/healthz", healthHandler.HealthzHandler)
+		r.Get("/readyz", healthHandler.ReadyzHandler)
+	})
 }

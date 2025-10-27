@@ -14,16 +14,16 @@ func New(log *utils.Logger, roomManager *room_management.RoomManager) http.Handl
 	h := api.NewHandlers(log, roomManager)
 	r := chi.NewRouter()
 
-	r.Get("/api/v1/healthz", h.Health)
+	r.Get("/healthz", h.Health)
 
-	r.Get("/api/v1/languages", h.ListLanguages)
-	r.Post("/api/v1/format", h.FormatCode)
+	r.Get("/languages", h.ListLanguages)
+	r.Post("/format", h.FormatCode)
 
-	r.Post("/api/v1/run", h.RunOnce)
+	r.Post("/run", h.RunOnce)
 
 	// Room status endpoint
-	r.Get("/api/v1/room/{matchId}", h.GetRoomStatus)
-	r.Post("/api/v1/room/{matchId}/reroll", h.RerollQuestion)
+	r.Get("/room/{matchId}", h.GetRoomStatus)
+	r.Post("/room/{matchId}/reroll", h.RerollQuestion)
 
 	r.Get("/ws/session/{id}", h.CollabWS)
 
