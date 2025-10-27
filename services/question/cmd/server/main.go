@@ -19,10 +19,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func registerRoutes(router *chi.Mux, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
-	routers.HealthRoutes(router, healthHandler)
-	routers.QuestionRoutes(router, questionHandler)
-}
+// Currently not used as QuestionRoutes takes in both the main question handler and the health handler
+// func registerRoutes(router *chi.Mux, questionHandler *handlers.QuestionHandler, healthHandler *handlers.HealthHandler) {
+// 	routers.HealthRoutes(router, healthHandler)
+// 	routers.QuestionRoutes(router, questionHandler)
+// }
 
 func main() {
 	logger, _ := zap.NewProduction()
@@ -51,8 +52,8 @@ func main() {
 
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second), metrics.Middleware("question"))
 
-	router.Handle("/metrics", metrics.Handler())
-	registerRoutes(router, questionHandler, healthHandler)
+	router.Handle("api/v1/questions/metrics", metrics.Handler())
+	routers.QuestionRoutes(router, questionHandler, healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

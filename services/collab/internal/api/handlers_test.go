@@ -130,7 +130,7 @@ func TestGetRoomStatusSuccess(t *testing.T) {
 	}
 	h := newTestHandlers(&mockRunner{}, rm)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/room/m1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/collab/room/m1", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	req.Header.Set("Authorization", "Bearer token")
 	rec := httptest.NewRecorder()
@@ -151,14 +151,14 @@ func TestGetRoomStatusErrors(t *testing.T) {
 		validateFn: func(string) (*models.RoomInfo, error) { return nil, errors.New("auth error") },
 	})
 
-	missingID := httptest.NewRequest(http.MethodGet, "/api/v1/room/", nil)
+	missingID := httptest.NewRequest(http.MethodGet, "/api/v1/collab/room/", nil)
 	rec := httptest.NewRecorder()
 	h.GetRoomStatus(rec, missingID)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing matchId, got %d", rec.Code)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/room/m1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/collab/room/m1", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	rec = httptest.NewRecorder()
 	h.GetRoomStatus(rec, req)
@@ -205,7 +205,7 @@ func TestRerollQuestionBranches(t *testing.T) {
 		}, nil
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/room/m1/reroll", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/collab/room/m1/reroll", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	req.Header.Set("Authorization", "Bearer token")
 	rec := httptest.NewRecorder()
@@ -248,7 +248,7 @@ func TestRerollQuestionBranches(t *testing.T) {
 func TestRerollQuestionMissingMatchID(t *testing.T) {
 	h := newTestHandlers(&mockRunner{}, &mockRoomManager{})
 	rec := httptest.NewRecorder()
-	h.RerollQuestion(rec, httptest.NewRequest(http.MethodPost, "/api/v1/room//reroll", nil))
+	h.RerollQuestion(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/room//reroll", nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing matchId, got %d", rec.Code)
 	}
@@ -259,7 +259,7 @@ func TestRerollQuestionUnauthorized(t *testing.T) {
 		validateFn: func(string) (*models.RoomInfo, error) { return nil, errors.New("bad token") },
 	}
 	h := newTestHandlers(&mockRunner{}, rm)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/room/m1/reroll", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/collab/room/m1/reroll", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	req.Header.Set("Authorization", "Bearer token")
 	rec := httptest.NewRecorder()
@@ -272,7 +272,7 @@ func TestRerollQuestionUnauthorized(t *testing.T) {
 
 func TestRerollQuestionInvalidHeader(t *testing.T) {
 	h := newTestHandlers(&mockRunner{}, &mockRoomManager{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/room/m1/reroll", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/collab/room/m1/reroll", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	req.Header.Set("Authorization", "Token abc")
 	rec := httptest.NewRecorder()
@@ -285,7 +285,7 @@ func TestRerollQuestionInvalidHeader(t *testing.T) {
 
 func TestRerollQuestionMissingAuth(t *testing.T) {
 	h := newTestHandlers(&mockRunner{}, &mockRoomManager{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/room/m1/reroll", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/collab/room/m1/reroll", nil)
 	req = req.WithContext(addMatchID(req.Context(), "m1"))
 	rec := httptest.NewRecorder()
 
@@ -310,7 +310,7 @@ func TestListLanguages(t *testing.T) {
 	}
 	h := newTestHandlers(runner, &mockRoomManager{})
 	rec := httptest.NewRecorder()
-	h.ListLanguages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/languages", nil))
+	h.ListLanguages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/collab/languages", nil))
 
 	var resp []models.LanguageSpec
 	decodeBody(t, rec.Body, &resp)
@@ -323,13 +323,13 @@ func TestFormatCode(t *testing.T) {
 	h := newTestHandlers(&mockRunner{}, &mockRoomManager{})
 	body := bytes.NewBufferString(`{"language":"python","code":"x"}`)
 	rec := httptest.NewRecorder()
-	h.FormatCode(rec, httptest.NewRequest(http.MethodPost, "/api/v1/format", body))
+	h.FormatCode(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/format", body))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
 	rec = httptest.NewRecorder()
-	h.FormatCode(rec, httptest.NewRequest(http.MethodPost, "/api/v1/format", bytes.NewBufferString(`bad-json`)))
+	h.FormatCode(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/format", bytes.NewBufferString(`bad-json`)))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for bad json, got %d", rec.Code)
 	}
@@ -337,7 +337,7 @@ func TestFormatCode(t *testing.T) {
 
 func TestFormatCodeContextError(t *testing.T) {
 	h := newTestHandlers(&mockRunner{}, &mockRoomManager{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/format", bytes.NewBufferString(`{"language":"python","code":"x"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/collab/format", bytes.NewBufferString(`{"language":"python","code":"x"}`))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	req = req.WithContext(ctx)
@@ -360,7 +360,7 @@ func TestRunOnceHandler(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"language":"python","code":"print()"}`)
 	rec := httptest.NewRecorder()
-	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/run", body))
+	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/run", body))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -369,7 +369,7 @@ func TestRunOnceHandler(t *testing.T) {
 		return exec.RunOutput{}, exec.ErrDockerUnavailable
 	}
 	rec = httptest.NewRecorder()
-	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/run", bytes.NewBufferString(`{"language":"python"}`)))
+	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/run", bytes.NewBufferString(`{"language":"python"}`)))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d", rec.Code)
 	}
@@ -378,13 +378,13 @@ func TestRunOnceHandler(t *testing.T) {
 		return exec.RunOutput{}, errors.New("fail")
 	}
 	rec = httptest.NewRecorder()
-	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/run", bytes.NewBufferString(`{"language":"python"}`)))
+	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/run", bytes.NewBufferString(`{"language":"python"}`)))
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rec.Code)
 	}
 
 	rec = httptest.NewRecorder()
-	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/run", bytes.NewBufferString(`bad`)))
+	h.RunOnce(rec, httptest.NewRequest(http.MethodPost, "/api/v1/collab/run", bytes.NewBufferString(`bad`)))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for bad json, got %d", rec.Code)
 	}

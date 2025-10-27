@@ -81,10 +81,10 @@ func run(parent context.Context) error {
 		AllowCredentials: true,
 	}))
 
-	r.Handle("/metrics", metrics.Handler())
-	r.Mount("/", routers.New(logger, roomManager))
+	r.Mount("/api/v1/collab", routers.New(logger, roomManager))
+	r.Handle("/api/v1/collab/metrics", metrics.Handler())
 
-	r.Get("/healthz", healthHandler)
+	r.Get("/api/v1/collab/healthz", healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

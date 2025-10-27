@@ -9,6 +9,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var parseJWT = func(tokenStr string, keyFunc jwt.Keyfunc) (*jwt.Token, error) {
+	return jwt.Parse(tokenStr, keyFunc)
+}
+
 var (
 	ErrMissingAuthHeader = errors.New("missing or malformed Authorization header")
 	ErrInvalidToken      = errors.New("invalid token")
@@ -24,7 +28,7 @@ func VerifyToken(r *http.Request, secret string) (jwt.MapClaims, error) {
 	}
 	tokenStr := strings.TrimPrefix(authz, "Bearer ")
 
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+	token, err := parseJWT(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrTokenUnverifiable
 		}

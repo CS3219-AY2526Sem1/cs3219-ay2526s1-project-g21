@@ -57,23 +57,23 @@ export async function questionApiFetch<T>(path: string, init?: RequestInit): Pro
 
 export async function getRandomQuestion(filters?: RandomQuestionFilters): Promise<Question> {
   let path = "/questions/random";
-  
+
   if (filters) {
     const params = new URLSearchParams();
-    
+
     if (filters.difficulty) {
       params.append("difficulty", filters.difficulty);
     }
-    
+
     if (filters.topic_tags && filters.topic_tags.length > 0) {
       params.append("topic", filters.topic_tags.join(","));
     }
-    
+
     if (params.toString()) {
       path += "?" + params.toString();
     }
   }
-  
+
   return questionApiFetch<Question>(path);
 }
 
