@@ -77,6 +77,18 @@ func (m *mockRoomManager) RerollQuestion(id string) (*models.RoomInfo, error) {
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockRoomManager) GetActiveRoomForUser(userId string) (*models.RoomInfo, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRoomManager) PublishSessionEnded(event models.SessionEndedEvent) error {
+	return nil
+}
+
+func (m *mockRoomManager) MarkRoomAsEnded(matchID string) error {
+	return nil
+}
+
 func newTestHandlers(runner runner, rm roomManager) *Handlers {
 	logger := utils.NewLogger()
 	return NewHandlersWithDeps(logger, runner, session.NewHub(), rm)
