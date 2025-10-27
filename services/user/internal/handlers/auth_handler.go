@@ -15,13 +15,19 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var signJWT = func(token *jwt.Token, secret string) (string, error) {
+	return token.SignedString([]byte(secret))
+}
+
+var generatePasswordHash = bcrypt.GenerateFromPassword
+
 // AuthHandler manages authentication endpoints.
 type AuthHandler struct {
-	Repo      *repositories.UserRepository
+	Repo      UserRepository
 	JWTSecret string
 }
 
-func NewAuthHandler(repo *repositories.UserRepository) *AuthHandler {
+func NewAuthHandler(repo UserRepository) *AuthHandler {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		secret = "dev"
@@ -78,7 +84,7 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hash, err := generatePasswordHash([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		utils.JSONError(w, http.StatusInternalServerError, "Failed to hash password")
 		return
@@ -123,7 +129,7 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(h.JWTSecret))
+	signed, err := signJWT(token, h.JWTSecret)
 	if err != nil {
 		utils.JSONError(w, http.StatusInternalServerError, "Failed to sign token")
 		return

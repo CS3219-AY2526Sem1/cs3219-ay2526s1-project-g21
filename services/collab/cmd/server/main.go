@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"collab/internal/metrics"
 	"collab/internal/room_management"
 	"collab/internal/routers"
 	"collab/internal/utils"
@@ -69,6 +70,7 @@ func run(parent context.Context) error {
 		middleware.Logger,
 		middleware.Recoverer,
 		middleware.Timeout(60*time.Second),
+		metrics.Middleware("collab"),
 	)
 
 	// CORS middleware
@@ -79,9 +81,10 @@ func run(parent context.Context) error {
 		AllowCredentials: true,
 	}))
 
-	r.Mount("/", routers.New(logger, roomManager))
+	r.Mount("/api/v1/collab", routers.New(logger, roomManager))
+	r.Handle("/api/v1/collab/metrics", metrics.Handler())
 
-	r.Get("/healthz", healthHandler)
+	r.Get("/api/v1/collab/healthz", healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

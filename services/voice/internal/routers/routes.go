@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"voice/internal/handlers"
+	"voice/internal/metrics"
 	"voice/internal/utils"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,7 @@ func NewRouter(log *utils.Logger, redisAddr string) http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60))
+	r.Use(metrics.Middleware("voice"))
 
 	// CORS middleware
 	r.Use(func(next http.Handler) http.Handler {
@@ -37,10 +39,13 @@ func NewRouter(log *utils.Logger, redisAddr string) http.Handler {
 		})
 	})
 
+	// Prometheus metrics
+	r.Handle("/metrics", metrics.Handler())
+
 	// Health check
 	r.Get("/health", h.Health)
 
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route("/api/v1/voice", func(r chi.Router) {
 		// WebRTC configuration
 		r.Get("/webrtc/config", h.GetWebRTCConfig)
 

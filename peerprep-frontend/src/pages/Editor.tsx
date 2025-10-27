@@ -5,7 +5,7 @@ import CodeEditor from "@uiw/react-textarea-code-editor";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
-import { getRoomStatus, rerollQuestion } from "@/api/match";
+import { exitRoom, getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 
 type WSFrame =
@@ -28,6 +28,8 @@ const CODE_TEMPLATES: Record<string, string> = {
   cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello from C++!" << std::endl;\n    return 0;\n}\n',
   java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}\n',
 };
+
+const COLLAB_WEBSOCKET_BASE = (import.meta as any).env?.VITE_COLLAB_WEBSOCKET_BASE || "ws://localhost:8084";
 
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -98,7 +100,7 @@ export default function Editor() {
     const fetchRoomInfo = async () => {
       try {
         setRoomLoading(true);
-        
+
         // Get token from sessionStorage
         const token = sessionStorage.getItem(`room_token_${roomId}`);
         if (!token) {
@@ -155,7 +157,7 @@ export default function Editor() {
       return;
     }
 
-    const ws = new WebSocket(`http://localhost:8084/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`${COLLAB_WEBSOCKET_BASE}/api/v1/collab/ws/session/${matchId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -373,6 +375,12 @@ export default function Editor() {
     }
   };
 
+  const handleExit = () => {
+    exitRoom(user?.id);
+
+    nav("/")
+  }
+
   // Show loading state while room is being set up
   if (roomLoading || !roomInfo) {
     return (
@@ -420,6 +428,14 @@ export default function Editor() {
           >
             {isRunning ? "Running..." : "Run"}
           </button>
+          <button
+            type="button"
+            onClick={handleExit}
+            disabled={isRunning}
+            className="rounded-md bg-red-500 px-3 py-2 text-white text-sm hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Exit Session
+          </button>
         </div>
       </div>
 
@@ -460,7 +476,7 @@ export default function Editor() {
               </div>
             ) : null}
           </div>
-          
+
           {/* Voice Chat */}
           {user && roomId && (
             <VoiceChat
@@ -524,6 +540,7 @@ export default function Editor() {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: "user"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["user:8080"]
+
+  - job_name: "question"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["question:8080"]
+
+  - job_name: "match"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["match:8080"]
+
+  - job_name: "collab"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["collab:8080"]
+
+  - job_name: "voice"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["voice:8080"]
+
+  - job_name: "sandbox"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["sandbox:8090"]
