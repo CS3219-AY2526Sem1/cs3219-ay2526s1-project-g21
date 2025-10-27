@@ -20,6 +20,11 @@ type ErrorResponse struct {
 	Details []ValidationErrorDetail `json:"details,omitempty"`
 }
 
+// Error implements the error interface
+func (e *ErrorResponse) Error() string {
+	return e.Message
+}
+
 // single field validation error
 type ValidationErrorDetail struct {
 	Field  string `json:"field"`
