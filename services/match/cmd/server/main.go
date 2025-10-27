@@ -9,8 +9,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-  "match/internal/metrics"
 	"match/internal/match_management"
+	"match/internal/metrics"
 	"match/internal/routers"
 
 	"github.com/go-chi/chi/v5"
