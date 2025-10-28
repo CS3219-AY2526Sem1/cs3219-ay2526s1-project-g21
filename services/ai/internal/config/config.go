@@ -22,13 +22,11 @@ func LoadConfig() (*Config, error) {
 }
 
 func validateConfig(config *Config) error {
-	switch config.Provider {
-	case "gemini":
-		// Gemini validation is handled by gemini.NewConfig()
-		return nil
-	default:
+	if config.Provider != "gemini" {
 		return errors.New("unsupported AI provider: " + config.Provider + ". Currently supported: gemini")
 	}
+	// Gemini validation is handled by gemini.NewConfig()
+	return nil
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
