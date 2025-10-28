@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/cors"
 )
 
-const defaultRedisAddr = "localhost:6379"
+const defaultRedisAddr = "redis:6379"
 
 func main() {
 	rand.Seed(time.Now().UnixNano())

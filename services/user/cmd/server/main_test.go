@@ -97,6 +97,7 @@ func TestRunSuccess(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "pass")
 	t.Setenv("POSTGRES_DB", "db")
 	t.Setenv("PORT", "")
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
@@ -144,6 +145,7 @@ func TestRunConnectFailure(t *testing.T) {
 	t.Setenv("POSTGRES_USER", "user")
 	t.Setenv("POSTGRES_PASSWORD", "pass")
 	t.Setenv("POSTGRES_DB", "db")
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
@@ -165,6 +167,7 @@ func TestRunListenFailure(t *testing.T) {
 	t.Setenv("POSTGRES_USER", "user")
 	t.Setenv("POSTGRES_PASSWORD", "pass")
 	t.Setenv("POSTGRES_DB", "db")
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
@@ -198,6 +201,7 @@ func TestRunAutoMigrateFailure(t *testing.T) {
 	t.Setenv("POSTGRES_USER", "user")
 	t.Setenv("POSTGRES_PASSWORD", "pass")
 	t.Setenv("POSTGRES_DB", "db")
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
@@ -237,6 +241,7 @@ func TestMainFunction(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "pass")
 	t.Setenv("POSTGRES_DB", "db")
 	t.Setenv("PORT", "9090")
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
@@ -280,6 +285,7 @@ func TestMainFunction(t *testing.T) {
 
 func TestMainHandlesError(t *testing.T) {
 	prepareServerGlobals(t)
+	t.Setenv("SKIP_REDIS_SUBSCRIBER", "true")
 	origOpen := gormOpen
 	defer func() { gormOpen = origOpen }()
 	origTimeout := dbConnectTimeout
