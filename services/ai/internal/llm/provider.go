@@ -11,11 +11,6 @@ type Provider interface {
 	GetProviderName() string
 }
 
-// optional interface for providers that need cleanup
-type Closer interface {
-	Close() error
-}
-
 // represents an error from an LLM provider
 type ProviderError struct {
 	Provider string

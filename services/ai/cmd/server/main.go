@@ -50,14 +50,6 @@ func main() {
 		logger.Fatal("Failed to initialize AI provider", zap.Error(err))
 	}
 
-	defer func() {
-		if closer, ok := aiProvider.(llm.Closer); ok {
-			if err := closer.Close(); err != nil {
-				logger.Error("Failed to close AI provider", zap.Error(err))
-			}
-		}
-	}()
-
 	aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
 	healthHandler := handlers.NewHealthHandler()
 
