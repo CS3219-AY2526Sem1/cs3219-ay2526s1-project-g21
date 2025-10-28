@@ -7,9 +7,10 @@ The AI Service is a microservice that provides intelligent code related capabili
 ## Features
 
 - **Code Explanation**: Generate detailed explanations of code snippets with different levels of detail (beginner, intermediate, advanced)
+- **Code Hints**: Provide gentle nudges and hints for coding problems with context awareness
 - **Multi-Language Support**: Currently supports Python, Java, C++, and JavaScript
 - **Provider Abstraction**: Pluggable LLM provider system (currently implemented with Google Gemini)
-- **Template-Based Prompts**: YAML-based prompt templates for consistent and maintainable AI interactions
+- **Template-Based Prompts**: YAML-based prompt templates with Go templating for dynamic and maintainable AI interactions
 - **Request Validation**: Comprehensive input validation and error handling
 - **Health Monitoring**: Built-in health check endpoints
 
@@ -41,12 +42,12 @@ ai/
 │   ├── prompts/
 │   │   ├── manager.go              # Prompt template management
 │   │   └── templates/
-│   │       └── explain.yaml        # Code explanation prompt templates
+│   │       ├── explain.yaml        # Code explanation prompt templates
+│   │       └── hint.yaml           # Code hint prompt templates
 │   ├── routers/
 │   │   ├── ai_routes.go            # AI service route definitions
 │   │   └── health_routes.go        # Health check route definitions
 │   └── utils/
-│       ├── logging.go              # Logging utilities
 │       └── response.go             # HTTP response utilities
 ├── go.mod                          # Go module dependencies
 ├── go.sum                          # Dependency checksums
@@ -57,674 +58,423 @@ ai/
 
 ### 1. Application Bootstrap (`cmd/server/main.go`)
 
-**Responsibility**: Service initialization, dependency injection, and lifecycle management
+**Responsibilities**:
 
-**Key Components**:
+- Service initialization and dependency wiring
+- Configuration loading and validation
+- HTTP server lifecycle management
+- Graceful shutdown coordination
 
-```go
-func main() {
-    // 1. Logger initialization (Zap production logger)
-    logger, _ := zap.NewProduction()
-    defer logger.Sync()
+**Initialization Flow**:
 
-    // 2. Configuration loading and validation
-    cfg, err := config.LoadConfig()
-
-    // 3. Prompt manager initialization
-    promptManager, err := prompts.NewPromptManager()
-
-    // 4. AI provider initialization (factory pattern)
-    aiProvider, err := llm.NewProvider(cfg.Provider)
-
-    // 5. Handler creation with dependency injection
-    aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
-    healthHandler := handlers.NewHealthHandler()
-
-    // 6. Router setup with middleware
-    router := chi.NewRouter()
-    router.Use(cors.Handler(...), middleware.RequestID, ...)
-
-    // 7. Graceful shutdown implementation
-    server := &http.Server{...}
-    go server.ListenAndServe()
-    <-shutdownChan
-    server.Shutdown(ctx)
-}
-```
+1. **Logger Setup**: Production-grade structured logging with Zap
+2. **Configuration Loading**: Environment-based configuration with validation
+3. **Prompt Manager**: Template loading and compilation from embedded files
+4. **AI Provider**: Factory-based provider instantiation (currently Gemini)
+5. **Handler Creation**: Dependency injection of all required components
+6. **Middleware Stack**: CORS, request ID, logging, recovery, timeout middleware
+7. **Server Startup**: HTTP server with configured timeouts
+8. **Signal Handling**: Graceful shutdown on SIGINT/SIGTERM with 30-second timeout
 
 **Architecture Patterns**:
 
 - **Dependency Injection**: All dependencies passed explicitly to constructors
-- **Factory Pattern**: Provider creation through registry
-- **Graceful Shutdown**: Signal handling with 30-second timeout
-- **Resource Management**: Proper cleanup with defer statements
+- **Factory Pattern**: Provider creation through registry for extensibility
+- **Graceful Shutdown**: Coordinated service shutdown preserving in-flight requests
+- **Configuration as Code**: Environment-driven configuration with sensible defaults
 
 ### 2. Configuration System (`internal/config/`)
 
-**File**: `config.go`
+**Responsibilities**:
 
-**Structure**:
+- Environment variable loading and parsing
+- Configuration validation and error reporting
+- Default value management
+- Provider-specific configuration delegation
 
-```go
-type Config struct {
-    Provider string // AI provider name (currently "gemini")
-}
+**Configuration Structure**:
 
-func LoadConfig() (*Config, error) {
-    config := &Config{
-        Provider: getEnvOrDefault("AI_PROVIDER", "gemini"),
-    }
-    return config, validateConfig(config)
-}
-```
+The configuration system follows a simple, environment-driven approach with minimal structure. The main service configuration focuses on AI provider selection, while provider-specific configuration is handled by dedicated modules.
 
 **Design Patterns**:
 
-- **Environment-First Configuration**: All config from environment variables
-- **Validation at Load Time**: Immediate validation with descriptive errors
-- **Default Values**: Sensible defaults for optional configurations
-- **Provider Extensibility**: Easy addition of new providers
+- **Environment-First Configuration**: All config sourced from environment variables
+- **Fail-Fast Validation**: Configuration errors detected at startup, not runtime
+- **Sensible Defaults**: Optional configurations have production-ready defaults
+- **Provider Delegation**: Provider-specific config handled by provider modules
+- **Explicit Dependencies**: No hidden configuration dependencies between components
 
 ### 3. LLM Provider System (`internal/llm/`)
 
+**Responsibilities**:
+
+- Abstract interface for different LLM providers
+- Provider registration and discovery
+- Standardized error handling across providers
+- Request/response normalization
+
 #### Provider Interface (`provider.go`)
 
-```go
-type Provider interface {
-    GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error)
-    GetProviderName() string
-}
+The provider interface defines a minimal contract for LLM integration, focusing on core functionality while maintaining extensibility. The interface supports context propagation for timeout and cancellation, and uses standardized error codes for consistent error handling across different providers.
 
-type Closer interface {
-    Close() error
-}
+**Key Components**:
 
-type ProviderError struct {
-    Provider string
-    Code     string  // Standardized error codes
-    Message  string
-    Err      error
-}
-```
+- **Provider Interface**: Core methods for explanation generation and identification
+- **ProviderError**: Structured error type with standardized codes and error wrapping
+- **Error Constants**: Predefined error codes for common failure scenarios
 
 **Design Principles**:
 
-- **Interface Segregation**: Minimal interface for core functionality
-- **Optional Interfaces**: `Closer` for providers needing cleanup
-- **Standardized Errors**: Common error codes across providers
-- **Context Propagation**: Timeout and cancellation support
+- **Interface Segregation**: Minimal interface focused on essential functionality
+- **Standardized Errors**: Common error codes and structures across all providers
+- **Context Propagation**: Full support for request timeouts and cancellation
+- **Error Transparency**: Detailed error information while maintaining abstraction
 
 #### Provider Registry (`registry.go`)
 
-```go
-type ProviderFactory func() (Provider, error)
-
-var providers = make(map[string]ProviderFactory)
-
-func RegisterProvider(name string, factory ProviderFactory) {
-    providers[name] = factory
-}
-
-func NewProvider(name string) (Provider, error) {
-    factory, exists := providers[name]
-    if !exists {
-        return nil, fmt.Errorf("unsupported provider: %s", name)
-    }
-    return factory()
-}
-```
+The registry implements a factory pattern for provider instantiation, enabling a plugin-like architecture where new providers can be added without modifying existing code. Providers register themselves during package initialization.
 
 **Architecture Benefits**:
 
-- **Plugin Architecture**: Easy addition of new providers
-- **Lazy Initialization**: Providers created only when needed
-- **Type Safety**: Compile-time interface verification
-- **Global Registry**: Single source of truth for available providers
+- **Plugin Architecture**: New providers added via simple registration
+- **Lazy Initialization**: Providers instantiated only when needed
+- **Type Safety**: Interface compliance verified at compile time
+- **Decoupled Registration**: Providers self-register without central coordination
 
 #### Gemini Implementation (`internal/llm/gemini/`)
 
-**Client Structure** (`client.go`):
+**Responsibilities**:
 
-```go
-type Client struct {
-    client *genai.Client  // Google GenAI client
-    config *Config        // Provider-specific configuration
-}
+- Google Gemini API integration
+- Request/response marshaling
+- Error translation to standard codes
+- Performance metrics collection
 
-func (c *Client) GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error) {
-    startTime := time.Now()
+**Implementation Structure**:
 
-    // API call with context
-    result, err := c.client.Models.GenerateContent(ctx, c.config.Model, genai.Text(prompt), nil)
+The Gemini implementation follows the standard provider pattern with three main components:
 
-    // Error handling with provider-specific errors
-    if err != nil {
-        return nil, &llm.ProviderError{
-            Provider: "gemini",
-            Code:     llm.ErrCodeServiceDown,
-            Message:  "Failed to generate explanation",
-            Err:      err,
-        }
-    }
+- **Client (`client.go`)**: Core API interaction with the Google GenAI SDK
+- **Configuration (`config.go`)**: Environment-based API key and model configuration
+- **Registration (`init.go`)**: Self-registration with the provider registry
 
-    // Response processing and metadata collection
-    explanation, err := result.Text()
-    processingTime := time.Since(startTime).Milliseconds()
+**Key Features**:
 
-    return &models.ExplainResponse{
-        Explanation: explanation,
-        RequestID:   requestID,
-        Metadata: models.ExplanationMetadata{
-            ProcessingTime: int(processingTime),
-            DetailLevel:    detailLevel,
-            Provider:       "gemini",
-            Model:          c.config.Model,
-        },
-    }, nil
-}
-```
+- **API Integration**: Direct integration with Google's GenAI SDK
+- **Error Mapping**: Translation of Gemini-specific errors to standard provider errors
+- **Performance Tracking**: Request timing and metadata collection
+- **Model Flexibility**: Configurable model selection via environment variables
+- **Context Support**: Full support for request cancellation and timeouts
 
-**Provider Registration** (`init.go`):
+**Configuration Requirements**:
 
-```go
-func init() {
-    llm.RegisterProvider("gemini", func() (llm.Provider, error) {
-        config, err := NewConfig()
-        if err != nil {
-            return nil, err
-        }
-        return NewClient(config)
-    })
-}
-```
+- `GEMINI_API_KEY`: Required API key for Google Gemini access
+- `GEMINI_MODEL`: Optional model specification (defaults to `gemini-2.5-flash`)
 
-**Configuration** (`config.go`):
-
-```go
-type Config struct {
-    APIKey string
-    Model  string
-}
-
-func NewConfig() (*Config, error) {
-    apiKey := os.Getenv("GEMINI_API_KEY")
-    if apiKey == "" {
-        return nil, errors.New("GEMINI_API_KEY environment variable is required")
-    }
-
-    model := os.Getenv("GEMINI_MODEL")
-    if model == "" {
-        model = "gemini-2.5-flash" // Default model
-    }
-
-    return &Config{APIKey: apiKey, Model: model}, nil
-}
-```
+The implementation emphasizes reliability with comprehensive error handling and provides detailed metadata for monitoring and debugging purposes.
 
 ### 4. Prompt Management System (`internal/prompts/`)
 
+**Responsibilities**:
+
+- Template loading and compilation at startup
+- Dynamic prompt building with Go's text/template engine
+- Support for multiple AI modes with flexible data injection
+
 **Manager Structure** (`manager.go`):
 
-```go
-type PromptManager struct {
-    prompts map[string]map[string]string // mode -> detailLevel -> complete prompt
-}
+The PromptManager uses a two-level mapping structure (mode -> variant -> compiled template) to organize templates efficiently. Templates are loaded from embedded YAML files and compiled with Go's text/template engine for dynamic data substitution.
 
-type PromptTemplate struct {
-    BasePrompt   string            `yaml:"base_prompt"`
-    DetailLevels map[string]string `yaml:"detail_levels"`
-}
+**Template Structure**:
 
-//go:embed templates/*.yaml
-var templateFS embed.FS
-```
+All prompt templates follow a unified YAML structure with a base prompt for consistent behavior and mode-specific variants for different use cases:
 
-**Template Loading Process**:
-
-```go
-func (pm *PromptManager) loadPrompts() error {
-    entries, err := templateFS.ReadDir("templates")
-
-    for _, entry := range entries {
-        if !strings.HasSuffix(entry.Name(), ".yaml") {
-            continue
-        }
-
-        // Read and parse YAML
-        data, err := templateFS.ReadFile("templates/" + entry.Name())
-        var promptTemplate PromptTemplate
-        yaml.Unmarshal(data, &promptTemplate)
-
-        // Combine base prompt with detail levels
-        name := strings.TrimSuffix(entry.Name(), ".yaml")
-        pm.prompts[name] = make(map[string]string)
-
-        for detailLevel, detailPrompt := range promptTemplate.DetailLevels {
-            var fullPrompt strings.Builder
-            if promptTemplate.BasePrompt != "" {
-                fullPrompt.WriteString(promptTemplate.BasePrompt)
-                fullPrompt.WriteString("\n\n")
-            }
-            fullPrompt.WriteString(detailPrompt)
-            pm.prompts[name][detailLevel] = fullPrompt.String()
-        }
-    }
-    return nil
-}
-```
-
-**Prompt Building**:
-
-```go
-func (pm *PromptManager) BuildPrompt(mode, code, language, detailLevel string) (string, error) {
-    promptTemplate := pm.prompts[mode][detailLevel]
-
-    // Simple string replacement (no complex templating)
-    result := strings.ReplaceAll(promptTemplate, "{{.Language}}", language)
-    result = strings.ReplaceAll(result, "{{.Code}}", code)
-
-    return result, nil
-}
-```
-
-**Template Structure** (`templates/explain.yaml`):
-
-````yaml
+```yaml
+# templates/explain.yaml
 base_prompt: |
-  You are a helpful programming tutor. Your job is to explain code snippets clearly and accurately.
+  You are a helpful programming tutor. Guidelines for explanations...
 
-  Guidelines:
-  - Focus on explaining what the code does, not how to improve it
-  - Use clear, accessible language appropriate for the detail level
-  - Be concise but thorough
-
-detail_levels:
+prompts:
   beginner: |
     Explain this {{.Language}} code in simple terms...
-
-    Code to explain:
-    ```{{.Language}}
-    {{.Code}}
-    ```
-
+    Code: {{.Code}}
   intermediate: |
-    Explain this {{.Language}} code for someone with some programming experience...
-
+    Explain this {{.Language}} code with technical details...
   advanced: |
-    Provide a detailed technical explanation of this {{.Language}} code...
-````
+    Provide deep technical analysis...
+
+# templates/hint.yaml
+base_prompt: |
+  You are a helpful programming tutor. Guidelines for hints...
+
+prompts:
+  default: |
+    {{if .PreviousHints}}Previous hints: {{range .PreviousHints}}{{.}}{{end}}{{end}}
+    Provide a hint for {{.Language}} code: {{.Code}}
+    {{if .ProblemDescription}}Context: {{.ProblemDescription}}{{end}}
+```
+
+**Dynamic Data Support**:
+
+The prompt system supports flexible data injection using Go templates. The `BuildPrompt(mode, variant, data)` method accepts any data structure, enabling:
+
+- **Code Context**: Language, code snippets, problem descriptions
+- **Session History**: Previous hints, conversation context
+- **User Preferences**: Detail levels, specific formatting needs
+- **Problem Metadata**: Difficulty, tags, expected solutions
 
 **Architecture Benefits**:
 
-- **Compile-Time Embedding**: Templates embedded in binary
-- **Hot-Swappable**: Easy template updates without code changes
-- **Structured Prompts**: Consistent prompt structure across modes
-- **Template Inheritance**: Base prompts with level-specific additions
+- **Compile-Time Embedding**: Templates embedded in binary for distribution
+- **Template Compilation**: Go's text/template provides safe, powerful templating
+- **Mode Extensibility**: Easy addition of new AI modes (test, refactor, summary)
+- **Context Awareness**: Templates can access rich contextual data
+- **Type Safety**: Template compilation catches syntax errors at startup
 
 ### 5. Request/Response Pipeline
 
 #### Request Models (`internal/models/request.go`)
 
-```go
-type ExplainRequest struct {
-    Code        string `json:"code"`
-    Language    string `json:"language"`
-    DetailLevel string `json:"detail_level"`
-    RequestID   string `json:"request_id"`
-}
+**Responsibilities**:
 
-func (r *ExplainRequest) Validate() error {
-    // Required field validation
-    if r.Code == "" {
-        return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
-    }
+- Request structure definition and JSON binding
+- Input validation with detailed error reporting
+- Default value assignment for optional fields
+- Support for multiple AI modes
 
-    // Language validation
-    supportedLanguages := map[string]bool{
-        "python": true, "java": true, "cpp": true, "javascript": true,
-    }
-    if !supportedLanguages[r.Language] {
-        return &ErrorResponse{
-            Code: "unsupported_language",
-            Message: "Language not supported. Supported languages: python, java, cpp, javascript",
-        }
-    }
+**Request Structure**:
 
-    // Detail level validation with default
-    if r.DetailLevel == "" {
-        r.DetailLevel = "intermediate"
-    }
-    validDetailLevels := map[string]bool{
-        "beginner": true, "intermediate": true, "advanced": true,
-    }
-    if !validDetailLevels[r.DetailLevel] {
-        return &ErrorResponse{
-            Code: "invalid_detail_level",
-            Message: "Detail level must be one of: beginner, intermediate, advanced",
-        }
-    }
+Request models implement a common validation interface that enables generic middleware processing. Each request type encapsulates its validation logic and error reporting.
 
-    return nil
-}
-```
+**Validation Features**:
+
+- **Required Field Validation**: Ensures essential fields are present and non-empty
+- **Language Support**: Validates against supported programming languages (Python, Java, C++, JavaScript)
+- **Detail Level Handling**: Validates explanation detail levels with intelligent defaults
+- **Error Standardization**: Consistent error codes and messages across all validation failures
+- **Extensible Design**: Easy addition of new request types and validation rules
+
+**Current Request Types**:
+
+- **ExplainRequest**: Code explanation with language and detail level specification
+- **Future**: HintRequest, TestRequest, RefactorRequest for additional AI modes
 
 #### Response Models (`internal/models/response.go`)
 
-```go
-type ExplainResponse struct {
-    Explanation string              `json:"explanation"`
-    RequestID   string              `json:"request_id"`
-    Metadata    ExplanationMetadata `json:"metadata"`
-}
+**Responsibilities**:
 
-type ExplanationMetadata struct {
-    ProcessingTime int    `json:"processing_time_ms"`
-    DetailLevel    string `json:"detail_level"`
-    Provider       string `json:"provider,omitempty"`
-    Model          string `json:"model,omitempty"`
-}
+- Response structure definition and JSON serialization
+- Metadata collection for monitoring and debugging
+- Error response standardization
+- Support for future response types
 
-type ErrorResponse struct {
-    Code    string                  `json:"code"`
-    Message string                  `json:"message"`
-    Details []ValidationErrorDetail `json:"details,omitempty"`
-}
+**Response Structure**:
 
-func (e *ErrorResponse) Error() string {
-    return e.Message
-}
-```
+Response models provide a consistent API interface with rich metadata for client applications and monitoring systems.
+
+**Key Components**:
+
+- **ExplainResponse**: Contains generated explanation with comprehensive metadata
+- **ExplanationMetadata**: Processing time, provider info, and request context
+- **ErrorResponse**: Standardized error format with codes and detailed messages
+- **Future Types**: HintResponse, TestResponse for additional AI modes
+
+**Metadata Features**:
+
+- **Performance Tracking**: Processing time measurement for SLA monitoring
+- **Provider Information**: Which LLM provider and model generated the response
+- **Request Context**: Detail level and other request-specific information
+- **Debugging Support**: Request IDs for distributed tracing and log correlation
 
 #### Validation Middleware (`internal/middleware/validation.go`)
 
-**Generic Validation with Go Generics**:
+**Responsibilities**:
 
-```go
-type Validator interface {
-    Validate() error
-}
+- Generic request validation using Go generics
+- JSON deserialization with error handling
+- Request context propagation to handlers
+- Standardized error response formatting
 
-func ValidateRequest[T Validator]() func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            // Create instance using reflection
-            var req T
-            reqType := reflect.TypeOf(req)
-            if reqType.Kind() == reflect.Ptr {
-                req = reflect.New(reqType.Elem()).Interface().(T)
-            } else {
-                req = reflect.New(reqType).Interface().(T)
-            }
+**Validation Architecture**:
 
-            // JSON deserialization
-            if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-                utils.JSON(w, http.StatusBadRequest, models.ErrorResponse{
-                    Code: "invalid_json",
-                    Message: "Invalid JSON in request body",
-                })
-                return
-            }
+The validation middleware uses Go's generic type system to provide type-safe, reusable validation across all request types. It combines JSON parsing, model validation, and context propagation in a single, composable middleware.
 
-            // Model validation
-            if err := req.Validate(); err != nil {
-                if errResp, ok := err.(*models.ErrorResponse); ok {
-                    utils.JSON(w, http.StatusBadRequest, *errResp)
-                } else {
-                    utils.JSON(w, http.StatusBadRequest, models.ErrorResponse{
-                        Code: "validation_error",
-                        Message: err.Error(),
-                    })
-                }
-                return
-            }
+**Key Features**:
 
-            // Store in context for handler
-            ctx := context.WithValue(r.Context(), "validated_request", req)
-            next.ServeHTTP(w, r.WithContext(ctx))
-        })
-    }
-}
-```
+- **Generic Design**: Single middleware handles any request type implementing the Validator interface
+- **Type Safety**: Compile-time verification of request types and validation methods
+- **Reflection-Based**: Automatic request instantiation using reflection for maximum flexibility
+- **Context Integration**: Validated requests stored in request context for handler access
+- **Error Consistency**: Uniform error response format across all validation failures
 
 **Benefits**:
 
-- **Type Safety**: Compile-time type checking with generics
-- **Reusability**: Works with any struct implementing Validator
-- **Context Propagation**: Validated request available in handlers
-- **Error Standardization**: Consistent error response format
+- **Code Reuse**: One middleware implementation serves all request types
+- **Type Safety**: Generics eliminate runtime type assertion errors
+- **Extensibility**: New request types automatically supported via interface implementation
+- **Performance**: Efficient request processing with minimal overhead
 
 ### 6. HTTP Handlers (`internal/handlers/`)
 
 #### AI Handler (`ai_handler.go`)
 
-```go
-type AIHandler struct {
-    provider      llm.Provider
-    promptManager *prompts.PromptManager
-    logger        *zap.Logger
-}
+**Responsibilities**:
 
-func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
-    // Extract validated request from middleware
-    req := r.Context().Value("validated_request").(*models.ExplainRequest)
+- HTTP request processing for AI operations
+- Prompt building and AI provider coordination
+- Error handling and response formatting
+- Request logging and performance tracking
 
-    // Generate request ID if not provided
-    if req.RequestID == "" {
-        req.RequestID = generateRequestID()
-    }
+**Handler Architecture**:
 
-    // Build prompt using template manager
-    prompt, err := h.promptManager.BuildPrompt("explain", req.Code, req.Language, req.DetailLevel)
-    if err != nil {
-        h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
-        utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-            Code: "prompt_error",
-            Message: "Failed to build AI prompt",
-        })
-        return
-    }
+The AI handler orchestrates the complete request processing pipeline, from validated request extraction through prompt building to AI provider interaction. It maintains comprehensive logging for monitoring and debugging.
 
-    // Call AI provider
-    response, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.DetailLevel)
-    if err != nil {
-        h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-        utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-            Code: "ai_error",
-            Message: "Failed to generate explanation",
-        })
-        return
-    }
+**Request Processing Flow**:
 
-    // Success logging and response
-    h.logger.Info("Explanation generated successfully",
-        zap.String("request_id", req.RequestID),
-        zap.String("provider", h.provider.GetProviderName()),
-        zap.Int("processing_time_ms", response.Metadata.ProcessingTime))
+1. **Request Extraction**: Retrieves validated request from middleware context
+2. **Request ID Generation**: Ensures every request has a unique identifier for tracing
+3. **Prompt Building**: Uses template manager with `BuildPrompt(mode, variant, data)` for dynamic prompts
+4. **AI Provider Call**: Delegates to configured LLM provider with context propagation
+5. **Response Processing**: Formats successful responses with metadata
+6. **Error Handling**: Translates errors to standardized API responses
+7. **Performance Logging**: Records processing metrics for monitoring
 
-    utils.JSON(w, http.StatusOK, response)
-}
-```
+**Key Features**:
+
+- **Dependency Injection**: Clean separation of concerns through injected dependencies
+- **Context Awareness**: Full request context propagation for timeouts and cancellation
+- **Error Translation**: Provider errors mapped to appropriate HTTP status codes
+- **Structured Logging**: Comprehensive request tracking with correlation IDs
 
 #### Health Handler (`health_handler.go`)
 
-```go
-type HealthHandler struct{}
+**Responsibilities**:
 
-func (h *HealthHandler) HealthzHandler(w http.ResponseWriter, r *http.Request) {
-    utils.JSON(w, http.StatusOK, map[string]string{
-        "status":  "ok",
-        "service": "ai",
-        "version": "1.0.0",
-    })
-}
+- Service health and readiness reporting
+- Kubernetes-compatible health check endpoints
+- Basic service information exposure
 
-func (h *HealthHandler) ReadyzHandler(w http.ResponseWriter, r *http.Request) {
-    utils.JSON(w, http.StatusOK, map[string]string{
-        "status":  "ready",
-        "service": "ai",
-    })
-}
-```
+**Health Check Design**:
+
+The health handler provides simple, lightweight endpoints for service monitoring and orchestration systems. It follows Kubernetes health check conventions with separate liveness and readiness endpoints.
+
+**Endpoints**:
+
+- **Healthz**: Basic liveness check indicating the service is running
+- **Readyz**: Readiness check indicating the service is ready to handle requests
+
+**Integration Points**:
+
+- **Load Balancers**: Health checks for traffic routing decisions
+- **Kubernetes**: Liveness and readiness probe configuration
+- **Monitoring**: Basic service availability tracking
 
 ### 7. Routing System (`internal/routers/`)
 
+**Responsibilities**:
+
+- HTTP route definition and organization
+- Middleware application and request flow
+- Endpoint grouping and versioning preparation
+- Clean separation between functional areas
+
 #### AI Routes (`ai_routes.go`)
 
-```go
-func AIRoutes(router *chi.Mux, aiHandler *handlers.AIHandler) {
-    router.Route("/ai", func(r chi.Router) {
-        r.With(middleware.ValidateRequest[*models.ExplainRequest]()).Post("/explain", aiHandler.ExplainHandler)
-        // Future routes prepared
-        // r.Post("/hint", aiHandler.HintHandler)
-    })
-}
-```
+Defines all AI-related endpoints with appropriate middleware stack. Uses generic validation middleware for type-safe request processing.
+
+**Current Endpoints**:
+
+- `POST /ai/explain`: Code explanation with validation middleware
+- **Future**: `/ai/hint`, `/ai/test`, `/ai/refactor`, `/ai/summary` endpoints prepared
 
 #### Health Routes (`health_routes.go`)
 
-```go
-func HealthRoutes(router *chi.Mux, healthHandler *handlers.HealthHandler) {
-    router.Get("/healthz", healthHandler.HealthzHandler)
-    router.Get("/readyz", healthHandler.ReadyzHandler)
-}
-```
+Provides standard health check endpoints following cloud-native conventions.
+
+**Endpoints**:
+
+- `GET /healthz`: Liveness probe for orchestration systems
+- `GET /readyz`: Readiness probe for load balancer configuration
 
 ### 8. Utility Layer (`internal/utils/`)
 
 #### Response Utilities (`response.go`)
 
-```go
-func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(statusCode)
-    json.NewEncoder(w).Encode(data)
-}
+**Responsibilities**:
 
-func JSONError(w http.ResponseWriter, statusCode int, code, message string) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(statusCode)
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "code":    code,
-        "message": message,
-    })
-}
-```
+- HTTP response formatting and serialization
+- Consistent JSON response structure
+- Content-type and status code management
 
-#### Logging Utilities (`logging.go`)
+**Utility Functions**:
 
-```go
-var Logger *zap.Logger
-
-func InitLogger() {
-    var err error
-    Logger, err = zap.NewProduction()
-    if err != nil {
-        panic("Failed to initialize logger: " + err.Error())
-    }
-}
-
-func GetLogger() *zap.Logger {
-    if Logger == nil {
-        InitLogger()
-    }
-    return Logger
-}
-```
+The utility layer provides a simple, focused JSON response helper that ensures consistent response formatting across all handlers. It handles proper content-type headers and JSON serialization with error handling.
 
 ## Error Handling Architecture
 
-### 1. Error Types and Hierarchy
+### Error Type Hierarchy
 
-```go
-// Base error interface
-type error interface {
-    Error() string
-}
+**Three-Tier Error System**:
 
-// Provider-specific errors (provider.go:19-32)
-type ProviderError struct {
-    Provider string
-    Code     string  // Standardized codes
-    Message  string
-    Err      error   // Wrapped error
-}
+1. **Provider Errors**: LLM-specific errors with standardized codes and error wrapping
+2. **Application Errors**: Structured business logic errors with detailed validation information
+3. **HTTP Errors**: Client-facing errors with appropriate status codes and user-friendly messages
 
-// Application errors (response.go:18-28)
-type ErrorResponse struct {
-    Code    string                  `json:"code"`
-    Message string                  `json:"message"`
-    Details []ValidationErrorDetail `json:"details,omitempty"`
-}
-```
+### Error Propagation Flow
 
-### 2. Error Propagation Chain
+**Error Translation Chain**:
 
 ```
-Gemini API Error → ProviderError → HTTP Error Response
-Validation Error → ErrorResponse → HTTP Error Response
-Template Error → Generic Error → HTTP Error Response
+External API Error → Provider Error → HTTP Error Response
+Validation Failure → Application Error → HTTP Error Response
+System Exception → Generic Error → HTTP Error Response
 ```
 
-### 3. Error Handling Patterns
+**Error Processing Stages**:
 
-```go
-// Provider Error Creation (client.go:28-34)
-return nil, &llm.ProviderError{
-    Provider: "gemini",
-    Code:     llm.ErrCodeAPIKey,
-    Message:  "Failed to create Gemini client",
-    Err:      err,
-}
+1. **Error Detection**: Identify error source and type at the boundary
+2. **Error Translation**: Convert external errors to internal error types
+3. **Error Enhancement**: Add context, request IDs, and debugging information
+4. **Error Formatting**: Transform to client-appropriate HTTP responses
+5. **Error Logging**: Record detailed error information for monitoring
 
-// Handler Error Processing (ai_handler.go:50-57)
-if err != nil {
-    h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-    utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-        Code:    "ai_error",
-        Message: "Failed to generate explanation",
-    })
-    return
-}
+### Error Handling Patterns
 
-// Middleware Error Handling (validation.go:51-60)
-if errResp, ok := err.(*models.ErrorResponse); ok {
-    utils.JSON(w, http.StatusBadRequest, *errResp)
-} else {
-    utils.JSON(w, http.StatusBadRequest, models.ErrorResponse{
-        Code:    "validation_error",
-        Message: err.Error(),
-    })
-}
-```
+**Consistent Error Processing**:
+
+- **Provider Integration**: External API errors mapped to standardized provider error codes
+- **Handler Processing**: Errors translated to appropriate HTTP status codes with structured responses
+- **Middleware Validation**: Request validation errors formatted consistently across endpoints
+- **Context Preservation**: Request IDs and correlation data maintained through error chain
 
 ## Dependency Management
 
-### Dependency Injection Pattern
+### Dependency Injection Architecture
 
-```go
-// Constructor Pattern (main.go:61)
-aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
+**Constructor-Based Injection**:
 
-// Handler Constructor (ai_handler.go:20-26)
-func NewAIHandler(provider llm.Provider, promptManager *prompts.PromptManager, logger *zap.Logger) *AIHandler {
-    return &AIHandler{
-        provider:      provider,
-        promptManager: promptManager,
-        logger:        logger,
-    }
-}
-```
+The service uses explicit constructor-based dependency injection throughout, promoting testability and loose coupling. All dependencies are injected at component creation time, eliminating hidden dependencies and making the dependency graph explicit.
 
-### Interface Dependencies
+**Dependency Strategy**:
 
-```go
-// Handler depends on interfaces, not concrete types
-type AIHandler struct {
-    provider      llm.Provider           // Interface
-    promptManager *prompts.PromptManager // Concrete (template system)
-    logger        *zap.Logger           // Concrete (logging)
-}
-```
+- **Interface Dependencies**: Core business logic depends on interfaces (Provider, Validator) enabling easy testing and provider swapping
+- **Concrete Dependencies**: Infrastructure concerns (logging, configuration) use concrete types for simplicity
+- **Factory Pattern**: Complex dependencies (AI providers) created through factory functions with proper error handling
+- **Lifecycle Management**: Dependencies have clear initialization and cleanup semantics
+
+### Interface-Driven Design
+
+**Abstraction Layers**:
+
+- **Provider Interface**: Abstracts LLM provider implementation details from business logic
+- **Validator Interface**: Enables generic validation middleware across all request types
+- **Handler Interfaces**: Clean separation between HTTP concerns and business logic
+
+**Benefits**:
+
+- **Testability**: Easy mocking and unit testing with interface dependencies
+- **Extensibility**: New providers and validators added without changing existing code
+- **Maintainability**: Clear dependency boundaries and explicit component contracts
 
 ## Configuration
 
@@ -836,40 +586,36 @@ Readiness check endpoint.
 
 ### Adding New LLM Providers
 
-1. **Create Provider Package**: `internal/llm/newprovider/`
-2. **Implement Provider Interface**:
+**Extension Process**:
 
-   ```go
-   type NewProvider struct {
-       client *SomeAPIClient
-       config *Config
-   }
+1. **Create Provider Package**: Add new provider in `internal/llm/newprovider/` directory
+2. **Implement Provider Interface**: Create client implementing `GenerateExplanation()` and `GetProviderName()` methods
+3. **Provider Registration**: Self-register using factory function in `init()` method
+4. **Configuration Integration**: Add provider-specific configuration handling
+5. **Error Mapping**: Map provider-specific errors to standard error codes
+6. **Testing**: Ensure provider meets interface contract and error handling requirements
 
-   func (p *NewProvider) GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error) {
-       // Implementation
-   }
+**Architecture Benefits**: The plugin-style architecture allows new providers without modifying existing code.
 
-   func (p *NewProvider) GetProviderName() string {
-       return "newprovider"
-   }
-   ```
+### Adding New AI Modes
 
-3. **Register Provider**:
-   ```go
-   func init() {
-       llm.RegisterProvider("newprovider", func() (llm.Provider, error) {
-           return NewNewProvider()
-       })
-   }
-   ```
-4. **Update Configuration**: Add provider validation in `config/config.go`
+**Template-Based Extension**:
 
-### Adding New Prompt Templates
+1. **Create YAML Template**: Add new template file in `internal/prompts/templates/`
+2. **Define Mode Structure**: Use `base_prompt` + `prompts` structure for consistency
+3. **Request/Response Models**: Create mode-specific request and response structures
+4. **Handler Implementation**: Add handler method using existing prompt and provider infrastructure
+5. **Route Registration**: Add new endpoint to routing configuration
 
-- TO BE UPDATED
+**Current Template Structure**: All modes follow unified YAML format with base prompt and variant-specific prompts.
 
 ### Adding New Supported Languages
 
-1. **Update Request Validation**: Modify `supportedLanguages` map in `models/request.go`
-2. **Update Prompt Templates**: Ensure templates handle the new language
-3. **Test Integration**: Verify LLM provider supports the language
+**Extension Steps**:
+
+1. **Request Validation**: Update supported languages map in request validation
+2. **Template Compatibility**: Verify prompt templates handle new language syntax
+3. **Provider Testing**: Confirm LLM provider supports the programming language
+4. **Integration Testing**: Test end-to-end functionality with real code samples
+
+**Current Support**: Python, Java, C++, JavaScript with validation ensuring only supported languages are processed.
