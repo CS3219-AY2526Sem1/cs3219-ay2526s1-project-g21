@@ -1,3 +1,6 @@
+const USER_API_BASE = (import.meta as any).env?.VITE_USER_API_BASE || "http://localhost:8081";
+const COLLAB_API_BASE = (import.meta as any).env?.VITE_COLLAB_API_BASE || "http://localhost:8084";
+
 export interface InterviewHistoryItem {
   matchId: string;
   user1Id: string;
@@ -27,7 +30,7 @@ export interface ActiveRoomResponse {
  * Get user's interview history
  */
 export async function getUserHistory(userId: string): Promise<InterviewHistoryItem[]> {
-  const response = await fetch(`http://localhost:8081/api/history/${userId}`, {
+  const response = await fetch(`${USER_API_BASE}/api/history/${userId}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -48,7 +51,7 @@ export async function getUserHistory(userId: string): Promise<InterviewHistoryIt
  * Check if user has an active room
  */
 export async function checkActiveRoom(userId: string): Promise<ActiveRoomResponse> {
-  const response = await fetch(`http://localhost:8084/api/v1/collab/room/active/${userId}`, {
+  const response = await fetch(`${COLLAB_API_BASE}/api/v1/collab/room/active/${userId}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
