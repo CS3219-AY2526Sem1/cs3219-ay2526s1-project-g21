@@ -1,5 +1,6 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { getMe } from "@/api/auth";
+import { getUserHistory, InterviewHistoryItem } from "@/api/history";
 import { joinQueue, getRoomStatus, checkUserPreExistingMatch, cancelQueue, acceptMatch, exitRoom } from "@/api/match";
 import { RoomInfo, Category, Difficulty, MatchEvent } from "@/types/question";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +9,7 @@ import { startCase } from "lodash";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import InterviewFieldSelector from "@/components/InterviewFieldSelector";
+import { InterviewDetailsModal } from "@/components/InterviewDetailsModal";
 import { BarLoader, } from "react-spinners";
 import useBeforeClose from "@/hooks/useBeforeClose";
 
@@ -23,13 +25,6 @@ interface User {
   id: number;
   username: string;
   email: string;
-}
-
-interface InterviewHistoryItem {
-  question: string;
-  category: string;
-  difficulty: string;
-  date: string;
 }
 
 export default function InterviewLobby() {
@@ -60,35 +55,6 @@ export default function InterviewLobby() {
   useBeforeClose(() => {
     cancelQueue(user?.id);
   })
-
-  const interviewHistoryHeaders: (keyof InterviewHistoryItem)[] = [
-    "question",
-    "category",
-    "difficulty",
-    "date",
-  ];
-
-  // Placeholder interview history items
-  const interviewHistoryItems: InterviewHistoryItem[] = [
-    {
-      question: "Reverse a linked list",
-      category: "Linked List",
-      difficulty: "Hard",
-      date: "31/08/2025",
-    },
-    {
-      question: "Find value in 2d array",
-      category: "Binary Search",
-      difficulty: "Medium",
-      date: "15/09/2025",
-    },
-    {
-      question: "Best time to buy and sell stock",
-      category: "Two Pointers",
-      difficulty: "Easy",
-      date: "08/10/2025",
-    },
-  ];
 
   const difficulties: readonly Difficulty[] = ["Easy", "Medium", "Hard"];
 
@@ -200,6 +166,47 @@ export default function InterviewLobby() {
     setLoadingText(criteria1LoadingText)
   }
 
+  const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState<InterviewHistoryItem | null>(null);
+
+  const interviewHistoryHeaders = [
+    "Question",
+    "Category",
+    "Difficulty",
+    "Language",
+    "Duration",
+    "Date",
+    "Actions",
+  ] as const;
+
+  const loadHistory = async (userId: number) => {
+    setHistoryLoading(true);
+    try {
+      const history = await getUserHistory(String(userId));
+      setInterviewHistory(history);
+    } catch (error) {
+      console.error("Failed to load interview history:", error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const formatDate = (isoDate: string) => {
+    try {
+      const date = new Date(isoDate);
+      return date.toLocaleDateString();
+    } catch {
+      return isoDate;
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}m ${secs}s`;
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -210,7 +217,11 @@ export default function InterviewLobby() {
       }
       try {
         const me = await getMe(token);
-        if (!cancelled) setUser(me);
+        if (!cancelled) {
+          setUser(me);
+          // Load interview history
+          loadHistory(me.id);
+        }
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Failed to load account");
@@ -314,7 +325,6 @@ export default function InterviewLobby() {
         console.error("Failed to parse WebSocket message", err);
       }
     };
-
     ws.onclose = () => console.log("Disconnected from WebSocket");
 
     return () => {
@@ -324,8 +334,14 @@ export default function InterviewLobby() {
     };
   }, [token, user?.id]);
 
+
   return (
     <>
+      <InterviewDetailsModal
+        interview={selectedInterview}
+        currentUserId={String(user?.id || "")}
+        onClose={() => setSelectedInterview(null)}
+      />
       <section className="mx-auto max-w-5xl px-6 flex flex-col gap-20">
         {/* New Interview Section */}
         <section>
@@ -358,34 +374,67 @@ export default function InterviewLobby() {
         {/* Past Interviews Section */}
         <section>
           <h1 className="text-3xl font-semibold text-black">Past Interviews</h1>
-          <section className="mt-8 rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[600px]">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {interviewHistoryHeaders.map((x) => (
-                      <th key={x} className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
-                        {startCase(x)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {interviewHistoryItems.map((interviewItem) => (
-                    <tr
-                      key={interviewItem.question + interviewItem.date}
-                      className="border-t border-gray-200"
-                    >
-                      {interviewHistoryHeaders.map((header) => (
-                        <td key={header} className="px-4 py-3 text-sm text-slate-700">
-                          {interviewItem[header]}
-                        </td>
-                      ))}
-                    </tr>
+          <section className="border border-gray-600 rounded-md flex flex-col gap-12 mt-8">
+            <table className="rounded-md w-full">
+              <thead>
+                <tr>
+                  {interviewHistoryHeaders.map((x) => (
+                    <th key={x} className="text-left pl-4 py-4">
+                      {startCase(x)}
+                    </th>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </tr>
+              </thead>
+              <tbody>
+                {historyLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-gray-500">
+                      Loading history...
+                    </td>
+                  </tr>
+                ) : interviewHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-gray-500">
+                      No past interviews yet
+                    </td>
+                  </tr>
+                ) : (
+                  interviewHistory.map((interviewItem) => (
+                    <tr
+                      key={interviewItem.matchId}
+                      className="border-t border-black"
+                    >
+                      <td className="text-left pl-4 py-4">
+                        {interviewItem.questionTitle}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        {startCase(interviewItem.category)}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        {startCase(interviewItem.difficulty)}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        {startCase(interviewItem.language)}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        {formatDuration(interviewItem.durationSeconds)}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        {formatDate(interviewItem.endedAt)}
+                      </td>
+                      <td className="text-left pl-4 py-4">
+                        <button
+                          onClick={() => setSelectedInterview(interviewItem)}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </section>
         </section>
       </section>

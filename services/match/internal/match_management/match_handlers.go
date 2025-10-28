@@ -82,17 +82,29 @@ func (matchManager *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Req
 	userKey := fmt.Sprintf("user:%s", req.UserID)
 
 	// Track join info with original preferences
-	matchManager.rdb.HSet(matchManager.ctx, userKey, map[string]interface{}{
+	if err := matchManager.rdb.HSet(matchManager.ctx, userKey, map[string]interface{}{
 		"category":   req.Category,
 		"difficulty": req.Difficulty,
 		"joined_at":  now,
 		"stage":      1,
-	})
+	}).Err(); err != nil {
+		log.Printf("Failed to set user data in Redis: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, models.Resp{OK: false, Info: "failed to join queue"})
+		return
+	}
 
 	// Add to queues
-	matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), redis.Z{Score: now, Member: req.UserID})
-	matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s", req.Category), redis.Z{Score: now, Member: req.UserID})
-	matchManager.rdb.ZAdd(matchManager.ctx, "queue:all", redis.Z{Score: now, Member: req.UserID})
+	if err := matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("Failed to add to exact queue: %v", err)
+	}
+	if err := matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s", req.Category), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("Failed to add to category queue: %v", err)
+	}
+	if err := matchManager.rdb.ZAdd(matchManager.ctx, "queue:all", redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("Failed to add to all queue: %v", err)
+	}
+
+	log.Printf("User %s joined queue: category=%s, difficulty=%s", req.UserID, req.Category, req.Difficulty)
 
 	// Try immediate match
 	matchManager.tryMatchStage(req.Category, req.Difficulty, 1)
@@ -237,10 +249,7 @@ func (matchManager *MatchManager) DoneHandler(w http.ResponseWriter, r *http.Req
 
 	_, otherStillInRoom := matchManager.userToRoom[otherUser]
 	if otherStillInRoom {
-		data, _ := json.Marshal(room)
-		matchManager.rdb.Publish(matchManager.ctx, "matches", data)
-		// Notify the partner that this user left
-		log.Printf("User %s left room %s, notifying partner %s", req.UserID, roomId, otherUser)
+		log.Printf("User %s left room %s, partner %s still in room", req.UserID, roomId, otherUser)
 		matchManager.sendToUser(otherUser, map[string]interface{}{
 			"type":    "partner_left",
 			"message": "Your partner has left the room",

@@ -36,6 +36,9 @@ type roomManager interface {
 	ValidateRoomAccess(token string) (*models.RoomInfo, error)
 	GetRoomStatus(matchId string) (*models.RoomInfo, error)
 	RerollQuestion(matchId string) (*models.RoomInfo, error)
+	GetActiveRoomForUser(userId string) (*models.RoomInfo, error)
+	PublishSessionEnded(event models.SessionEndedEvent) error
+	MarkRoomAsEnded(matchID string) error
 }
 
 func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
@@ -79,6 +82,37 @@ func (h *Handlers) GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, roomInfo)
+}
+
+// GetActiveRoom checks if a user has an active room
+func (h *Handlers) GetActiveRoom(w http.ResponseWriter, r *http.Request) {
+	userId := chi.URLParam(r, "userId")
+	if userId == "" {
+		http.Error(w, "userId is required", http.StatusBadRequest)
+		return
+	}
+
+	activeRoom, err := h.roomManager.GetActiveRoomForUser(userId)
+	if err != nil {
+		// No active room found
+		writeJSON(w, map[string]interface{}{"active": false})
+		return
+	}
+
+	// Determine which token to return based on user ID
+	var userToken string
+	if activeRoom.User1 == userId {
+		userToken = activeRoom.Token1
+	} else if activeRoom.User2 == userId {
+		userToken = activeRoom.Token2
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"active":  true,
+		"matchId": activeRoom.MatchId,
+		"status":  activeRoom.Status,
+		"token":   userToken,
+	})
 }
 
 func (h *Handlers) RerollQuestion(w http.ResponseWriter, r *http.Request) {
@@ -234,11 +268,16 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set up session end handler for this room (only once)
+	if room.GetClientCount() == 0 {
+		room.SetSessionEndHandler(func(sessID string, finalCode string, lang models.Language, duration time.Duration) {
+			h.handleSessionEnd(sessID, finalCode, lang, duration)
+		})
+	}
+
 	room.Join(client)
 	defer func() {
-		if left := room.Leave(client); left == 0 {
-			h.hub.Delete(sessionID)
-		}
+		room.Leave(client)
 	}()
 
 	_, msg, err := conn.ReadMessage()
@@ -325,6 +364,14 @@ func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 			room.BeginRun()
 			go h.runInSandbox(room, run)
 
+		case "end_session":
+			if err := h.roomManager.MarkRoomAsEnded(sessionID); err != nil {
+				h.log.Error("Failed to mark room as ended", "sessionID", sessionID, "error", err.Error())
+			}
+			room.BroadcastAll(models.WSFrame{Type: "session_ended", Data: map[string]string{"reason": "partner_left"}})
+			room.EndSessionNow()
+			return
+
 		default:
 			_ = conn.WriteJSON(errFrame("unknown_type"))
 		}
@@ -379,4 +426,47 @@ func mapOTError(err error) string {
 		return err.Error()
 	}
 	return err.Error()
+}
+
+func (h *Handlers) handleSessionEnd(sessionID string, finalCode string, lang models.Language, duration time.Duration) {
+	h.log.Info("Session ended", "sessionID", sessionID, "duration", duration.Seconds())
+
+	if err := h.roomManager.MarkRoomAsEnded(sessionID); err != nil {
+		h.log.Error("Failed to mark room as ended", "sessionID", sessionID, "error", err.Error())
+	}
+
+	roomInfo, err := h.roomManager.GetRoomStatus(sessionID)
+	if err != nil {
+		h.log.Error("Failed to get room info for ended session", "sessionID", sessionID, "error", err.Error())
+		return
+	}
+
+	event := models.SessionEndedEvent{
+		MatchID:     sessionID,
+		User1:       roomInfo.User1,
+		User2:       roomInfo.User2,
+		Category:    roomInfo.Category,
+		Difficulty:  roomInfo.Difficulty,
+		Language:    string(lang),
+		FinalCode:   finalCode,
+		EndedAt:     time.Now().Format(time.RFC3339),
+		DurationSec: int(duration.Seconds()),
+		RerollsUsed: 1 - roomInfo.RerollsRemaining, // Initial rerolls (1) minus remaining
+	}
+
+	if roomInfo.CreatedAt != "" {
+		event.StartedAt = roomInfo.CreatedAt
+	}
+
+	if roomInfo.Question != nil {
+		event.QuestionID = roomInfo.Question.ID
+		event.QuestionTitle = roomInfo.Question.Title
+	}
+
+	if err := h.roomManager.PublishSessionEnded(event); err != nil {
+		h.log.Error("Failed to publish session ended event", "sessionID", sessionID, "error", err.Error())
+	}
+
+	h.hub.Delete(sessionID)
+	h.log.Info("Cleaned up room from hub", "sessionID", sessionID)
 }
