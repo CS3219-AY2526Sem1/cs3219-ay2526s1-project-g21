@@ -20,3 +20,11 @@ vendor/
 
 # Environment files
 .env
+
+/services/ai/**/*.png
+/services/ai/**/*.pdf
+/services/ai/*.png
+/services/ai/*.pdf
+
+# helper file for testing purposes
+gemini_hit_rate_limit.py
