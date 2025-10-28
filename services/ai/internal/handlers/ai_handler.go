@@ -35,7 +35,12 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// build the prompt using the prompt manager
-	prompt, err := h.promptManager.BuildPrompt("explain", req.Code, req.Language, req.DetailLevel)
+	promptData := map[string]interface{}{
+		"Language": req.Language,
+		"Code":     req.Code,
+	}
+
+	prompt, err := h.promptManager.BuildPrompt("explain", req.DetailLevel, promptData)
 	if err != nil {
 		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{

@@ -1,3 +1,13 @@
+# sample rendering in go:
+# PromptTemplate{
+#  BasePrompt: You are a helpful programming tutor. Your job is to explain code snippets clearly and accurately.
+#  Prompts: map[string]string{
+#    "beginner":    "Explain this {{.Language}} code for a beginner:\n\n```{{.Language}}\n{{.Code}}\n```",
+#    "intermediate":"Explain this {{.Language}} code for someone with some experience:\n\n```{{.Language}}\n{{.Code}}\n```",
+#    "advanced":    "Give a deep technical explanation of this {{.Language}} code:\n\n```{{.Language}}\n{{.Code}}\n```",
+#  },
+# }
+
 base_prompt: |
   You are a helpful programming tutor. Your job is to explain code snippets clearly and accurately.
 
@@ -12,7 +22,7 @@ base_prompt: |
   - Use simple english without any fancy jargon.
   - Stay to the point, without any formality texts.
 
-detail_levels:
+prompts:
   beginner: |
     Explain this {{.Language}} code in simple terms that a programming beginner would understand.
     Define any technical terms you use. Focus on the basic concepts and what each part does.

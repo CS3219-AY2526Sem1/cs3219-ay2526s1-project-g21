@@ -1,9 +1,9 @@
 {
 	"info": {
-		"_postman_id": "b7d845bb-423e-4f5b-8f43-3569b07244fc",
+		"_postman_id": "57abd418-6d97-4b92-a39d-9184dc98115d",
 		"name": "AI_service_tests",
 		"description": "Postman test suite for all AI Service endpoints.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "28083579"
 	},
 	"item": [
@@ -12,7 +12,15 @@
 			"request": {
 				"method": "GET",
 				"header": [],
-				"url": "{{url}}/healthz"
+				"url": {
+					"raw": "{{url}}/healthz",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"healthz"
+					]
+				}
 			},
 			"response": []
 		},
@@ -21,7 +29,15 @@
 			"request": {
 				"method": "GET",
 				"header": [],
-				"url": "{{url}}/readyz"
+				"url": {
+					"raw": "{{url}}/readyz",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"readyz"
+					]
+				}
 			},
 			"response": []
 		},
@@ -39,7 +55,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"def hello():\\n    print(\\\"Hello World\\\")\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-python-basic\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -57,7 +82,43 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-java-intermediate\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - Java Advanced",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-java-intermediate\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -75,7 +136,43 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Explain Code - C++ beginner",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -93,7 +190,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"const numbers = [1, 2, 3, 4, 5];\\nconst doubled = numbers.map(n => n * 2);\\nconsole.log(doubled);\",\n  \"language\": \"javascript\",\n  \"request_id\": \"test-js-default\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -111,7 +217,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\",\n  \"language\": \"python\",\n  \"detail_level\": \"intermediate\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -129,7 +244,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -147,7 +271,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"detail_level\": \"beginner\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -165,7 +298,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"puts 'Hello World'\",\n  \"language\": \"ruby\",\n  \"detail_level\": \"beginner\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		},
@@ -183,25 +325,16 @@
 					"mode": "raw",
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"expert\"\n}"
 				},
-				"url": "{{url}}/ai/explain"
-			},
-			"response": []
-		},
-		{
-			"name": "Error - Invalid JSON",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n  // missing closing brace"
-				},
-				"url": "{{url}}/ai/explain"
+				"url": {
+					"raw": "{{url}}/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"ai",
+						"explain"
+					]
+				}
 			},
 			"response": []
 		}
