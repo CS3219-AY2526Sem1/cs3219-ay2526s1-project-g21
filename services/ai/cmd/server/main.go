@@ -8,7 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"peerprep/ai/internal/config"
 	"peerprep/ai/internal/handlers"
+	"peerprep/ai/internal/llm"
+	_ "peerprep/ai/internal/llm/gemini"
+	"peerprep/ai/internal/prompts"
 	"peerprep/ai/internal/routers"
 
 	"github.com/go-chi/chi/v5"
@@ -26,8 +30,35 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
-	// initialise handlers
-	aiHandler := handlers.NewAIHandler()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		logger.Fatal("Failed to load configuration", zap.Error(err))
+	}
+
+	logger.Info("Configuration loaded",
+		zap.String("provider", cfg.Provider))
+
+	// prompt manager
+	promptManager, err := prompts.NewPromptManager()
+	if err != nil {
+		logger.Fatal("Failed to initialize prompt manager", zap.Error(err))
+	}
+
+	// AI provider based on configuration
+	aiProvider, err := llm.NewProvider(cfg.Provider)
+	if err != nil {
+		logger.Fatal("Failed to initialize AI provider", zap.Error(err))
+	}
+
+	defer func() {
+		if closer, ok := aiProvider.(llm.Closer); ok {
+			if err := closer.Close(); err != nil {
+				logger.Error("Failed to close AI provider", zap.Error(err))
+			}
+		}
+	}()
+
+	aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
 	healthHandler := handlers.NewHealthHandler()
 
 	router := chi.NewRouter()

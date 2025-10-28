@@ -2,16 +2,27 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"peerprep/ai/internal/llm"
 	"peerprep/ai/internal/models"
+	"peerprep/ai/internal/prompts"
 	"peerprep/ai/internal/utils"
 )
 
-type AIHandler struct{}
+type AIHandler struct {
+	provider      llm.Provider
+	promptManager *prompts.PromptManager
+	logger        *zap.Logger
+}
 
-func NewAIHandler() *AIHandler {
-	return &AIHandler{}
+func NewAIHandler(provider llm.Provider, promptManager *prompts.PromptManager, logger *zap.Logger) *AIHandler {
+	return &AIHandler{
+		provider:      provider,
+		promptManager: promptManager,
+		logger:        logger,
+	}
 }
 
 func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
@@ -23,23 +34,36 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 		req.RequestID = generateRequestID()
 	}
 
-	// TODO: Replace with actual AI service call
-	response := models.ExplainResponse{
-		Explanation: "This is a placeholder explanation for your " + req.Language + " code. " +
-			"The AI explanation functionality will be implemented in the next phase. " +
-			"Detail level: " + req.DetailLevel,
-		RequestID: req.RequestID,
-		Metadata: models.ExplanationMetadata{
-			ProcessingTime: 150, // milliseconds
-			DetailLevel:    req.DetailLevel,
-		},
+	// build the prompt using the prompt manager
+	prompt, err := h.promptManager.BuildPrompt("explain", req.Code, req.Language, req.DetailLevel)
+	if err != nil {
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
+		})
+		return
 	}
+
+	// call the AI provider with the built prompt
+	response, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.DetailLevel)
+	if err != nil {
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "ai_error",
+			Message: "Failed to generate explanation",
+		})
+		return
+	}
+
+	h.logger.Info("Explanation generated successfully",
+		zap.String("request_id", req.RequestID),
+		zap.String("provider", h.provider.GetProviderName()),
+		zap.Int("processing_time_ms", response.Metadata.ProcessingTime))
 
 	utils.JSON(w, http.StatusOK, response)
 }
 
-// generateRequestID creates a simple request ID
-// TODO: replace with proper UUID or remove completely
 func generateRequestID() string {
-	return "req_" + time.Now().Format("20060102150405")
+	return uuid.New().String()
 }

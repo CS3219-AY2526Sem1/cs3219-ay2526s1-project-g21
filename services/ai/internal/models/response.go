@@ -11,6 +11,8 @@ type ExplainResponse struct {
 type ExplanationMetadata struct {
 	ProcessingTime int    `json:"processing_time_ms"`
 	DetailLevel    string `json:"detail_level"`
+	Provider       string `json:"provider,omitempty"`
+	Model          string `json:"model,omitempty"`
 }
 
 // uniform error responses

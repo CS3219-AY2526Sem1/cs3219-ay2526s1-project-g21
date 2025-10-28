@@ -1,0 +1,42 @@
+package llm
+
+import (
+	"context"
+	"peerprep/ai/internal/models"
+)
+
+// defines the interface for LLM providers
+type Provider interface {
+	GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error)
+	GetProviderName() string
+}
+
+// optional interface for providers that need cleanup
+type Closer interface {
+	Close() error
+}
+
+// represents an error from an LLM provider
+type ProviderError struct {
+	Provider string
+	Code     string
+	Message  string
+	Err      error
+}
+
+func (e *ProviderError) Error() string {
+	if e.Err != nil {
+		return e.Provider + " error: " + e.Message + " (" + e.Err.Error() + ")"
+	}
+	return e.Provider + " error: " + e.Message
+}
+
+// Common error codes
+// For current and future use across different providers
+const (
+	ErrCodeAPIKey       = "invalid_api_key"
+	ErrCodeRateLimit    = "rate_limit_exceeded"
+	ErrCodeServiceDown  = "service_unavailable"
+	ErrCodeInvalidInput = "invalid_input"
+	ErrCodeTimeout      = "timeout"
+)
