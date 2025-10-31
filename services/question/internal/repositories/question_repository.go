@@ -54,6 +54,21 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 		Options: options.Index().SetUnique(true),
 	})
 
+	// add index on difficulty for faster difficulty-based queries
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"difficulty": 1},
+	})
+
+	// add index on topic_tags for faster topic-based queries
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"topic_tags": 1},
+	})
+
+	// add compound index for optimized filtering (status + difficulty + topic_tags)
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"status": 1, "difficulty": 1, "topic_tags": 1},
+	})
+
 	return &QuestionRepository{col: col}, nil
 }
 
