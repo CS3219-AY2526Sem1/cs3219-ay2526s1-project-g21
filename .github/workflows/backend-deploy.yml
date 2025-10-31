@@ -44,6 +44,12 @@ jobs:
             voice:
               - "services/voice/**"
               - "copilot/voice/**"
+            grafana:
+              - "monitoring/grafana/**"
+              - "copilot/grafana/**"
+            prometheus:
+              - "monitoring/prometheus/**"
+              - "copilot/prometheus/**"
 
       - name: Build deployment matrix
         id: set-matrix
@@ -54,6 +60,8 @@ jobs:
           QUESTION_CHANGED: ${{ steps.changes.outputs.question }}
           USER_CHANGED: ${{ steps.changes.outputs.user }}
           VOICE_CHANGED: ${{ steps.changes.outputs.voice }}
+          GRAFANA_CHANGED: ${{ steps.changes.outputs.grafana }}
+          PROMETHEUS_CHANGED: ${{ steps.changes.outputs.prometheus }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           python - <<'PY'
@@ -68,6 +76,8 @@ jobs:
               "question": os.environ.get("QUESTION_CHANGED", "false"),
               "user": os.environ.get("USER_CHANGED", "false"),
               "voice": os.environ.get("VOICE_CHANGED", "false"),
+              "grafana": os.environ.get("GRAFANA_CHANGED", "false"),
+              "prometheus": os.environ.get("PROMETHEUS_CHANGED", "false"),
           }
 
           if os.environ.get("EVENT_NAME") == "workflow_dispatch":

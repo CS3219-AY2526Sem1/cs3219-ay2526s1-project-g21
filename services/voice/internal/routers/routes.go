@@ -40,7 +40,7 @@ func NewRouter(log *utils.Logger, redisAddr string) http.Handler {
 	})
 
 	// Prometheus metrics
-	r.Handle("/metrics", metrics.Handler())
+	r.Handle("/api/v1/voice/metrics", metrics.Handler())
 
 	// Health check
 	r.Get("/health", h.Health)

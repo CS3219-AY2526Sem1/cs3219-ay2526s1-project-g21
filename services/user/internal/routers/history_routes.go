@@ -7,7 +7,7 @@ import (
 )
 
 func HistoryRoutes(r *chi.Mux, historyHandler *handlers.HistoryHandler) {
-	r.Route("/api/history", func(r chi.Router) {
+	r.Route("/api/v1/users/history", func(r chi.Router) {
 		r.Get("/{userId}", historyHandler.GetUserHistory)              // Get user's interview history
 		r.Get("/{userId}/{matchId}", historyHandler.GetSessionDetails) // Get specific session details
 	})
