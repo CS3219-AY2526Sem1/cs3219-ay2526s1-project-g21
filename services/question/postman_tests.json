@@ -138,17 +138,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Easy",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Easy"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Easy"
       },
       "response": []
     },
@@ -157,17 +147,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Medium",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Medium"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Medium"
       },
       "response": []
     },
@@ -176,17 +156,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Hard",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Hard"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Hard"
       },
       "response": []
     },
@@ -195,17 +165,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?topic=Array",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "topic",
-              "value": "Array"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?topic=Array"
       },
       "response": []
     },
@@ -214,17 +174,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?topic=Array,Hash Table",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "topic",
-              "value": "Array,Hash Table"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?topic=Array,Hash%20Table"
       },
       "response": []
     },
@@ -233,21 +183,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Easy&topic=Array",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Easy"
-            },
-            {
-              "key": "topic",
-              "value": "Array"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Easy&topic=Array"
       },
       "response": []
     },
@@ -256,17 +192,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Invalid",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Invalid"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Invalid"
       },
       "response": []
     },
@@ -275,21 +201,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Hard&topic=NonExistentTopic",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Hard"
-            },
-            {
-              "key": "topic",
-              "value": "NonExistentTopic"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Hard&topic=NonExistentTopic"
       },
       "response": []
     },
