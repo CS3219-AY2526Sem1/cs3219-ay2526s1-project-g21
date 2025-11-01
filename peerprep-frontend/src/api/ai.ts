@@ -38,6 +38,7 @@ export async function explainCode(payload: ExplainRequest): Promise<ExplainRespo
 export async function getHint(payload: {
     code: string;
     language: "python" | "java" | "cpp" | "javascript" | "typescript";
+    hint_level: "basic" | "intermediate" | "advanced";
     question: {
         prompt_markdown: string;
         title?: string;

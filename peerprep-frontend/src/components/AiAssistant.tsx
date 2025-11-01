@@ -23,6 +23,8 @@ export default function AIAssistant({ getCode, language, className }: Props) {
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
   const { run, loading, text, error, setText, setError } = useExplain();
+  const [hintLevel, setHintLevel] = useState<"basic" | "intermediate" | "advanced">("basic");
+
 
   const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor", "Summary"];
   const showDetail = activeMode === "Explain";
@@ -42,6 +44,7 @@ export default function AIAssistant({ getCode, language, className }: Props) {
         const resp = await getHint({
             code: getCode(),
             language,
+            hint_level: hintLevel,
             question: {
             prompt_markdown:
                 "Given the current problem in the editor, provide a helpful coding hint based on the code below.",
@@ -141,6 +144,28 @@ export default function AIAssistant({ getCode, language, className }: Props) {
           </div>
         </div>
       )}
+
+
+      {activeMode === "Hint" && (
+        <div className="flex items-center justify-between">
+            <label className="text-sm">
+            Hint Level
+            <select
+                value={hintLevel}
+                onChange={(e) => setHintLevel(e.target.value as "basic" | "intermediate" | "advanced")}
+                className="ml-2 border rounded px-2 py-1 text-sm"
+            >
+                <option value="basic">Basic</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+            </select>
+            </label>
+            <div className="text-xs text-gray-500">
+            Language: <span className="font-mono">{language}</span>
+            </div>
+        </div>
+        )}
+
 
       {/* Primary action button */}
       <button

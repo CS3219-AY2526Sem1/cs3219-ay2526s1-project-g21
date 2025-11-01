@@ -74,6 +74,7 @@ type HintRequest struct {
     Code      string           `json:"code"`
     Language  string           `json:"language"`
     Question  *QuestionContext `json:"question"`
+	HintLevel  string           `json:"hint_level"`
     RequestID string           `json:"request_id"`
 }
 
@@ -94,5 +95,11 @@ func (r *HintRequest) Validate() error {
     if r.Question.PromptMarkdown == "" {
         return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown must not be empty"}
     }
+
+	levels := map[string]bool{"basic": true, "intermediate": true, "advanced": true}
+    if !levels[r.HintLevel] {
+        return &ErrorResponse{Code: "invalid_hint_level", Message: "Hint level must be basic, intermediate, or advanced"}
+    }
+	
     return nil
 }

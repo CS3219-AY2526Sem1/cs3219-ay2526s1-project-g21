@@ -91,6 +91,7 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
         "Language":  req.Language,
         "Code":      req.Code,
         "Question":  req.Question,
+		"HintLevel":  req.HintLevel,
     }
 
     prompt, err := h.promptManager.BuildPrompt("hint", "default", promptData)
