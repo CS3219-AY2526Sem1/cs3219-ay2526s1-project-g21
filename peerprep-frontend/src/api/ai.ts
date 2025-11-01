@@ -34,3 +34,27 @@ export async function explainCode(payload: ExplainRequest): Promise<ExplainRespo
   }
   return res.json();
 }
+
+export async function getHint(payload: {
+    code: string;
+    language: "python" | "java" | "cpp" | "javascript" | "typescript";
+    question: {
+        prompt_markdown: string;
+        title?: string;
+        difficulty?: string;
+        topic_tags?: string[];
+        constraints?: string;
+    };
+    request_id?: string;
+    }) {
+    const res = await fetch(`${AI_BASE}/ai/hint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message ?? `AI explain failed with ${res.status}`);
+    }
+    return (await res.json()) as { hint: string; request_id: string; metadata: any };
+}

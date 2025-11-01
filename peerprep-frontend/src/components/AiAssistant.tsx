@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
+import { getHint } from "@/api/ai";
 
 type Mode = "Explain" | "Hint" | "Tests" | "Refactor" | "Summary";
 
@@ -29,12 +30,34 @@ export default function AIAssistant({ getCode, language, className }: Props) {
   // Primary action handler
   const onPrimaryAction = async () => {
     setError("");
-    if (activeMode === "Explain") {
-      await run({ code: getCode(), language, detail });
-    } else {
-      setText(`${activeMode} is not implemented yet — coming soon.`);
+    setText("");
+    try {
+        if (activeMode === "Explain") {
+        await run({ code: getCode(), language, detail });
+        return;
+        }
+
+        if (activeMode === "Hint") {
+        setText("Generating hint...");
+        const resp = await getHint({
+            code: getCode(),
+            language,
+            question: {
+            prompt_markdown:
+                "Given the current problem in the editor, provide a helpful coding hint based on the code below.",
+            },
+        });
+        setText(resp.hint);
+        return;
+        }
+
+        // Default stub for other modes
+        setText(`${activeMode} is not implemented yet — coming soon.`);
+    } catch (e: any) {
+        setError(e?.message ?? "Failed to run AI action");
     }
-  };
+    };
+
 
   return (
     <div className={`flex flex-col gap-3 pt-2 ${className ?? ""}`}>
