@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import AiAssistant from "@/components/AiAssistant";
 import type { Language } from "@/api/ai";
-import "./AIAssistantDropdown.css";
+import "./AiAssistantDropdown.css";
 
 type Props = {
   getCode: () => string;

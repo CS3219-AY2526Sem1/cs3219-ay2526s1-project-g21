@@ -7,8 +7,10 @@ import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
 import { exitRoom, getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
-import AiAssistant from "@/components/AiAssistant";
 import AiAssistantDropdown from "@/components/AiAssistantDropdown";
+import { Language } from "@/api/ai";
+import { useCallback } from "react";
+
 
 
 
@@ -54,8 +56,11 @@ export default function Editor() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isRerolling, setIsRerolling] = useState<boolean>(false);
   const [rerollsRemaining, setRerollsRemaining] = useState<number>(0);
+  
 
   const wsRef = useRef<WebSocket | null>(null);
+  const getCode = useCallback(() => code, [code]);
+
 
   const nav = useNavigate();
   const matchId = roomInfo?.matchId;
@@ -95,9 +100,9 @@ export default function Editor() {
 
 
   // Map the editor's language (string) to AI Assistant's accepted union type
-  const aiLanguage: 'python' | 'java' | 'cpp' | 'javascript'| 'typescript' =
+  const aiLanguage: 'python' | 'java' | 'cpp' | 'javascript' | 'typescript' =
   language === 'python' || language === 'java' || language === 'cpp' || language === 'javascript' || language === 'typescript'
-    ? (language as any)
+    ? (language as Language)
     : 'javascript';
 
 
@@ -524,7 +529,7 @@ export default function Editor() {
 
           {/* AI Assistant*/}
             <AiAssistantDropdown
-              getCode={() => code}  
+              getCode={getCode}  
               language={aiLanguage}
             />
         </div>
