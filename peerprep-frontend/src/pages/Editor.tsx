@@ -7,6 +7,10 @@ import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
 import { exitRoom, getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
+import AiAssistant from "@/components/AiAssistant";
+import AiAssistantDropdown from "@/components/AiAssistantDropdown";
+
+
 
 type WSFrame =
   | { type: "init"; data: { sessionId: string; doc: { text: string; version: number }; language: string } }
@@ -88,6 +92,14 @@ export default function Editor() {
       setDocVersion(currentVersion + 1);
     }
   };
+
+
+  // Map the editor's language (string) to AI Assistant's accepted union type
+  const aiLanguage: 'python' | 'java' | 'cpp' | 'javascript'| 'typescript' =
+  language === 'python' || language === 'java' || language === 'cpp' || language === 'javascript' || language === 'typescript'
+    ? (language as any)
+    : 'javascript';
+
 
   useEffect(() => {
     if (!token) return;
@@ -509,6 +521,12 @@ export default function Editor() {
               token={sessionStorage.getItem(`room_token_${roomId}`) || ''}
             />
           )}
+
+          {/* AI Assistant*/}
+            <AiAssistantDropdown
+              getCode={() => code}  
+              language={aiLanguage}
+            />
         </div>
 
         {/* Code Editor */}
