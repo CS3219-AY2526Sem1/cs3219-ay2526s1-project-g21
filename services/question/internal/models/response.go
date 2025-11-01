@@ -1,13 +1,31 @@
 package models
 
-// represents the response structure for /questions endpoint, all questions sent for now
-// TODO: implement other question fetching endpoints
-// - Fetch by id
-// - Fetch random truly
-// - Fetch with criteria
+// represents pagination parameters for queries
+type PaginationParams struct {
+	Page  int `json:"page"`
+	Limit int `json:"limit"`
+}
+
+// helper to calculate pagination metadata
+func CalculatePaginationMeta(page, limit, total int) (totalPages int, hasNext, hasPrev bool) {
+	if limit <= 0 {
+		limit = 1 // avoid division by zero
+	}
+	totalPages = (total + limit - 1) / limit // ceiling division
+	hasNext = page < totalPages
+	hasPrev = page > 1
+	return
+}
+
+// represents the response structure for /questions endpoint
 type QuestionsResponse struct {
-	Total int        `json:"total"`
-	Items []Question `json:"items"`
+	Total      int        `json:"total"`
+	Items      []Question `json:"items"`
+	Page       int        `json:"page"`
+	Limit      int        `json:"limit"`
+	TotalPages int        `json:"totalPages"`
+	HasNext    bool       `json:"hasNext"`
+	HasPrev    bool       `json:"hasPrev"`
 }
 
 // uniform error payload

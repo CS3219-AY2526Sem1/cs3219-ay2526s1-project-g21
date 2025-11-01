@@ -15,6 +15,7 @@ import (
 
 type QuestionRepo interface {
 	GetAll() ([]models.Question, error)
+	GetAllWithPagination(page, limit int) ([]models.Question, int, error)
 	Create(*models.Question) (*models.Question, error)
 	GetByID(int) (*models.Question, error)
 	Update(int, *models.Question) (*models.Question, error)
