@@ -32,3 +32,11 @@ type ValidationErrorDetail struct {
 	Field  string `json:"field"`
 	Reason string `json:"reason"`
 }
+
+// HintResponse returned by /ai/hint
+type HintResponse struct {
+    Hint      string              `json:"hint"`
+    RequestID string              `json:"request_id"`
+    Metadata  ExplanationMetadata `json:"metadata"`
+}
+
