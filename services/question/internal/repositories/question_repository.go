@@ -89,6 +89,40 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 	return results, nil
 }
 
+// Get questions with pagination
+func (r *QuestionRepository) GetAllWithPagination(page, limit int) ([]models.Question, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// find skip value
+	skip := (page - 1) * limit
+
+	// total count
+	total, err := r.col.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// find options with pagination
+	findOptions := options.Find()
+	findOptions.SetSkip(int64(skip))
+	findOptions.SetLimit(int64(limit))
+
+	// query execution
+	cur, err := r.col.Find(ctx, bson.M{}, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cur.Close(ctx)
+
+	var results []models.Question
+	if err := cur.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	return results, int(total), nil
+}
+
 // Get question by ID
 func (r *QuestionRepository) GetByID(id int) (*models.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
