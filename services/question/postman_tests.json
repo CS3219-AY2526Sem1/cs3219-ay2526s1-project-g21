@@ -35,6 +35,114 @@
       "response": []
     },
     {
+      "name": "Get Questions - Page 1, Limit 5",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Page 2, Limit 3",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=2&limit=3"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Page 1, Default Limit",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Default Page, Limit 15",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?limit=15"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (negative)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=-1&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (zero)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=0&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (non-numeric)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=abc&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (negative)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=-5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (zero)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=0"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (too large)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=101"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (non-numeric)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=xyz"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Large Page Number",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=999&limit=5"
+      },
+      "response": []
+    },
+    {
       "name": "Create Question - Duplicate ID",
       "request": {
         "method": "POST",
