@@ -14,5 +14,12 @@ func MatchRoutes(r *chi.Mux, mm *matchManager.MatchManager) {
 		r.Post("/done", mm.DoneHandler)
 		r.Post("/handshake", mm.HandshakeHandler)
 		r.HandleFunc("/ws", mm.WsHandler)
+
+		r.Options("/join", mm.JoinHandler)
+		r.Options("/cancel", mm.CancelHandler)
+		r.Options("/check", mm.CheckHandler)
+		r.Options("/done", mm.DoneHandler)
+		r.Options("/handshake", mm.HandshakeHandler)
+		r.Options("/ws", mm.WsHandler)
 	})
 }
