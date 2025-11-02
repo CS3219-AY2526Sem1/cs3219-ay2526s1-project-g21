@@ -9,6 +9,12 @@ import (
 func MatchRoutes(r *chi.Mux, mm *matchManager.MatchManager) {
 	r.Route("/api/v1/match", func(r chi.Router) {
 		r.Post("/join", mm.JoinHandler)
+		r.Options("/join", mm.JoinHandler)
+		r.Options("/cancel", mm.CancelHandler)
+		r.Options("/check", mm.CheckHandler)
+		r.Options("/done", mm.DoneHandler)
+		r.Options("/handshake", mm.HandshakeHandler)
+		r.Options("/ws", mm.WsHandler)
 		r.Post("/cancel", mm.CancelHandler)
 		r.Get("/check", mm.CheckHandler)
 		r.Post("/done", mm.DoneHandler)
