@@ -10,7 +10,6 @@ export async function questionApiFetch<T>(path: string, init?: RequestInit): Pro
     normalizedPath = "/" + path;
   }
 
-  // const url = new URL(normalizedPath, QUESTION_API_BASE).toString();
   const url = QUESTION_API_BASE + normalizedPath;
 
   // preserve user headers and add sensible defaults

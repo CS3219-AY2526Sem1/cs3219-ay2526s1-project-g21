@@ -13,18 +13,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 )
 
 // TODO: update all the methods to interact with the actual database
 
 type QuestionRepository struct {
-	col *mongo.Collection
+	col    *mongo.Collection
+	logger *zap.Logger
 }
 
 // Creates a new MongoDB-backed repository
 // We use the instance in the future to interact with the database
 
 func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
+	logger, _ := zap.NewProduction()
 	client, err := mongoclient.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -42,33 +45,48 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 	col := db.Collection(colName)
 
 	// ensure ID is unique
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"id": 1},
 		Options: options.Index().SetUnique(true),
 	})
+	if err != nil {
+		logger.Error("Failed to create unique index on 'id'", zap.Error(err))
+	}
 
 	// ensure Title is unique
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"title": 1},
 		Options: options.Index().SetUnique(true),
 	})
+	if err != nil {
+		logger.Error("Failed to create unique index on 'title'", zap.Error(err))
+	}
 
 	// add index on difficulty for faster difficulty-based queries
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.M{"difficulty": 1},
 	})
+	if err != nil {
+		logger.Error("Failed to create index on 'difficulty'", zap.Error(err))
+	}
 
 	// add index on topic_tags for faster topic-based queries
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.M{"topic_tags": 1},
 	})
+	if err != nil {
+		logger.Error("Failed to create index on 'topic_tags'", zap.Error(err))
+	}
 
 	// add compound index for optimized filtering (status + difficulty + topic_tags)
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.M{"status": 1, "difficulty": 1, "topic_tags": 1},
 	})
+	if err != nil {
+		logger.Error("Failed to create compound index on 'status', 'difficulty', 'topic_tags'", zap.Error(err))
+	}
 
-	return &QuestionRepository{col: col}, nil
+	return &QuestionRepository{col: col, logger: logger}, nil
 }
 
 // Get all questions
