@@ -50,8 +50,11 @@ func (matchManager *MatchManager) WsHandler(w http.ResponseWriter, r *http.Reque
 // --- Join Handler ---
 func (matchManager *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
-
+	log.Println("JoinHandler called")
+	log.Println("Request method:", r.Method)
+	fmt.Println("Request method:", r.Method)
 	if r.Method == http.MethodOptions {
+		log.Println("Options method")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
