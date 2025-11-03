@@ -10,6 +10,11 @@ import (
 	"peerprep/ai/internal/utils"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const validatedRequestKey contextKey = "validated_request"
+
 // request models implement this interface
 type Validator interface {
 	Validate() error
@@ -61,7 +66,7 @@ func ValidateRequest[T Validator]() func(http.Handler) http.Handler {
 			}
 
 			// store validated request in context
-			ctx := context.WithValue(r.Context(), "validated_request", req)
+			ctx := context.WithValue(r.Context(), validatedRequestKey, req)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -69,5 +74,5 @@ func ValidateRequest[T Validator]() func(http.Handler) http.Handler {
 
 // GetValidatedRequest retrieves the validated request from context
 func GetValidatedRequest[T any](r *http.Request) T {
-	return r.Context().Value("validated_request").(T)
+	return r.Context().Value(validatedRequestKey).(T)
 }
