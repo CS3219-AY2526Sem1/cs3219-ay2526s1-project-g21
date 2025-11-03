@@ -78,8 +78,40 @@ export async function getRandomQuestion(filters?: RandomQuestionFilters): Promis
   return questionApiFetch<Question>(path);
 }
 
-export async function getAllQuestions(): Promise<{ total: number; items: Question[] }> {
-  return questionApiFetch<{ total: number; items: Question[] }>("/questions");
+export async function getAllQuestions(page?: number, limit?: number): Promise<{ 
+  total: number; 
+  items: Question[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}> {
+  let path = "/questions";
+  
+  if (page !== undefined || limit !== undefined) {
+    const params = new URLSearchParams();
+    
+    if (page !== undefined) {
+      params.append("page", page.toString());
+    }
+    
+    if (limit !== undefined) {
+      params.append("limit", limit.toString());
+    }
+    
+    path += "?" + params.toString();
+  }
+  
+  return questionApiFetch<{ 
+    total: number; 
+    items: Question[];
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }>(path);
 }
 
 export async function getQuestionById(id: string): Promise<Question> {
