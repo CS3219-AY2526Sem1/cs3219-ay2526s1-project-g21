@@ -161,7 +161,7 @@ func run() error {
 	}))
 
 	// Prometheus metrics endpoint
-	r.Handle("/metrics", metrics.Handler())
+	r.Handle("/api/v1/users/metrics", metrics.Handler())
 
 	healthHandler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("ok"))
