@@ -4,11 +4,9 @@ import type {
   VoiceChatState,
   SignalingMessage,
   RoomStatus,
-  WebRTCConfig,
 } from '@/types/voiceChat';
 
 const VOICE_API_BASE = (import.meta as any).env?.VITE_VOICE_API_BASE || "http://localhost:8085";
-
 const VOICE_WEBSOCKET_BASE = (import.meta as any).env?.VITE_VOICE_WEBSOCKET_BASE || "ws://localhost:8085";
 
 export const useVoiceChat = (config: VoiceChatConfig) => {
@@ -23,410 +21,283 @@ export const useVoiceChat = (config: VoiceChatConfig) => {
   const wsRef = useRef<WebSocket | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
-  const webrtcConfigRef = useRef<RTCConfiguration | null>(null);
-  const configRef = useRef(config);
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
-  // Keep config ref up to date
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
+  const createPeerConnection = useCallback((remoteUserId: string, rtcConfig: RTCConfiguration) => {
+    const pc = new RTCPeerConnection(rtcConfig);
 
-  // Fetch WebRTC configuration from backend
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const res = await fetch(`${VOICE_API_BASE}/api/v1/voice/webrtc/config`);
-        if (res.ok) {
-          const config: WebRTCConfig = await res.json();
-          webrtcConfigRef.current = config;
-          console.log('Loaded WebRTC config:', config);
-        } else {
-          // Fallback to default STUN servers
-          webrtcConfigRef.current = {
-            iceServers: [
-              { urls: ['stun:stun.l.google.com:19302'] },
-            ],
-          };
-        }
-      } catch (error) {
-        console.error('Failed to fetch WebRTC config, using defaults:', error);
-        webrtcConfigRef.current = {
-          iceServers: [
-            { urls: ['stun:stun.l.google.com:19302'] },
-          ],
-        };
+    // Add local tracks
+    localStreamRef.current?.getTracks().forEach(track => {
+      pc.addTrack(track, localStreamRef.current!);
+    });
+
+    // Handle remote tracks
+    pc.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+
+      // Clean up old audio element if exists
+      const oldAudio = audioElementsRef.current.get(remoteUserId);
+      if (oldAudio) {
+        oldAudio.pause();
+        oldAudio.srcObject = null;
       }
-    };
-    fetchConfig();
-  }, []);
 
-  const createPeerConnection = useCallback((remoteUserId: string) => {
-    if (!webrtcConfigRef.current) {
-      console.error('WebRTC config not loaded yet');
-      return null;
-    }
-
-    const peerConnection = new RTCPeerConnection(webrtcConfigRef.current);
-
-    // Add local stream tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStreamRef.current!);
-      });
-    }
-
-    // Handle incoming tracks
-    peerConnection.ontrack = (event) => {
-      console.log('Received remote track from', remoteUserId);
-      const remoteStream = event.streams[0];
-      remoteStreamsRef.current.set(remoteUserId, remoteStream);
-
-      // Create audio element for this remote user
+      // Create new audio element
       const audio = new Audio();
       audio.srcObject = remoteStream;
       audio.autoplay = true;
-      audio.play().catch(err => console.error('Error playing audio:', err));
+      audio.muted = state.isDeaf;
+      audioElementsRef.current.set(remoteUserId, audio);
+
+      audio.play().catch(err => console.error('Audio play failed:', err));
     };
 
     // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && wsRef.current) {
-        const currentConfig = configRef.current;
-        const message: SignalingMessage = {
+    pc.onicecandidate = (event) => {
+      if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
           type: 'ice-candidate',
-          from: currentConfig.userId,
+          from: config.userId,
           to: remoteUserId,
-          roomId: currentConfig.roomId,
+          roomId: config.roomId,
           data: event.candidate,
           timestamp: new Date().toISOString(),
-        };
-        wsRef.current.send(JSON.stringify(message));
-      }
-    };
-
-    // Handle connection state changes
-    peerConnection.onconnectionstatechange = () => {
-      console.log(`Peer connection with ${remoteUserId}:`, peerConnection.connectionState);
-      if (peerConnection.connectionState === 'failed' ||
-        peerConnection.connectionState === 'disconnected') {
-        // Clean up this peer connection
-        peerConnectionsRef.current.delete(remoteUserId);
-        remoteStreamsRef.current.delete(remoteUserId);
-      }
-    };
-
-    peerConnectionsRef.current.set(remoteUserId, peerConnection);
-    return peerConnection;
-  }, []);
-
-  const handleSignalingMessage = useCallback(async (message: SignalingMessage | RoomStatus) => {
-    const currentConfig = configRef.current;
-
-    switch (message.type) {
-      case 'room-status': {
-        const roomStatus = message as RoomStatus;
-        setState(prev => ({
-          ...prev,
-          participants: roomStatus.users || [],
         }));
+      }
+    };
 
-        if (roomStatus.users) {
-          const otherUsers = roomStatus.users.filter((u: { id: string }) => u.id !== currentConfig.userId);
-          for (const user of otherUsers) {
-            if (!peerConnectionsRef.current.has(user.id)) {
-              console.log('Found user to connect to:', user.username, 'userId:', user.id);
+    // Auto cleanup on failure or disconnect
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' ||
+          pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'closed') {
+        peerConnectionsRef.current.delete(remoteUserId);
+        const audio = audioElementsRef.current.get(remoteUserId);
+        if (audio) {
+          audio.pause();
+          audio.srcObject = null;
+          audioElementsRef.current.delete(remoteUserId);
+        }
+      }
+    };
 
-              // Use lexicographic comparison to decide who initiates
-              const shouldCreateOffer = currentConfig.userId < user.id;
+    peerConnectionsRef.current.set(remoteUserId, pc);
+    return pc;
+  }, [config.userId, config.roomId, state.isDeaf]);
 
-              if (shouldCreateOffer) {
-                const peerConnection = createPeerConnection(user.id);
-                if (peerConnection) {
-                  try {
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
+  const handleSignaling = useCallback(async (msg: SignalingMessage | RoomStatus) => {
+    // Get fresh config
+    const rtcConfig: RTCConfiguration = await fetch(`${VOICE_API_BASE}/api/v1/voice/webrtc/config`)
+      .then(r => r.ok ? r.json() : { iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] })
+      .catch(() => ({ iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] }));
 
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                      const message: SignalingMessage = {
-                        type: 'offer',
-                        from: currentConfig.userId,
-                        to: user.id,
-                        roomId: currentConfig.roomId,
-                        data: offer,
-                        timestamp: new Date().toISOString(),
-                      };
-                      wsRef.current.send(JSON.stringify(message));
-                      console.log('Sent offer to', user.id);
-                    }
-                  } catch (error) {
-                    console.error('Error creating offer:', error);
-                  }
-                }
-              } else {
-                console.log('Waiting for offer from', user.id);
-                createPeerConnection(user.id);
-              }
+    switch (msg.type) {
+      case 'room-status': {
+        const { users = [] } = msg as RoomStatus;
+        setState(prev => ({ ...prev, participants: users }));
+
+        const userIds = new Set(users.map((u: { id: string }) => u.id));
+
+        // Clean up peer connections for users who left
+        peerConnectionsRef.current.forEach((pc, userId) => {
+          if (!userIds.has(userId)) {
+            pc.close();
+            peerConnectionsRef.current.delete(userId);
+            const audio = audioElementsRef.current.get(userId);
+            if (audio) {
+              audio.pause();
+              audio.srcObject = null;
+              audioElementsRef.current.delete(userId);
             }
           }
-        }
+        });
+
+        // Connect to new users or reconnect to users with stale connections
+        users
+          .filter((u: { id: string }) => u.id !== config.userId)
+          .forEach(async (user: { id: string }) => {
+            const existingPc = peerConnectionsRef.current.get(user.id);
+
+            // Skip if we have a good connection
+            if (existingPc && existingPc.connectionState === 'connected') {
+              return;
+            }
+
+            // Clean up stale connection if exists
+            if (existingPc) {
+              existingPc.close();
+              peerConnectionsRef.current.delete(user.id);
+            }
+
+            const pc = createPeerConnection(user.id, rtcConfig);
+
+            // Only create offer if we have lower userId
+            if (config.userId < user.id) {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              wsRef.current?.send(JSON.stringify({
+                type: 'offer',
+                from: config.userId,
+                to: user.id,
+                roomId: config.roomId,
+                data: offer,
+                timestamp: new Date().toISOString(),
+              }));
+            }
+          });
         break;
       }
 
       case 'offer': {
-        const offerMsg = message as SignalingMessage;
-        console.log('Received offer from', offerMsg.from);
+        const { from, data } = msg as SignalingMessage;
+        let pc = peerConnectionsRef.current.get(from);
 
-        let peerConnection = peerConnectionsRef.current.get(offerMsg.from);
-
-        if (peerConnection) {
-          console.log('Existing peer connection state:', peerConnection.signalingState);
-
-          if (peerConnection.signalingState !== 'stable') {
-            console.warn('Peer connection in wrong state, recreating');
-            peerConnection.close();
-            peerConnectionsRef.current.delete(offerMsg.from);
-            peerConnection = undefined;
-          }
+        // Recreate if in bad state or closed
+        if (pc && (pc.signalingState !== 'stable' || pc.connectionState === 'closed')) {
+          pc.close();
+          peerConnectionsRef.current.delete(from);
+          pc = createPeerConnection(from, rtcConfig);
+        } else if (!pc) {
+          pc = createPeerConnection(from, rtcConfig);
         }
 
-        if (!peerConnection) {
-          const newConnection = createPeerConnection(offerMsg.from);
-          if (newConnection) {
-            peerConnection = newConnection;
-          }
-        }
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-        if (peerConnection) {
-          try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offerMsg.data));
-            console.log('Set remote description (offer) from', offerMsg.from);
-
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            console.log('Created and set local description (answer) for', offerMsg.from);
-
-            // Send answer
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              const answerMessage: SignalingMessage = {
-                type: 'answer',
-                from: currentConfig.userId,
-                to: offerMsg.from,
-                roomId: currentConfig.roomId,
-                data: answer,
-                timestamp: new Date().toISOString(),
-              };
-              wsRef.current.send(JSON.stringify(answerMessage));
-              console.log('Sent answer to', offerMsg.from);
-            }
-          } catch (error) {
-            console.error('Error handling offer:', error);
-          }
-        }
+        wsRef.current?.send(JSON.stringify({
+          type: 'answer',
+          from: config.userId,
+          to: from,
+          roomId: config.roomId,
+          data: answer,
+          timestamp: new Date().toISOString(),
+        }));
         break;
       }
 
       case 'answer': {
-        const answerMsg = message as SignalingMessage;
-        console.log('Received answer from', answerMsg.from);
-
-        const peerConnection = peerConnectionsRef.current.get(answerMsg.from);
-        if (peerConnection) {
-          console.log('Peer connection state before setting answer:', peerConnection.signalingState);
-
-          if (peerConnection.signalingState === 'have-local-offer') {
-            try {
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(answerMsg.data));
-              console.log('Set remote description (answer) from', answerMsg.from);
-            } catch (error) {
-              console.error('Error handling answer:', error);
-            }
-          } else {
-            console.warn('Received answer but peer connection is in wrong state:', peerConnection.signalingState);
-          }
-        } else {
-          console.warn('Received answer but no peer connection found for', answerMsg.from);
+        const { from, data } = msg as SignalingMessage;
+        const pc = peerConnectionsRef.current.get(from);
+        if (pc?.signalingState === 'have-local-offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(data));
         }
         break;
       }
 
       case 'ice-candidate': {
-        const candidateMsg = message as SignalingMessage;
-        console.log('Received ICE candidate from', candidateMsg.from);
-
-        const peerConnection = peerConnectionsRef.current.get(candidateMsg.from);
-        if (peerConnection) {
-          try {
-            if (peerConnection.remoteDescription) {
-              await peerConnection.addIceCandidate(new RTCIceCandidate(candidateMsg.data));
-              console.log('Added ICE candidate from', candidateMsg.from);
-            } else {
-              console.warn('Received ICE candidate but no remote description yet');
-            }
-          } catch (error) {
-            console.error('Error adding ICE candidate:', error);
-          }
-        } else {
-          console.warn('Received ICE candidate but no peer connection for', candidateMsg.from);
+        const { from, data } = msg as SignalingMessage;
+        const pc = peerConnectionsRef.current.get(from);
+        if (pc?.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(data));
         }
         break;
       }
-      default:
-        console.log('Unknown message type:', message.type);
     }
-  }, [createPeerConnection]);
+  }, [config.userId, config.roomId, createPeerConnection]);
 
   const connect = useCallback(async () => {
-    if (!webrtcConfigRef.current) {
-      setState(prev => ({ ...prev, error: 'WebRTC configuration not loaded' }));
-      return;
-    }
-
-    const currentConfig = configRef.current;
-
     try {
-      // Get user media
+      // Get microphone
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = stream;
 
-      // Connect to WebSocket with token
-      const wsUrl = `${VOICE_WEBSOCKET_BASE}/api/v1/voice/room/${currentConfig.roomId}/voice?token=${encodeURIComponent(currentConfig.token)}`;
-      const ws = new WebSocket(wsUrl);
+      // Connect WebSocket
+      const ws = new WebSocket(
+        `${VOICE_WEBSOCKET_BASE}/api/v1/voice/room/${config.roomId}/voice?token=${encodeURIComponent(config.token)}`
+      );
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Connected to voice chat WebSocket');
         setState(prev => ({ ...prev, isConnected: true, error: null }));
-
-        // Send join message
-        const joinMessage: SignalingMessage = {
+        ws.send(JSON.stringify({
           type: 'join',
-          from: currentConfig.userId,
-          to: '',
-          roomId: currentConfig.roomId,
-          data: {
-            userId: currentConfig.userId,
-            username: currentConfig.username,
-          },
+          from: config.userId,
+          roomId: config.roomId,
+          data: { userId: config.userId, username: config.username },
           timestamp: new Date().toISOString(),
-        };
-        ws.send(JSON.stringify(joinMessage));
+        }));
       };
 
       ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          handleSignalingMessage(message);
-        } catch (error) {
-          console.error('Error parsing message:', error);
-        }
+        handleSignaling(JSON.parse(event.data)).catch(console.error);
       };
 
-      ws.onclose = () => {
-        console.log('Disconnected from voice chat');
-        setState(prev => ({ ...prev, isConnected: false }));
-      };
+      ws.onclose = () => setState(prev => ({ ...prev, isConnected: false }));
+      ws.onerror = () => setState(prev => ({ ...prev, error: 'Connection error' }));
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setState(prev => ({ ...prev, error: 'Connection error' }));
+    } catch (error: any) {
+      const errorMap: Record<string, string> = {
+        NotAllowedError: 'Microphone access denied',
+        NotFoundError: 'No microphone found',
       };
-
-    } catch (error) {
-      console.error('Failed to connect to voice chat:', error);
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          setState(prev => ({ ...prev, error: 'Microphone access denied' }));
-        } else if (error.name === 'NotFoundError') {
-          setState(prev => ({ ...prev, error: 'No microphone found' }));
-        } else {
-          setState(prev => ({ ...prev, error: 'Failed to access microphone' }));
-        }
-      }
+      setState(prev => ({ ...prev, error: errorMap[error?.name] || 'Failed to access microphone' }));
     }
-  }, [handleSignalingMessage]);
+  }, [config, handleSignaling]);
 
   const disconnect = useCallback(() => {
-    const currentConfig = configRef.current;
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const leaveMessage: SignalingMessage = {
+    // Send leave message
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
         type: 'leave',
-        from: currentConfig.userId,
-        to: '',
-        roomId: currentConfig.roomId,
+        from: config.userId,
+        roomId: config.roomId,
         data: {},
         timestamp: new Date().toISOString(),
-      };
-      wsRef.current.send(JSON.stringify(leaveMessage));
+      }));
       wsRef.current.close();
     }
+    wsRef.current = null;
 
-    // Stop local stream
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
+    // Stop all tracks
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
 
     // Close all peer connections
     peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
 
-    // Clear remote streams
-    remoteStreamsRef.current.clear();
+    // Clean up all audio elements
+    audioElementsRef.current.forEach(audio => {
+      audio.pause();
+      audio.srcObject = null;
+    });
+    audioElementsRef.current.clear();
 
-    setState(prev => ({ ...prev, isConnected: false, participants: [] }));
-  }, []);
+    setState({ isConnected: false, isMuted: false, isDeaf: false, participants: [], error: null });
+  }, [config.userId, config.roomId]);
 
   const toggleMute = useCallback(() => {
-    const currentConfig = configRef.current;
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = !track.enabled;
+      setState(prev => ({ ...prev, isMuted: !track.enabled }));
 
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        const newMutedState = !audioTrack.enabled;
-        setState(prev => ({ ...prev, isMuted: newMutedState }));
-
-        // Send mute/unmute message
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          const message: SignalingMessage = {
-            type: newMutedState ? 'mute' : 'unmute',
-            from: currentConfig.userId,
-            to: '',
-            roomId: currentConfig.roomId,
-            data: {},
-            timestamp: new Date().toISOString(),
-          };
-          wsRef.current.send(JSON.stringify(message));
-        }
-      }
+      // Notify server
+      wsRef.current?.send(JSON.stringify({
+        type: track.enabled ? 'unmute' : 'mute',
+        from: config.userId,
+        roomId: config.roomId,
+        data: {},
+        timestamp: new Date().toISOString(),
+      }));
     }
-  }, []);
+  }, [config.userId, config.roomId]);
 
   const toggleDeaf = useCallback(() => {
-    setState(prev => {
-      const newDeafState = !prev.isDeaf;
+    const newDeaf = !state.isDeaf;
 
-      // Mute/unmute all remote streams
-      remoteStreamsRef.current.forEach(stream => {
-        stream.getAudioTracks().forEach(track => {
-          track.enabled = !newDeafState;
-        });
-      });
-
-      return { ...prev, isDeaf: newDeafState };
+    // Mute/unmute all audio elements
+    audioElementsRef.current.forEach(audio => {
+      audio.muted = newDeaf;
     });
-  }, []);
 
-  // Cleanup on unmount
+    setState(prev => ({ ...prev, isDeaf: newDeaf }));
+  }, [state.isDeaf]);
+
+  // Disconnect when component unmounts (e.g., navigating away)
   useEffect(() => {
     return () => {
       disconnect();
