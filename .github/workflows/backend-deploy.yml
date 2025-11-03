@@ -127,9 +127,9 @@ jobs:
       - name: Install AWS Copilot CLI
         run: |
           set -euo pipefail
-          curl -Lo copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
-          chmod +x copilot
-          sudo mv copilot /usr/local/bin/copilot
+          curl -Lo /tmp/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          chmod +x /tmp/copilot
+          sudo mv /tmp/copilot /usr/local/bin/copilot
           copilot --version
 
       - name: Set up Amazon Secrets
