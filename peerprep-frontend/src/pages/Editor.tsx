@@ -314,10 +314,17 @@ export default function Editor() {
 
   const handleLanguageChange = (nextLang: string) => {
     const nextTemplate = CODE_TEMPLATES[nextLang];
-    const previousTemplate = CODE_TEMPLATES[language];
-    const trimmed = code.trim();
-    const shouldReplace =
-      trimmed.length === 0 || (previousTemplate && trimmed === previousTemplate.trim());
+    const currentTrimmed = code.trim();
+    const nextTrimmed = nextTemplate?.trim();
+    const losingCustomCode = currentTrimmed.length > 0 && nextTrimmed && currentTrimmed !== nextTrimmed;
+
+    if (losingCustomCode) {
+      toast("Switching languages replaces your current code. Only your latest run is kept in history.", {
+        position: "bottom-center",
+        duration: 5000,
+        icon: "!",
+      });
+    }
 
     setLanguage(nextLang);
     resetRunOutputs();
@@ -334,9 +341,7 @@ export default function Editor() {
       );
     }
 
-    if (shouldReplace && nextTemplate) {
-      applyTemplate(nextLang);
-    }
+    applyTemplate(nextLang);
   };
 
   const handleRun = () => {
@@ -478,6 +483,14 @@ export default function Editor() {
           </button>
         </div>
       </div>
+      <div className="px-6 mb-4 text-xs text-amber-600 flex items-center gap-2">
+        <span aria-hidden="true" className="font-semibold">
+          Warning:
+        </span>
+        <span>
+          Switching languages resets the editor with the selected template. Only your most recent run is kept in history.
+        </span>
+      </div>
 
       <div className="px-6 flex flex-col gap-4 lg:grid lg:grid-cols-2 xl:gap-6">
         {/* Question panel */}
@@ -541,22 +554,24 @@ export default function Editor() {
               Editor — {language}
             </div>
             <div className="p-3">
-              <CodeEditor
-                value={code}
-                language={language}
-                placeholder={`Write ${language} code...`}
-                onChange={handleChange}
-                data-color-mode="dark"
-                padding={15}
-                style={{
-                  backgroundColor: "#1E1E1E ",
-                  minHeight: "320px",
-                  height: "60vh",
-                  borderRadius: "5px",
-                  fontFamily:
-                    "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
-                }}
-              />
+              <div className="max-h-[70vh] min-h-[320px] overflow-auto rounded-md bg-[#1E1E1E]">
+                <CodeEditor
+                  value={code}
+                  language={language}
+                  placeholder={`Write ${language} code...`}
+                  onChange={handleChange}
+                  data-color-mode="dark"
+                  padding={15}
+                  minHeight={320}
+                  style={{
+                    backgroundColor: "transparent",
+                    width: "100%",
+                    borderRadius: "5px",
+                    fontFamily:
+                      "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
+                  }}
+                />
+              </div>
             </div>
             <div className="border-t border-gray-200 px-4 py-3 text-sm">
               <div className="mb-2 font-medium text-gray-700">Run Output</div>
