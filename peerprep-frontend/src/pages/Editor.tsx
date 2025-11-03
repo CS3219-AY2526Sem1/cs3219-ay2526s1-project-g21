@@ -316,7 +316,7 @@ export default function Editor() {
     const nextTemplate = CODE_TEMPLATES[nextLang];
     const currentTrimmed = code.trim();
     const nextTrimmed = nextTemplate?.trim();
-    const losingCustomCode = currentTrimmed.length > 0 && currentTrimmed !== nextTrimmed;
+    const losingCustomCode = currentTrimmed.length > 0 && nextTrimmed && currentTrimmed !== nextTrimmed;
 
     if (losingCustomCode) {
       toast("Switching languages replaces your current code. Only your latest run is kept in history.", {
