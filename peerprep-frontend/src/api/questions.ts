@@ -1,7 +1,7 @@
 import { Question, RandomQuestionFilters } from "@/types/question";
 
 // TODO: remove localhost call in prod
-const QUESTION_API_BASE = (import.meta as any).env?.VITE_QUESTION_API_BASE || "http://localhost:8082";
+const QUESTION_API_BASE = (import.meta as any).env?.VITE_QUESTION_API_BASE || "http://localhost:8082/api/v1";
 
 export async function questionApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   // building url
@@ -10,7 +10,7 @@ export async function questionApiFetch<T>(path: string, init?: RequestInit): Pro
     normalizedPath = "/" + path;
   }
 
-  const url = new URL(normalizedPath, QUESTION_API_BASE).toString();
+  const url = QUESTION_API_BASE + normalizedPath;
 
   // preserve user headers and add sensible defaults
   const requestHeaders = new Headers(init?.headers as HeadersInit | undefined);
@@ -77,8 +77,40 @@ export async function getRandomQuestion(filters?: RandomQuestionFilters): Promis
   return questionApiFetch<Question>(path);
 }
 
-export async function getAllQuestions(): Promise<{ total: number; items: Question[] }> {
-  return questionApiFetch<{ total: number; items: Question[] }>("/questions");
+export async function getAllQuestions(page?: number, limit?: number): Promise<{ 
+  total: number; 
+  items: Question[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}> {
+  let path = "/questions";
+  
+  if (page !== undefined || limit !== undefined) {
+    const params = new URLSearchParams();
+    
+    if (page !== undefined) {
+      params.append("page", page.toString());
+    }
+    
+    if (limit !== undefined) {
+      params.append("limit", limit.toString());
+    }
+    
+    path += "?" + params.toString();
+  }
+  
+  return questionApiFetch<{ 
+    total: number; 
+    items: Question[];
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }>(path);
 }
 
 export async function getQuestionById(id: string): Promise<Question> {

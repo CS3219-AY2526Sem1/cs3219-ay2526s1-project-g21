@@ -19,6 +19,7 @@ services:
     environment:
       - PORT=8080
       - MONGO_URI=mongodb://mongo:27017
+      - POSTGRES_HOST=postgres
       - JWT_PUBLIC_KEY=dev
     depends_on: [mongo, postgres]
     ports: ["8081:8080"]
