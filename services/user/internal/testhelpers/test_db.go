@@ -12,7 +12,7 @@ import (
 
 var (
 	openSQLite      = func(dsn string) (*gorm.DB, error) { return gorm.Open(sqlite.Open(dsn), &gorm.Config{}) }
-	migrateSchema   = func(db *gorm.DB) error { return db.AutoMigrate(&models.User{}) }
+    migrateSchema   = func(db *gorm.DB) error { return db.AutoMigrate(&models.User{}, &models.Token{}) }
 	dropUserTableFn = func(db *gorm.DB) error { return db.Migrator().DropTable(&models.User{}) }
 )
 
