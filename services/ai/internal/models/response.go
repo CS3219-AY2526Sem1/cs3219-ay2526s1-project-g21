@@ -35,8 +35,7 @@ type ValidationErrorDetail struct {
 
 // HintResponse returned by /ai/hint
 type HintResponse struct {
-    Hint      string              `json:"hint"`
-    RequestID string              `json:"request_id"`
-    Metadata  ExplanationMetadata `json:"metadata"`
+	Hint      string              `json:"hint"`
+	RequestID string              `json:"request_id"`
+	Metadata  ExplanationMetadata `json:"metadata"`
 }
-

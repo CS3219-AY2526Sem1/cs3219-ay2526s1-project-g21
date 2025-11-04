@@ -71,35 +71,35 @@ type QuestionContext struct {
 }
 
 type HintRequest struct {
-    Code      string           `json:"code"`
-    Language  string           `json:"language"`
-    Question  *QuestionContext `json:"question"`
-	HintLevel  string           `json:"hint_level"`
-    RequestID string           `json:"request_id"`
+	Code      string           `json:"code"`
+	Language  string           `json:"language"`
+	Question  *QuestionContext `json:"question"`
+	HintLevel string           `json:"hint_level"`
+	RequestID string           `json:"request_id"`
 }
 
 func (r *HintRequest) Validate() error {
-    if r.Code == "" {
-        return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
-    }
-    if r.Language == "" {
-        return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
-    }
-    supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-    if !supported[r.Language] {
-        return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported"}
-    }
-    if r.Question == nil {
-        return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
-    }
-    if r.Question.PromptMarkdown == "" {
-        return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown must not be empty"}
-    }
+	if r.Code == "" {
+		return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
+	}
+	if r.Language == "" {
+		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
+	}
+	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
+	if !supported[r.Language] {
+		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported"}
+	}
+	if r.Question == nil {
+		return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
+	}
+	if r.Question.PromptMarkdown == "" {
+		return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown must not be empty"}
+	}
 
 	levels := map[string]bool{"basic": true, "intermediate": true, "advanced": true}
-    if !levels[r.HintLevel] {
-        return &ErrorResponse{Code: "invalid_hint_level", Message: "Hint level must be basic, intermediate, or advanced"}
-    }
-	
-    return nil
+	if !levels[r.HintLevel] {
+		return &ErrorResponse{Code: "invalid_hint_level", Message: "Hint level must be basic, intermediate, or advanced"}
+	}
+
+	return nil
 }
