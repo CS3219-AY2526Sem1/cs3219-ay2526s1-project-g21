@@ -123,3 +123,49 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 
 	utils.JSON(w, http.StatusOK, resp)
 }
+
+func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
+	req, ok := r.Context().Value("validated_request").(*models.TestGenRequest)
+	if !ok || req == nil {
+		utils.JSON(w, http.StatusBadRequest, models.ErrorResponse{
+			Code: "bad_request", Message: "Invalid request",
+		})
+		return
+	}
+	if req.RequestID == "" {
+		req.RequestID = generateRequestID()
+	}
+
+	// Build prompt from templates/tests.yaml
+	promptData := map[string]interface{}{
+		"Language":  req.Language,
+		"Code":      req.Code,
+		"Question":  req.Question,
+		"Framework": req.Framework,
+	}
+	prompt, err := h.promptManager.BuildPrompt("tests", "default", promptData)
+	if err != nil {
+		h.logger.Error("tests: build prompt failed", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "prompt_error", Message: "Failed to build AI prompt",
+		})
+		return
+	}
+
+	// Reuse provider call
+	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	if err != nil {
+		h.logger.Error("tests: provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "ai_error", Message: "Failed to generate test cases",
+		})
+		return
+	}
+
+	resp := models.TestGenResponse{
+		TestsCode: out.Explanation,
+		RequestID: req.RequestID,
+		Metadata:  out.Metadata,
+	}
+	utils.JSON(w, http.StatusOK, resp)
+}

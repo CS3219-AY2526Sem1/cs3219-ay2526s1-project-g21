@@ -12,5 +12,6 @@ func AIRoutes(router *chi.Mux, aiHandler *handlers.AIHandler) {
 	router.Route("/ai", func(r chi.Router) {
 		r.With(middleware.ValidateRequest[*models.ExplainRequest]()).Post("/explain", aiHandler.ExplainHandler)
 		r.With(middleware.ValidateRequest[*models.HintRequest]()).Post("/hint", aiHandler.HintHandler)
+		r.With(middleware.ValidateRequest[*models.TestGenRequest]()).Post("/tests", aiHandler.TestsHandler)
 	})
 }

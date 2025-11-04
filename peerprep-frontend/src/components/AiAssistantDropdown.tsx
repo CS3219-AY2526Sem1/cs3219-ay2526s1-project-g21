@@ -6,6 +6,13 @@ import "./AiAssistantDropdown.css";
 type Props = {
   getCode: () => string;
   language: Language;
+  getQuestion: () => {
+    prompt_markdown: string;
+    title?: string;
+    difficulty?: string;
+    constraints?: string;
+    topic_tags?: string[];
+  };
   defaultOpen?: boolean;
   className?: string;
 };
@@ -15,6 +22,7 @@ const LS_KEY = "peerprep.ai.assistant.open";
 export default function AIAssistantDropdown({
   getCode,
   language,
+  getQuestion,
   defaultOpen = true,
   className,
 }: Props) {
@@ -60,7 +68,7 @@ export default function AIAssistantDropdown({
       <div className="ai-collapse" data-open={open || undefined} id="ai-assistant-panel">
         <div className="ai-content">
           <div className="p-4 pt-0">
-            <AiAssistant getCode={getCode} language={language} />
+            <AiAssistant getCode={getCode} language={language} getQuestion={getQuestion} />
           </div>
         </div>
       </div>

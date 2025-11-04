@@ -39,3 +39,9 @@ type HintResponse struct {
 	RequestID string              `json:"request_id"`
 	Metadata  ExplanationMetadata `json:"metadata"`
 }
+
+type TestGenResponse struct {
+	TestsCode string              `json:"tests_code"`
+	RequestID string              `json:"request_id"`
+	Metadata  ExplanationMetadata `json:"metadata"`
+}

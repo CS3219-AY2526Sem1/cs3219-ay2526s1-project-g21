@@ -59,3 +59,28 @@ export async function getHint(payload: {
     }
     return (await res.json()) as { hint: string; request_id: string; metadata: any };
 }
+
+function aiUrl(path: string) {
+  const base = (import.meta.env.VITE_AI_BASE_URL || "").replace(/\/+$/, "");
+  const p = path.replace(/^\/+/, "");
+  return /\/ai$/i.test(base) ? `${base}/${p}` : `${base}/ai/${p}`;
+}
+
+export async function generateTests(payload: any) {
+  const url = aiUrl("tests");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const bodyText = await res.text();
+  let json: any = null;
+  try { json = JSON.parse(bodyText); } catch { /* text body */ }
+
+  if (!res.ok) {
+    const msg = json?.message || json?.error || bodyText || "Failed to generate test cases";
+    throw new Error(`(${res.status}) ${msg}`);
+  }
+  return json as { tests_code: string; request_id: string; metadata: any };
+}

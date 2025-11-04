@@ -103,3 +103,32 @@ func (r *HintRequest) Validate() error {
 
 	return nil
 }
+
+type TestGenRequest struct {
+	Code      string           `json:"code"`
+	Language  string           `json:"language"`
+	Question  *QuestionContext `json:"question"`
+	RequestID string           `json:"request_id"`
+	// For users to choose between: "unittest"|"pytest"|"assert"|"junit"|"googletest" etc.
+	Framework string `json:"framework,omitempty"`
+}
+
+func (r *TestGenRequest) Validate() error {
+	if r.Code == "" {
+		return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
+	}
+	if r.Language == "" {
+		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
+	}
+	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
+	if !supported[r.Language] {
+		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported (python, java, cpp, javascript)"}
+	}
+	if r.Question == nil {
+		return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
+	}
+	if r.Question.PromptMarkdown == "" {
+		return &ErrorResponse{Code: "missing_question_prompt", Message: "question.prompt_markdown must not be empty"}
+	}
+	return nil
+}

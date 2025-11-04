@@ -1,13 +1,20 @@
 import { useMemo, useState } from "react";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
-import { getHint } from "@/api/ai";
+import { getHint, generateTests } from "@/api/ai";
 
 type Mode = "Explain" | "Hint" | "Tests" | "Refactor" | "Summary";
 
 interface Props {
   getCode: () => string;
   language: Language;
+  getQuestion: () => {
+    prompt_markdown: string;
+    title?: string;
+    difficulty?: string;
+    constraints?: string;
+    topic_tags?: string[];
+  };
   className?: string;
 }
 
@@ -19,7 +26,7 @@ const ACTION_LABEL: Record<Mode, string> = {
   Summary: "Give Summary",
 };
 
-export default function AIAssistant({ getCode, language, className }: Props) {
+export default function AIAssistant({ getCode, language, getQuestion, className }: Props) {
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
   const { run, loading, text, error, setText, setError } = useExplain();
@@ -52,6 +59,23 @@ export default function AIAssistant({ getCode, language, className }: Props) {
         });
         setText(resp.hint);
         return;
+        }
+
+
+        if (activeMode === "Tests") {
+        setText("Generating test cases...");
+        const q = getQuestion(); // grab the latest question context
+        if (!q?.prompt_markdown || q.prompt_markdown.trim().length === 0) {
+          setError("Missing question context. Please open a question or ensure its description is loaded.");
+          return;
+        }
+        const resp = await generateTests({
+            code: getCode(),
+            language,
+            question: q,
+          });
+          setText(resp.tests_code);
+          return;
         }
 
         // Default stub for other modes
