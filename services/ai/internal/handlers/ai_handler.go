@@ -106,7 +106,7 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reuse same provider call as explain
-	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.HintLevel)
 	if err != nil {
 		h.logger.Error("hint: provider error", zap.Error(err))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{

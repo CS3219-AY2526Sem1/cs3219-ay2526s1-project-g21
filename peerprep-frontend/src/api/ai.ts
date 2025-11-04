@@ -55,7 +55,7 @@ export async function getHint(payload: {
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message ?? `AI explain failed with ${res.status}`);
+        throw new Error(err?.message ?? `AI hint failed with ${res.status}`);
     }
     return (await res.json()) as { hint: string; request_id: string; metadata: any };
 }
