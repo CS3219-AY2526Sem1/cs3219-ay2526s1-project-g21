@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type mockRepo struct {
+type mockUserRepo struct {
 	createUserFn        func(*models.User) error
 	getUserByUsernameFn func(string) (*models.User, error)
 	getUserByEmailFn    func(string) (*models.User, error)
@@ -28,52 +28,112 @@ type mockRepo struct {
 	deleteUserFn        func(string) error
 }
 
-func (m *mockRepo) CreateUser(user *models.User) error {
+func (m *mockUserRepo) CreateUser(user *models.User) error {
 	if m.createUserFn == nil {
 		return nil
 	}
 	return m.createUserFn(user)
 }
 
-func (m *mockRepo) GetUserByUsername(username string) (*models.User, error) {
+func (m *mockUserRepo) GetUserByUsername(username string) (*models.User, error) {
 	if m.getUserByUsernameFn == nil {
 		panic("unexpected call to GetUserByUsername")
 	}
 	return m.getUserByUsernameFn(username)
 }
 
-func (m *mockRepo) GetUserByEmail(email string) (*models.User, error) {
+func (m *mockUserRepo) GetUserByEmail(email string) (*models.User, error) {
 	if m.getUserByEmailFn == nil {
 		panic("unexpected call to GetUserByEmail")
 	}
 	return m.getUserByEmailFn(email)
 }
 
-func (m *mockRepo) GetUserByID(id string) (*models.User, error) {
+func (m *mockUserRepo) GetUserByID(id string) (*models.User, error) {
 	if m.getUserByIDFn == nil {
 		panic("unexpected call to GetUserByID")
 	}
 	return m.getUserByIDFn(id)
 }
 
-func (m *mockRepo) UpdateUser(id string, updates *models.User) (*models.User, error) {
+func (m *mockUserRepo) UpdateUser(id string, updates *models.User) (*models.User, error) {
 	if m.updateUserFn == nil {
 		panic("unexpected call to UpdateUser")
 	}
 	return m.updateUserFn(id, updates)
 }
 
-func (m *mockRepo) DeleteUser(id string) error {
+func (m *mockUserRepo) DeleteUser(id string) error {
 	if m.deleteUserFn == nil {
 		panic("unexpected call to DeleteUser")
 	}
 	return m.deleteUserFn(id)
 }
 
-func newAuthHandlerWithDB(t *testing.T) (*AuthHandler, *repositories.UserRepository) {
+type mockTokenRepo struct {
+	createTokenFn               func(*models.Token) error
+	getTokenByTokenFn           func(string) (*models.Token, error)
+	getTokenByUserAndPurposeFn  func(uint, models.TokenPurpose) (*models.Token, error)
+	deleteTokenByIDFn           func(uint) error
+	deleteTokenByTokenFn        func(string) error
+	deleteTokenByUserAndPurpose func(uint, models.TokenPurpose) error
+	deleteExpiredFn             func(time.Time) (int64, error)
+}
+
+func (m *mockTokenRepo) Create(token *models.Token) error {
+	if m.createTokenFn == nil {
+		return nil
+	}
+	return m.createTokenFn(token)
+}
+
+func (m *mockTokenRepo) GetByToken(tokenStr string) (*models.Token, error) {
+	if m.getTokenByTokenFn == nil {
+		panic("unexpected call to GetByToken")
+	}
+	return m.getTokenByTokenFn(tokenStr)
+}
+
+func (m *mockTokenRepo) GetByUserAndPurpose(userID uint, purpose models.TokenPurpose) (*models.Token, error) {
+	if m.getTokenByUserAndPurposeFn == nil {
+		panic("unexpected call to GetByUserAndPurpose")
+	}
+	return m.getTokenByUserAndPurposeFn(userID, purpose)
+}
+
+func (m *mockTokenRepo) DeleteByID(id uint) error {
+	if m.deleteTokenByIDFn == nil {
+		panic("unexpected call to DeleteByID")
+	}
+	return m.deleteTokenByIDFn(id)
+}
+
+func (m *mockTokenRepo) DeleteByToken(tokenStr string) error {
+	if m.deleteTokenByTokenFn == nil {
+		panic("unexpected call to DeleteByToken")
+	}
+	return m.deleteTokenByTokenFn(tokenStr)
+}
+
+func (m *mockTokenRepo) DeleteByUserAndPurpose(userID uint, purpose models.TokenPurpose) error {
+	if m.deleteTokenByUserAndPurpose == nil {
+		panic("unexpected call to DeleteByUserAndPurpose")
+	}
+	return m.deleteTokenByUserAndPurpose(userID, purpose)
+}
+
+func (m *mockTokenRepo) DeleteExpired(before time.Time) (int64, error) {
+	if m.deleteExpiredFn == nil {
+		panic("unexpected call to DeleteExpired")
+	}
+	return m.deleteExpiredFn(before)
+}
+
+func newAuthHandlerWithDB(t *testing.T) (*AuthHandler, *repositories.UserRepository, *repositories.TokenRepository) {
 	t.Helper()
-	repo := &repositories.UserRepository{DB: testhelpers.SetupTestDB(t)}
-	return &AuthHandler{Repo: repo, JWTSecret: "test-secret"}, repo
+	userRepo := &repositories.UserRepository{DB: testhelpers.SetupTestDB(t)}
+	tokenRepo := &repositories.TokenRepository{DB: testhelpers.SetupTestDB(t)}
+	return &AuthHandler{UserRepo: userRepo, TokenRepo: tokenRepo, JWTSecret: "test-secret"}, userRepo, tokenRepo
 }
 
 func makeToken(t *testing.T, secret string, claims jwt.MapClaims) string {
@@ -98,7 +158,7 @@ func decodeResponse(t *testing.T, rec *httptest.ResponseRecorder) map[string]any
 
 func TestNewAuthHandler_SecretFromEnv(t *testing.T) {
 	t.Setenv("JWT_SECRET", "custom")
-	h := NewAuthHandler(&mockRepo{})
+	h := NewAuthHandler(&mockUserRepo{}, nil)
 	if h.JWTSecret != "custom" {
 		t.Fatalf("expected secret 'custom', got %q", h.JWTSecret)
 	}
@@ -106,7 +166,7 @@ func TestNewAuthHandler_SecretFromEnv(t *testing.T) {
 
 func TestNewAuthHandler_DefaultSecret(t *testing.T) {
 	t.Setenv("JWT_SECRET", "")
-	h := NewAuthHandler(&mockRepo{})
+	h := NewAuthHandler(&mockUserRepo{}, nil)
 	if h.JWTSecret != "dev" {
 		t.Fatalf("expected default secret 'dev', got %q", h.JWTSecret)
 	}
@@ -114,7 +174,7 @@ func TestNewAuthHandler_DefaultSecret(t *testing.T) {
 
 func TestAuthHandler_RegisterHandler(t *testing.T) {
 	t.Run("invalid JSON payload", func(t *testing.T) {
-		handler, _ := newAuthHandlerWithDB(t)
+		handler, _, _ := newAuthHandlerWithDB(t)
 		req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader("{invalid"))
 		rec := httptest.NewRecorder()
 
@@ -126,7 +186,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 	})
 
 	t.Run("missing fields", func(t *testing.T) {
-		handler, _ := newAuthHandlerWithDB(t)
+		handler, _, _ := newAuthHandlerWithDB(t)
 		body := `{"username":"user"}`
 		req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
 		rec := httptest.NewRecorder()
@@ -141,9 +201,10 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 	t.Run("username repository error", func(t *testing.T) {
 		repoErr := errors.New("db down")
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repoErr },
 			},
+			TokenRepo: &mockTokenRepo{},
 		}
 
 		body := `{"username":"user","email":"user@example.com","password":"Abcdefg!"}`
@@ -163,9 +224,10 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 	t.Run("username taken", func(t *testing.T) {
 		existing := &models.User{Username: "user"}
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return existing, nil },
 			},
+			TokenRepo: &mockTokenRepo{},
 		}
 		body := `{"username":"user","email":"user@example.com","password":"Abcdefg!"}`
 		req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
@@ -180,7 +242,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 	t.Run("email repository error", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				getUserByEmailFn:    func(string) (*models.User, error) { return nil, errors.New("db down") },
 			},
@@ -201,7 +263,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 	t.Run("email taken", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				getUserByEmailFn:    func(string) (*models.User, error) { return &models.User{Email: "user@example.com"}, nil },
 			},
@@ -219,7 +281,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 	t.Run("invalid password", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				getUserByEmailFn:    func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 			},
@@ -237,7 +299,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 	t.Run("password hashing failure", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				getUserByEmailFn:    func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 			},
@@ -262,7 +324,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 	t.Run("create user failure", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				getUserByEmailFn:    func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 				createUserFn:        func(*models.User) error { return errors.New("insert failed") },
@@ -283,7 +345,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		handler, repo := newAuthHandlerWithDB(t)
+		handler, userRepo, _ := newAuthHandlerWithDB(t)
 		body := `{"username":"user","email":"user@example.com","password":"Abcdefg!"}`
 		req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
 		rec := httptest.NewRecorder()
@@ -298,7 +360,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 			t.Fatalf("unexpected username in response: %v", resp["username"])
 		}
 		// Ensure persisted user stored hashed password
-		user, err := repo.GetUserByUsername("user")
+		user, err := userRepo.GetUserByUsername("user")
 		if err != nil {
 			t.Fatalf("failed to fetch created user: %v", err)
 		}
@@ -310,7 +372,7 @@ func TestAuthHandler_RegisterHandler(t *testing.T) {
 
 func TestAuthHandler_LoginHandler(t *testing.T) {
 	t.Run("invalid JSON payload", func(t *testing.T) {
-		handler, _ := newAuthHandlerWithDB(t)
+		handler, _, _ := newAuthHandlerWithDB(t)
 		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("{invalid"))
 		rec := httptest.NewRecorder()
 
@@ -323,9 +385,10 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 
 	t.Run("repository error treated as invalid credentials", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) { return nil, errors.New("db error") },
 			},
+			TokenRepo: &mockTokenRepo{},
 		}
 		body := `{"username":"user","password":"secret"}`
 		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
@@ -341,11 +404,12 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 	t.Run("invalid credentials", func(t *testing.T) {
 		hash, _ := bcrypt.GenerateFromPassword([]byte("correct"), bcrypt.DefaultCost)
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) {
 					return &models.User{Username: "user", PasswordHash: string(hash)}, nil
 				},
 			},
+			TokenRepo: &mockTokenRepo{},
 		}
 		body := `{"username":"USER","password":"wrong"}`
 		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
@@ -361,11 +425,12 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 	t.Run("token signing failure", func(t *testing.T) {
 		hash, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) {
 					return &models.User{Username: "user", PasswordHash: string(hash)}, nil
 				},
 			},
+			TokenRepo: &mockTokenRepo{},
 			JWTSecret: "secret",
 		}
 		orig := signJWT
@@ -387,7 +452,7 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		handler, repo := newAuthHandlerWithDB(t)
+		handler, repo, _ := newAuthHandlerWithDB(t)
 		password := "Abcdefg!"
 		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
@@ -426,7 +491,7 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 
 func TestAuthHandler_MeHandler(t *testing.T) {
 	t.Run("missing token", func(t *testing.T) {
-		handler, _ := newAuthHandlerWithDB(t)
+		handler, _, _ := newAuthHandlerWithDB(t)
 		req := httptest.NewRequest(http.MethodGet, "/me", nil)
 		rec := httptest.NewRecorder()
 
@@ -438,7 +503,7 @@ func TestAuthHandler_MeHandler(t *testing.T) {
 	})
 
 	t.Run("invalid token subject", func(t *testing.T) {
-		handler, _ := newAuthHandlerWithDB(t)
+		handler, _, _ := newAuthHandlerWithDB(t)
 		token := makeToken(t, handler.JWTSecret, jwt.MapClaims{
 			"sub": true,
 			"exp": time.Now().Add(time.Hour).Unix(),
@@ -456,9 +521,10 @@ func TestAuthHandler_MeHandler(t *testing.T) {
 
 	t.Run("user not found", func(t *testing.T) {
 		handler := &AuthHandler{
-			Repo: &mockRepo{
+			UserRepo: &mockUserRepo{
 				getUserByIDFn: func(string) (*models.User, error) { return nil, repositories.ErrUserNotFound },
 			},
+			TokenRepo: &mockTokenRepo{},
 			JWTSecret: "secret",
 		}
 		token := makeToken(t, handler.JWTSecret, jwt.MapClaims{
@@ -477,7 +543,7 @@ func TestAuthHandler_MeHandler(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		handler, repo := newAuthHandlerWithDB(t)
+		handler, repo, _ := newAuthHandlerWithDB(t)
 		user := &models.User{Username: "user", Email: "user@example.com", PasswordHash: "hash"}
 		if err := repo.CreateUser(user); err != nil {
 			t.Fatalf("failed to seed user: %v", err)

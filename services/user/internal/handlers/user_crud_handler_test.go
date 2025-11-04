@@ -112,7 +112,7 @@ func TestUserHandler_UpdateUserHandler(t *testing.T) {
 
 	t.Run("user not found", func(t *testing.T) {
 		handler := &UserHandler{
-			Repo: &mockRepo{
+			Repo: &mockUserRepo{
 				getUserByIDFn: func(string) (*models.User, error) { return nil, nil },
 				updateUserFn: func(string, *models.User) (*models.User, error) {
 					return nil, repositories.ErrUserNotFound
@@ -135,7 +135,7 @@ func TestUserHandler_UpdateUserHandler(t *testing.T) {
 
 	t.Run("update failure", func(t *testing.T) {
 		handler := &UserHandler{
-			Repo: &mockRepo{
+			Repo: &mockUserRepo{
 				updateUserFn: func(string, *models.User) (*models.User, error) { return nil, errors.New("db error") },
 			},
 			JWTSecret: "secret",
@@ -240,7 +240,7 @@ func TestUserHandler_DeleteUserHandler(t *testing.T) {
 
 	t.Run("user not found", func(t *testing.T) {
 		handler := &UserHandler{
-			Repo: &mockRepo{
+			Repo: &mockUserRepo{
 				deleteUserFn: func(string) error { return repositories.ErrUserNotFound },
 			},
 			JWTSecret: "secret",
@@ -259,7 +259,7 @@ func TestUserHandler_DeleteUserHandler(t *testing.T) {
 
 	t.Run("delete failure", func(t *testing.T) {
 		handler := &UserHandler{
-			Repo: &mockRepo{
+			Repo: &mockUserRepo{
 				deleteUserFn: func(string) error { return errors.New("db error") },
 			},
 			JWTSecret: "secret",

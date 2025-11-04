@@ -26,17 +26,17 @@ var generatePasswordHash = bcrypt.GenerateFromPassword
 
 // AuthHandler manages authentication endpoints.
 type AuthHandler struct {
-	Repo      UserRepository
+	UserRepo  UserRepository
 	JWTSecret string
-	Tokens    *repositories.TokenRepository
+	TokenRepo TokenRepository
 }
 
-func NewAuthHandler(repo UserRepository, tokens *repositories.TokenRepository) *AuthHandler {
+func NewAuthHandler(userRepo UserRepository, tokenRepo TokenRepository) *AuthHandler {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		secret = "dev"
 	}
-	return &AuthHandler{Repo: repo, JWTSecret: secret, Tokens: tokens}
+	return &AuthHandler{UserRepo: userRepo, JWTSecret: secret, TokenRepo: tokenRepo}
 }
 
 type registerRequest struct {
@@ -70,39 +70,69 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check username/email existence with lazy cleanup for expired unverified accounts (use Exists to avoid noisy logs)
-	if exists, err := h.Repo.(*repositories.UserRepository).ExistsByUsername(req.Username); err != nil {
-		utils.JSONError(w, http.StatusInternalServerError, "Database error checking username")
-		return
-	} else if exists {
-		if existing, err := h.Repo.GetUserByUsername(req.Username); err == nil && existing != nil {
-			if deleted, _ := repositories.CleanupUnverifiedUserIfExpired(h.Repo.(*repositories.UserRepository), h.Tokens, existing); deleted {
-				// proceed after cleanup
-			} else {
-				utils.JSONError(w, http.StatusConflict, "Username taken")
+	// Check username/email existence with lazy cleanup for expired unverified accounts
+	// Prefer Exists* helpers when concrete repo is available; otherwise fall back to Get* checks
+	concreteUserRepo, okUser := h.UserRepo.(*repositories.UserRepository)
+	concreteTokenRepo, okToken := h.TokenRepo.(*repositories.TokenRepository)
+
+	if okUser && okToken {
+		if exists, err := concreteUserRepo.ExistsByUsername(req.Username); err != nil {
+			utils.JSONError(w, http.StatusInternalServerError, "Database error checking username")
+			return
+		} else if exists {
+			if existing, err := h.UserRepo.GetUserByUsername(req.Username); err == nil && existing != nil {
+				if deleted, _ := repositories.CleanupUnverifiedUserIfExpired(concreteUserRepo, concreteTokenRepo, existing); deleted {
+					// proceed after cleanup
+				} else {
+					utils.JSONError(w, http.StatusConflict, "Username taken")
+					return
+				}
+			}
+		}
+	} else {
+		if existing, err := h.UserRepo.GetUserByUsername(req.Username); err != nil {
+			if err != repositories.ErrUserNotFound {
+				utils.JSONError(w, http.StatusInternalServerError, "Database error checking username")
 				return
 			}
+		} else if existing != nil {
+			utils.JSONError(w, http.StatusConflict, "Username taken")
+			return
 		}
 	}
 
-	if exists, err := h.Repo.(*repositories.UserRepository).ExistsByEmail(req.Email); err != nil {
-		utils.JSONError(w, http.StatusInternalServerError, "Database error checking email")
-		return
-	} else if exists {
-		if existing, err := h.Repo.GetUserByEmail(req.Email); err == nil && existing != nil {
-			if deleted, _ := repositories.CleanupUnverifiedUserIfExpired(h.Repo.(*repositories.UserRepository), h.Tokens, existing); deleted {
-				// proceed after cleanup
-			} else {
-				utils.JSONError(w, http.StatusConflict, "Email taken")
+	if okUser && okToken {
+		if exists, err := concreteUserRepo.ExistsByEmail(req.Email); err != nil {
+			utils.JSONError(w, http.StatusInternalServerError, "Database error checking email")
+			return
+		} else if exists {
+			if existing, err := h.UserRepo.GetUserByEmail(req.Email); err == nil && existing != nil {
+				if deleted, _ := repositories.CleanupUnverifiedUserIfExpired(concreteUserRepo, concreteTokenRepo, existing); deleted {
+					// proceed after cleanup
+				} else {
+					utils.JSONError(w, http.StatusConflict, "Email taken")
+					return
+				}
+			}
+		}
+	} else {
+		if existing, err := h.UserRepo.GetUserByEmail(req.Email); err != nil {
+			if err != repositories.ErrUserNotFound {
+				utils.JSONError(w, http.StatusInternalServerError, "Database error checking email")
 				return
 			}
+		} else if existing != nil {
+			utils.JSONError(w, http.StatusConflict, "Email taken")
+			return
 		}
 	}
 
-	// Also disallow if any valid user's pending new_email equals requested email
-	if exists, err := h.Repo.(*repositories.UserRepository).ExistsByNewEmail(req.Email); err == nil && exists {
-		utils.JSONError(w, http.StatusConflict, "Email taken")
-		return
+	// Also disallow if any valid user's pending new_email equals requested email (only when concrete repo available)
+	if concreteRepo, ok := h.UserRepo.(*repositories.UserRepository); ok {
+		if exists, err := concreteRepo.ExistsByNewEmail(req.Email); err == nil && exists {
+			utils.JSONError(w, http.StatusConflict, "Email taken")
+			return
+		}
 	}
 
 	if !utils.IsPasswordValid(req.Password) {
@@ -123,7 +153,7 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		Verified:     false,
 	}
 
-	if err := h.Repo.CreateUser(user); err != nil {
+	if err := h.UserRepo.CreateUser(user); err != nil {
 		utils.JSONError(w, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
@@ -131,8 +161,8 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Create verification token
 	tokenStr, err := generateTokenString(32)
 	if err == nil {
-		_ = h.Tokens.DeleteByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification)
-		_ = h.Tokens.Create(&models.Token{
+		_ = h.TokenRepo.DeleteByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification)
+		_ = h.TokenRepo.Create(&models.Token{
 			Token:     tokenStr,
 			Purpose:   models.TokenPurposeAccountVerification,
 			UserID:    user.ID,
@@ -160,7 +190,7 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	username := strings.ToLower(req.Username)
-	user, err := h.Repo.GetUserByUsername(username)
+	user, err := h.UserRepo.GetUserByUsername(username)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
 		utils.JSONError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
@@ -170,17 +200,17 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if !user.Verified {
 		// Check token expiry
 		var t *models.Token
-		if h.Tokens != nil {
-			if tok, e := h.Tokens.GetByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification); e == nil {
+		if h.TokenRepo != nil {
+			if tok, e := h.TokenRepo.GetByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification); e == nil {
 				t = tok
 			}
 		}
 		// If no token or expired, delete user and token
 		if t == nil || time.Now().After(t.ExpiresAt) {
 			if t != nil {
-				_ = h.Tokens.DeleteByID(t.ID)
+				_ = h.TokenRepo.DeleteByID(t.ID)
 			}
-			_ = h.Repo.DeleteUser(strconv.FormatUint(uint64(user.ID), 10))
+			_ = h.UserRepo.DeleteUser(strconv.FormatUint(uint64(user.ID), 10))
 			utils.JSONError(w, http.StatusNotFound, "Account not found")
 			return
 		}
@@ -224,7 +254,7 @@ func (h *AuthHandler) ForgotPasswordHandler(w http.ResponseWriter, r *http.Reque
 		utils.JSON(w, http.StatusOK, map[string]any{"ok": true})
 	}()
 
-	user, err := h.Repo.GetUserByEmail(email)
+	user, err := h.UserRepo.GetUserByEmail(email)
 	if err != nil {
 		return
 	}
@@ -235,7 +265,7 @@ func (h *AuthHandler) ForgotPasswordHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return
 	}
-	_, err = h.Repo.UpdateUser(strconv.FormatUint(uint64(user.ID), 10), &models.User{PasswordHash: string(hash)})
+	_, err = h.UserRepo.UpdateUser(strconv.FormatUint(uint64(user.ID), 10), &models.User{PasswordHash: string(hash)})
 	if err != nil {
 		return
 	}
@@ -312,7 +342,7 @@ func (h *AuthHandler) MeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.Repo.GetUserByID(uid)
+	user, err := h.UserRepo.GetUserByID(uid)
 	if err != nil {
 		utils.JSONError(w, http.StatusNotFound, "User not found")
 		return
@@ -333,7 +363,7 @@ func (h *AuthHandler) VerifyAccountHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	t, err := h.Tokens.GetByToken(tokenStr)
+	t, err := h.TokenRepo.GetByToken(tokenStr)
 	if err != nil {
 		utils.JSONError(w, http.StatusNotFound, "Invalid token")
 		return
@@ -344,12 +374,12 @@ func (h *AuthHandler) VerifyAccountHandler(w http.ResponseWriter, r *http.Reques
 	}
 	if time.Now().After(t.ExpiresAt) {
 		// Token expired: delete user and token
-		_ = h.Tokens.DeleteByID(t.ID)
+		_ = h.TokenRepo.DeleteByID(t.ID)
 		// Attempt to delete user if still unverified
 		uid := strconv.FormatUint(uint64(t.UserID), 10)
-		user, err := h.Repo.GetUserByID(uid)
+		user, err := h.UserRepo.GetUserByID(uid)
 		if err == nil && !user.Verified {
-			_ = h.Repo.DeleteUser(uid)
+			_ = h.UserRepo.DeleteUser(uid)
 		}
 		utils.JSONError(w, http.StatusGone, "Verification token expired")
 		return
@@ -357,19 +387,19 @@ func (h *AuthHandler) VerifyAccountHandler(w http.ResponseWriter, r *http.Reques
 
 	// Mark user verified
 	uid := strconv.FormatUint(uint64(t.UserID), 10)
-	user, err := h.Repo.GetUserByID(uid)
+	user, err := h.UserRepo.GetUserByID(uid)
 	if err != nil {
 		utils.JSONError(w, http.StatusNotFound, "User not found")
 		return
 	}
 	if !user.Verified {
 		user.Verified = true
-		if _, err := h.Repo.UpdateUser(uid, &models.User{Verified: true}); err != nil {
+		if _, err := h.UserRepo.UpdateUser(uid, &models.User{Verified: true}); err != nil {
 			utils.JSONError(w, http.StatusInternalServerError, "Failed to verify user")
 			return
 		}
 	}
-	_ = h.Tokens.DeleteByID(t.ID)
+	_ = h.TokenRepo.DeleteByID(t.ID)
 	// If reached via browser, redirect to client page
 	http.Redirect(w, r, clientBaseURL()+"/verifyaccount?status=ok", http.StatusSeeOther)
 }
@@ -381,7 +411,7 @@ func (h *AuthHandler) ConfirmEmailChangeHandler(w http.ResponseWriter, r *http.R
 		utils.JSONError(w, http.StatusBadRequest, "Missing token")
 		return
 	}
-	t, err := h.Tokens.GetByToken(tokenStr)
+	t, err := h.TokenRepo.GetByToken(tokenStr)
 	if err != nil {
 		utils.JSONError(w, http.StatusNotFound, "Invalid token")
 		return
@@ -391,7 +421,7 @@ func (h *AuthHandler) ConfirmEmailChangeHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	uid := strconv.FormatUint(uint64(t.UserID), 10)
-	user, err := h.Repo.GetUserByID(uid)
+	user, err := h.UserRepo.GetUserByID(uid)
 	if err != nil {
 		utils.JSONError(w, http.StatusNotFound, "User not found")
 		return
@@ -399,9 +429,9 @@ func (h *AuthHandler) ConfirmEmailChangeHandler(w http.ResponseWriter, r *http.R
 	if time.Now().After(t.ExpiresAt) {
 		// Expired: clear NewEmail and delete token
 		if user.NewEmail != nil {
-			_, _ = h.Repo.UpdateUser(uid, &models.User{NewEmail: nil})
+			_, _ = h.UserRepo.UpdateUser(uid, &models.User{NewEmail: nil})
 		}
-		_ = h.Tokens.DeleteByID(t.ID)
+		_ = h.TokenRepo.DeleteByID(t.ID)
 		utils.JSONError(w, http.StatusGone, "Email change token expired")
 		return
 	}
@@ -413,10 +443,10 @@ func (h *AuthHandler) ConfirmEmailChangeHandler(w http.ResponseWriter, r *http.R
 	// Apply new email
 	newEmail := *user.NewEmail
 	updates := &models.User{Email: newEmail, NewEmail: nil}
-	if _, err := h.Repo.UpdateUser(uid, updates); err != nil {
+	if _, err := h.UserRepo.UpdateUser(uid, updates); err != nil {
 		utils.JSONError(w, http.StatusInternalServerError, "Failed to update email")
 		return
 	}
-	_ = h.Tokens.DeleteByID(t.ID)
+	_ = h.TokenRepo.DeleteByID(t.ID)
 	http.Redirect(w, r, clientBaseURL()+"/changeemail?status=ok", http.StatusSeeOther)
 }
