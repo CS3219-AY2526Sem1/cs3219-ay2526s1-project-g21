@@ -131,9 +131,9 @@ func (m *mockTokenRepo) DeleteExpired(before time.Time) (int64, error) {
 
 func newAuthHandlerWithDB(t *testing.T) (*AuthHandler, *repositories.UserRepository, *repositories.TokenRepository) {
 	t.Helper()
-    db := testhelpers.SetupTestDB(t)
-    userRepo := &repositories.UserRepository{DB: db}
-    tokenRepo := &repositories.TokenRepository{DB: db}
+	db := testhelpers.SetupTestDB(t)
+	userRepo := &repositories.UserRepository{DB: db}
+	tokenRepo := &repositories.TokenRepository{DB: db}
 	return &AuthHandler{UserRepo: userRepo, TokenRepo: tokenRepo, JWTSecret: "test-secret"}, userRepo, tokenRepo
 }
 
@@ -428,7 +428,7 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 		handler := &AuthHandler{
 			UserRepo: &mockUserRepo{
 				getUserByUsernameFn: func(string) (*models.User, error) {
-                    return &models.User{Username: "user", PasswordHash: string(hash), Verified: true}, nil
+					return &models.User{Username: "user", PasswordHash: string(hash), Verified: true}, nil
 				},
 			},
 			TokenRepo: &mockTokenRepo{},
@@ -459,7 +459,7 @@ func TestAuthHandler_LoginHandler(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to hash password: %v", err)
 		}
-        user := &models.User{Username: "user", Email: "user@example.com", PasswordHash: string(hash), Verified: true}
+		user := &models.User{Username: "user", Email: "user@example.com", PasswordHash: string(hash), Verified: true}
 		if err := repo.CreateUser(user); err != nil {
 			t.Fatalf("failed to seed user: %v", err)
 		}
