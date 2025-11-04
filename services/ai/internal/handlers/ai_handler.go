@@ -5,7 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
 	"peerprep/ai/internal/llm"
+	"peerprep/ai/internal/middleware"
 	"peerprep/ai/internal/models"
 	"peerprep/ai/internal/prompts"
 	"peerprep/ai/internal/utils"
@@ -27,7 +29,7 @@ func NewAIHandler(provider llm.Provider, promptManager *prompts.PromptManager, l
 
 func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	// Get the validated request from middleware
-	req := r.Context().Value("validated_request").(*models.ExplainRequest)
+	req := middleware.GetValidatedRequest[*models.ExplainRequest](r)
 
 	// Generate request ID if not provided
 	if req.RequestID == "" {

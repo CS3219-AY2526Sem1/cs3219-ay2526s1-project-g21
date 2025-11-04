@@ -35,6 +35,114 @@
       "response": []
     },
     {
+      "name": "Get Questions - Page 1, Limit 5",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Page 2, Limit 3",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=2&limit=3"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Page 1, Default Limit",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Default Page, Limit 15",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?limit=15"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (negative)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=-1&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (zero)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=0&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Page (non-numeric)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=abc&limit=5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (negative)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=-5"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (zero)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=0"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (too large)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=101"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Invalid Limit (non-numeric)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=1&limit=xyz"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Questions - Large Page Number",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{url}}/api/v1/questions?page=999&limit=5"
+      },
+      "response": []
+    },
+    {
       "name": "Create Question - Duplicate ID",
       "request": {
         "method": "POST",
@@ -138,17 +246,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Easy",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Easy"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Easy"
       },
       "response": []
     },
@@ -157,17 +255,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Medium",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Medium"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Medium"
       },
       "response": []
     },
@@ -176,17 +264,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Hard",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Hard"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Hard"
       },
       "response": []
     },
@@ -195,17 +273,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?topic=Array",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "topic",
-              "value": "Array"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?topic=Array"
       },
       "response": []
     },
@@ -214,17 +282,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?topic=Array,Hash Table",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "topic",
-              "value": "Array,Hash Table"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?topic=Array,Hash%20Table"
       },
       "response": []
     },
@@ -233,21 +291,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Easy&topic=Array",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Easy"
-            },
-            {
-              "key": "topic",
-              "value": "Array"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Easy&topic=Array"
       },
       "response": []
     },
@@ -256,17 +300,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Invalid",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Invalid"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Invalid"
       },
       "response": []
     },
@@ -275,21 +309,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{url}}/api/v1/questions/random?difficulty=Hard&topic=NonExistentTopic",
-          "host": ["{{url}}/api/v1"],
-          "path": ["questions", "random"],
-          "query": [
-            {
-              "key": "difficulty",
-              "value": "Hard"
-            },
-            {
-              "key": "topic",
-              "value": "NonExistentTopic"
-            }
-          ]
-        }
+        "url": "{{url}}/api/v1/questions/random?difficulty=Hard&topic=NonExistentTopic"
       },
       "response": []
     },

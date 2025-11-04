@@ -15,12 +15,13 @@ import (
 )
 
 type fakeRepo struct {
-	getAllFn  func() ([]models.Question, error)
-	createFn  func(*models.Question) (*models.Question, error)
-	getByIDFn func(int) (*models.Question, error)
-	updateFn  func(int, *models.Question) (*models.Question, error)
-	deleteFn  func(int) error
-	randomFn  func([]string, string) (*models.Question, error)
+	getAllFn               func() ([]models.Question, error)
+	getAllWithPaginationFn func(int, int) ([]models.Question, int, error)
+	createFn               func(*models.Question) (*models.Question, error)
+	getByIDFn              func(int) (*models.Question, error)
+	updateFn               func(int, *models.Question) (*models.Question, error)
+	deleteFn               func(int) error
+	randomFn               func([]string, string) (*models.Question, error)
 }
 
 func (f *fakeRepo) GetAll() ([]models.Question, error) {
@@ -28,6 +29,12 @@ func (f *fakeRepo) GetAll() ([]models.Question, error) {
 		return f.getAllFn()
 	}
 	return []models.Question{}, nil
+}
+func (f *fakeRepo) GetAllWithPagination(page, limit int) ([]models.Question, int, error) {
+	if f.getAllWithPaginationFn != nil {
+		return f.getAllWithPaginationFn(page, limit)
+	}
+	return []models.Question{}, 0, repositories.ErrNotImplemented
 }
 func (f *fakeRepo) Create(q *models.Question) (*models.Question, error) {
 	if f.createFn != nil {

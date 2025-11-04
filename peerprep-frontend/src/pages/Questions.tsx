@@ -4,6 +4,8 @@ import type { Question } from "@/types/question";
 import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
 
+const DEFAULT_ITEMS_PER_PAGE = 10;
+
 interface QuestionsTableRowProps {
   question: Question;
 }
@@ -47,13 +49,26 @@ export default function Questions() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
+
+  const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
 
   useEffect(() => {
     const loadQuestions = async () => {
       try {
         setLoading(true);
-        const data = await getQuestions();
-        setQuestions(data);
+        const data = await getQuestions(currentPage, itemsPerPage);
+        setQuestions(data.items);
+        setTotalPages(data.totalPages);
+        setTotalItems(data.total);
+        setHasNext(data.hasNext);
+        setHasPrev(data.hasPrev);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load questions');
       } finally {
@@ -62,7 +77,7 @@ export default function Questions() {
     };
 
     loadQuestions();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   if (loading) {
     return (
@@ -118,13 +133,24 @@ export default function Questions() {
 
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-white px-4 py-3 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:text-left">
           <div className="text-sm text-gray-700 sm:text-left">
-            Showing 1 to {Math.min(6, questions.length)} of {questions.length} rows
+            Showing {getStartItem()} to {getEndItem()} of {totalItems} rows
           </div>
           <div className="flex items-center justify-center gap-2 sm:justify-end">
-            <button className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+            <button 
+              onClick={() => setCurrentPage(prev => prev - 1)}
+              disabled={!hasPrev || loading}
+              className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               Previous
             </button>
-            <button className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+            <span className="px-3 py-2 text-sm text-gray-700">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button 
+              onClick={() => setCurrentPage(prev => prev + 1)}
+              disabled={!hasNext || loading}
+              className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               Next
             </button>
           </div>

@@ -27,10 +27,14 @@ type Room struct {
 	sessionEndHandler func(sessionID string, finalCode string, language models.Language, duration time.Duration)
 }
 
-const otRetentionSeconds int64 = 60
+const (
+	otRetentionSeconds int64  = 60
+	maxTransformLength uint64 = 1 * 1024 * 1024
+)
 
 func NewRoom(id string) *Room {
 	cfg := text.NewOTBufferConfig()
+	cfg.MaxTransformLength = maxTransformLength
 	buf := text.NewOTBuffer("", cfg)
 	buf.Version = 0
 

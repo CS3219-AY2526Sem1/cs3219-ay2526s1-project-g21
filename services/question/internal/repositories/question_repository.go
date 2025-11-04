@@ -11,21 +11,23 @@ import (
 	mongoclient "peerprep/question/internal/repositories/mongo"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 )
 
 // TODO: update all the methods to interact with the actual database
 
 type QuestionRepository struct {
-	col *mongo.Collection
+	col    *mongo.Collection
+	logger *zap.Logger
 }
 
 // Creates a new MongoDB-backed repository
 // We use the instance in the future to interact with the database
 
 func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
+	logger, _ := zap.NewProduction()
 	client, err := mongoclient.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -43,18 +45,48 @@ func NewQuestionRepository(ctx context.Context) (*QuestionRepository, error) {
 	col := db.Collection(colName)
 
 	// ensure ID is unique
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"id": 1},
 		Options: options.Index().SetUnique(true),
 	})
+	if err != nil {
+		logger.Error("Failed to create unique index on 'id'", zap.Error(err))
+	}
 
 	// ensure Title is unique
-	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{"title": 1},
 		Options: options.Index().SetUnique(true),
 	})
+	if err != nil {
+		logger.Error("Failed to create unique index on 'title'", zap.Error(err))
+	}
 
-	return &QuestionRepository{col: col}, nil
+	// add index on difficulty for faster difficulty-based queries
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"difficulty": 1},
+	})
+	if err != nil {
+		logger.Error("Failed to create index on 'difficulty'", zap.Error(err))
+	}
+
+	// add index on topic_tags for faster topic-based queries
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"topic_tags": 1},
+	})
+	if err != nil {
+		logger.Error("Failed to create index on 'topic_tags'", zap.Error(err))
+	}
+
+	// add compound index for optimized filtering (status + difficulty + topic_tags)
+	_, err = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.M{"status": 1, "difficulty": 1, "topic_tags": 1},
+	})
+	if err != nil {
+		logger.Error("Failed to create compound index on 'status', 'difficulty', 'topic_tags'", zap.Error(err))
+	}
+
+	return &QuestionRepository{col: col, logger: logger}, nil
 }
 
 // Get all questions
@@ -73,6 +105,40 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 		return nil, err
 	}
 	return results, nil
+}
+
+// Get questions with pagination
+func (r *QuestionRepository) GetAllWithPagination(page, limit int) ([]models.Question, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// find skip value
+	skip := (page - 1) * limit
+
+	// total count
+	total, err := r.col.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// find options with pagination
+	findOptions := options.Find()
+	findOptions.SetSkip(int64(skip))
+	findOptions.SetLimit(int64(limit))
+
+	// query execution
+	cur, err := r.col.Find(ctx, bson.M{}, findOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cur.Close(ctx)
+
+	var results []models.Question
+	if err := cur.All(ctx, &results); err != nil {
+		return nil, 0, err
+	}
+
+	return results, int(total), nil
 }
 
 // Get question by ID
@@ -152,22 +218,11 @@ func (r *QuestionRepository) GetRandom(topics []string, difficulty string) (*mod
 
 	// add difficulty filter if provided
 	if difficulty != "" {
-		matchCriteria["difficulty"] = bson.M{
-			"$regex":   "^" + difficulty + "$", // exact match
-			"$options": "i",                    // case-insensitive
-		}
-
+		matchCriteria["difficulty"] = difficulty
 	}
 
 	if len(topics) > 0 {
-		regexTopics := make([]interface{}, len(topics))
-		for i, t := range topics {
-			regexTopics[i] = primitive.Regex{
-				Pattern: "^" + t + "$", // exact match
-				Options: "i",           // case-insensitive
-			}
-		}
-		matchCriteria["topic_tags"] = bson.M{"$in": regexTopics}
+		matchCriteria["topic_tags"] = bson.M{"$in": topics}
 	}
 
 	// 1) only consider active questions with optional filters

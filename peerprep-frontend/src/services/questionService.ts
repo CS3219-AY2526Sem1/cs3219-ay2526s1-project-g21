@@ -145,14 +145,21 @@ const mockQuestions: Question[] = [
   // }
 ];
 
-export const getQuestions = async (): Promise<Question[]> => {
+export const getQuestions = async (page?: number, limit?: number): Promise<{
+  items: Question[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}> => {
   try {
-    const response = await getAllQuestions();
-    return response.items;
+    const response = await getAllQuestions(page, limit);
+    return response;
   } catch (error) {
-    console.warn("Failed to fetch questions from API, falling back to mock data:", error);
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return mockQuestions;
+    console.error("Failed to fetch questions from API:", error);
+    throw error;
   }
 };
 

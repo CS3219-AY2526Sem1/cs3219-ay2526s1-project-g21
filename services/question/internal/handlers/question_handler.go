@@ -15,6 +15,7 @@ import (
 
 type QuestionRepo interface {
 	GetAll() ([]models.Question, error)
+	GetAllWithPagination(page, limit int) ([]models.Question, int, error)
 	Create(*models.Question) (*models.Question, error)
 	GetByID(int) (*models.Question, error)
 	Update(int, *models.Question) (*models.Question, error)
@@ -33,7 +34,67 @@ func NewQuestionHandler(r QuestionRepo) *QuestionHandler {
 func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
-	questions, err := handler.repo.GetAll()
+	// pagination parameters
+	pageStr := request.URL.Query().Get("page")
+	limitStr := request.URL.Query().Get("limit")
+
+	// If no pagination parameters, return all questions
+	if pageStr == "" && limitStr == "" {
+		questions, err := handler.repo.GetAll()
+		if err != nil {
+			utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
+				Code:    "internal_error",
+				Message: "Failed to fetch questions",
+			})
+			return
+		}
+
+		response := models.QuestionsResponse{
+			Total:      len(questions),
+			Items:      questions,
+			Page:       1,
+			Limit:      len(questions),
+			TotalPages: 1,
+			HasNext:    false,
+			HasPrev:    false,
+		}
+
+		utils.JSON(writer, http.StatusOK, response)
+		return
+	}
+
+	// default values
+	page := 1
+	limit := 10
+
+	// parse page parameter
+	if pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		} else {
+			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+				Code:    "invalid_page",
+				Message: "page must be a positive integer",
+			})
+			return
+		}
+	}
+
+	// parse limit parameter
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		} else {
+			utils.JSON(writer, http.StatusBadRequest, models.ErrorResponse{
+				Code:    "invalid_limit",
+				Message: "limit must be a positive integer between 1 and 100",
+			})
+			return
+		}
+	}
+
+	// questions with pagination
+	questions, total, err := handler.repo.GetAllWithPagination(page, limit)
 	if err != nil {
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
@@ -42,9 +103,17 @@ func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, 
 		return
 	}
 
+	// pagination metadata
+	totalPages, hasNext, hasPrev := models.CalculatePaginationMeta(page, limit, total)
+
 	response := models.QuestionsResponse{
-		Total: len(questions),
-		Items: questions,
+		Total:      total,
+		Items:      questions,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+		HasNext:    hasNext,
+		HasPrev:    hasPrev,
 	}
 
 	utils.JSON(writer, http.StatusOK, response)

@@ -31,7 +31,7 @@ func main() {
 
 	// initialise repository
 	ctx := context.Background()
-	questionRepo, err := repositories.NewQuestionRepository(ctx) // Updated
+	questionRepo, err := repositories.NewQuestionRepository(ctx)
 	if err != nil {
 		logger.Fatal("failed to init mongo repo", zap.Error(err))
 	}
