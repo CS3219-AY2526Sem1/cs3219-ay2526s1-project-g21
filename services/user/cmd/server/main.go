@@ -113,15 +113,16 @@ func run() error {
 	}
 
 	// Auto-migrate models
-	if err := runAutoMigrate(db, &models.User{}, &models.InterviewHistory{}); err != nil {
+	if err := runAutoMigrate(db, &models.User{}, &models.Token{}, &models.InterviewHistory{}); err != nil {
 		logger.Error("Failed to migrate database", zap.Error(err))
 		return err
 	}
 
 	// Initialize repository and handlers
 	userRepo := &repositories.UserRepository{DB: db}
-	authHandler := handlers.NewAuthHandler(userRepo)
-	userHandler := &handlers.UserHandler{Repo: userRepo, JWTSecret: authHandler.JWTSecret}
+	tokenRepo := &repositories.TokenRepository{DB: db}
+	authHandler := handlers.NewAuthHandler(userRepo, tokenRepo)
+	userHandler := &handlers.UserHandler{Repo: userRepo, JWTSecret: authHandler.JWTSecret, Tokens: tokenRepo}
 
 	historyRepo := &repositories.HistoryRepository{DB: db}
 	historyHandler := &handlers.HistoryHandler{Repo: historyRepo}
