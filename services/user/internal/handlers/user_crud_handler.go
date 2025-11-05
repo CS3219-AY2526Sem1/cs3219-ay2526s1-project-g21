@@ -216,19 +216,28 @@ func (h *UserHandler) InitiateEmailChangeHandler(w http.ResponseWriter, r *http.
 	}
 	// Create token
 	tokenStr, err := generateTokenString(32)
-	if err == nil {
-		// Clean existing tokens for this purpose
-		idU64, _ := strconv.ParseUint(userID, 10, 64)
-		_ = h.Tokens.DeleteByUserAndPurpose(uint(idU64), models.TokenPurposeEmailChange)
-		_ = h.Tokens.Create(&models.Token{
-			Token:     tokenStr,
-			Purpose:   models.TokenPurposeEmailChange,
-			UserID:    uint(idU64),
-			ExpiresAt: time.Now().Add(24 * time.Hour),
-		})
-		// Send link to backend confirm endpoint which will redirect
-		confirmURL := serverBaseURL() + "/api/v1/auth/change-email/confirm?token=" + tokenStr
-		_ = sendEmailAsync(newEmail, "Confirm your new email", "Confirm your new email by visiting: "+confirmURL)
+	if err != nil {
+		// Revert NewEmail field to nil if token generation fails
+		nilEmail := (*string)(nil)
+		_, _ = h.Repo.UpdateUser(userID, &models.User{NewEmail: nilEmail})
+		utils.JSONError(w, http.StatusInternalServerError, "Failed to generate confirmation token")
+		return
 	}
+	// Clean existing tokens for this purpose
+	idU64, err := strconv.ParseUint(userID, 10, 64)
+	if err != nil {
+		utils.JSONError(w, http.StatusInternalServerError, "Invalid user ID")
+		return
+	}
+	_ = h.Tokens.DeleteByUserAndPurpose(uint(idU64), models.TokenPurposeEmailChange)
+	_ = h.Tokens.Create(&models.Token{
+		Token:     tokenStr,
+		Purpose:   models.TokenPurposeEmailChange,
+		UserID:    uint(idU64),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	// Send link to backend confirm endpoint which will redirect
+	confirmURL := serverBaseURL() + "/api/v1/auth/change-email/confirm?token=" + tokenStr
+	_ = sendEmailAsync(newEmail, "Confirm your new email", "Confirm your new email by visiting: "+confirmURL)
 	utils.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }

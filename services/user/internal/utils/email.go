@@ -58,11 +58,11 @@ func SendEmail(to, subject, body string) error {
 			tlsconfig := &tls.Config{ServerName: cfg.Host}
 			conn, cerr := tls.Dial("tcp", addr, tlsconfig)
 			if cerr != nil {
-				return err
+				return cerr
 			}
 			c, cerr := smtp.NewClient(conn, cfg.Host)
 			if cerr != nil {
-				return err
+				return cerr
 			}
 			defer c.Quit()
 			if err = c.Auth(auth); err != nil {
@@ -76,13 +76,13 @@ func SendEmail(to, subject, body string) error {
 			}
 			wc, cerr := c.Data()
 			if cerr != nil {
-				return err
+				return cerr
 			}
 			if _, cerr = wc.Write(msg); cerr != nil {
-				return err
+				return cerr
 			}
 			if cerr = wc.Close(); cerr != nil {
-				return err
+				return cerr
 			}
 			return nil
 		}

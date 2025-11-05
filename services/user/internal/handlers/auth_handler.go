@@ -160,19 +160,23 @@ func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create verification token
 	tokenStr, err := generateTokenString(32)
-	if err == nil {
-		_ = h.TokenRepo.DeleteByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification)
-		_ = h.TokenRepo.Create(&models.Token{
-			Token:     tokenStr,
-			Purpose:   models.TokenPurposeAccountVerification,
-			UserID:    user.ID,
-			ExpiresAt: time.Now().Add(24 * time.Hour),
-		})
-		// Send verification email (implemented in SMTP util task)
-		// Send link directly to backend which redirects to frontend for better reliability
-		verifyURL := serverBaseURL() + "/api/v1/auth/verify?token=" + tokenStr
-		_ = sendEmailAsync(user.Email, "Verify your PeerPrep account", "Please verify your account by visiting: "+verifyURL)
+	if err != nil {
+		// Clean up: delete the user to avoid orphaned unverifiable accounts
+		_ = h.UserRepo.DeleteUser(strconv.FormatUint(uint64(user.ID), 10))
+		utils.JSONError(w, http.StatusInternalServerError, "Failed to generate verification token")
+		return
 	}
+	_ = h.TokenRepo.DeleteByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification)
+	_ = h.TokenRepo.Create(&models.Token{
+		Token:     tokenStr,
+		Purpose:   models.TokenPurposeAccountVerification,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	// Send verification email (implemented in SMTP util task)
+	// Send link directly to backend which redirects to frontend for better reliability
+	verifyURL := serverBaseURL() + "/api/v1/auth/verify?token=" + tokenStr
+	_ = sendEmailAsync(user.Email, "Verify your PeerPrep account", "Please verify your account by visiting: "+verifyURL)
 
 	utils.JSON(w, http.StatusCreated, map[string]any{
 		"id":       user.ID,
@@ -287,12 +291,17 @@ func generateCompliantPassword() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		// Fallback
-		return "Tmp!" + base64.RawURLEncoding.EncodeToString([]byte(time.Now().String()))[:12]
+		enc := base64.RawURLEncoding.EncodeToString([]byte(time.Now().String()))
+		for len(enc) < 12 {
+			enc += "X"
+		}
+		return "Tmp!" + enc[:12]
 	}
 	s := base64.RawURLEncoding.EncodeToString(b)
 	// Inject at least one special character to satisfy policy
-	specials := []rune("!@#$%^&*()-_=+[]{}:;,.?/")
-	if !strings.ContainsAny(s, string(specials)) {
+	// Exclude '-' and '_' from specials, as they are present in base64 output
+	requiredSpecials := []rune("!@#$%^&*()-_=+[]{}\\|;:'\",<>./?")
+	if !strings.ContainsAny(s, string(requiredSpecials)) {
 		s = s + "!"
 	}
 	if len(s) < 12 {
