@@ -97,7 +97,7 @@ export default function InterviewLobby() {
 
       attempts++;
       const roomInfo = await checkRoomStatus();
-
+      console.log(roomInfo);
       if (!roomInfo) {
         // Room not found yet, wait and retry
         setTimeout(pollRoom, 1000);
@@ -105,6 +105,7 @@ export default function InterviewLobby() {
       }
 
       if (roomInfo.status === "ready") {
+        console.log("Room is ready, redirecting...");
         toast.success("Room is ready! Redirecting...", {
           position: "bottom-center",
           duration: 3000,

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,7 +14,7 @@ import (
 )
 
 // --- WebSocket Handler ---
-func (matchManager *MatchManager) WsHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) WsHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
 
 	userId := r.URL.Query().Get("userId")
@@ -24,37 +23,33 @@ func (matchManager *MatchManager) WsHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	conn, err := matchManager.upgrader.Upgrade(w, r, nil)
+	conn, err := mm.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
 		return
 	}
 
-	matchManager.mu.Lock()
-	matchManager.connections[userId] = conn
-	matchManager.mu.Unlock()
-	log.Printf("WebSocket connected for user: %s", userId)
+	// Register connection to this instance
+	mm.RegisterConnection(userId, conn)
+	log.Printf("[Instance %s] WebSocket connected for user: %s", mm.instanceID, userId)
 
+	// Keep connection alive and handle disconnection
 	for {
 		if _, _, err := conn.NextReader(); err != nil {
-			matchManager.mu.Lock()
-			delete(matchManager.connections, userId)
-			matchManager.mu.Unlock()
+			mm.UnregisterConnection(userId)
 			conn.Close()
-			log.Printf("User %s disconnected", userId)
+			log.Printf("[Instance %s] User %s disconnected", mm.instanceID, userId)
 			break
 		}
 	}
 }
 
 // --- Join Handler ---
-func (matchManager *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
-	log.Println("JoinHandler called")
-	log.Println("Request method:", r.Method)
-	fmt.Println("Request method:", r.Method)
+	log.Printf("[Instance %s] JoinHandler called", mm.instanceID)
+
 	if r.Method == http.MethodOptions {
-		log.Println("Options method")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -70,12 +65,9 @@ func (matchManager *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Check if user is already in a room
-	matchManager.roomMu.RLock()
-	_, inRoom := matchManager.userToRoom[req.UserID]
-	matchManager.roomMu.RUnlock()
-
-	if inRoom {
+	// Check if user is already in a room (from Redis)
+	roomId, err := mm.GetRoomForUser(req.UserID)
+	if err == nil && roomId != "" {
 		utils.WriteJSON(w, http.StatusBadRequest, models.Resp{OK: false, Info: "already in a room"})
 		return
 	}
@@ -85,38 +77,38 @@ func (matchManager *MatchManager) JoinHandler(w http.ResponseWriter, r *http.Req
 	userKey := fmt.Sprintf("user:%s", req.UserID)
 
 	// Track join info with original preferences
-	if err := matchManager.rdb.HSet(matchManager.ctx, userKey, map[string]interface{}{
+	if err := mm.rdb.HSet(mm.ctx, userKey, map[string]interface{}{
 		"category":   req.Category,
 		"difficulty": req.Difficulty,
 		"joined_at":  now,
 		"stage":      1,
 	}).Err(); err != nil {
-		log.Printf("Failed to set user data in Redis: %v", err)
+		log.Printf("[Instance %s] Failed to set user data in Redis: %v", mm.instanceID, err)
 		utils.WriteJSON(w, http.StatusInternalServerError, models.Resp{OK: false, Info: "failed to join queue"})
 		return
 	}
 
 	// Add to queues
-	if err := matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
-		log.Printf("Failed to add to exact queue: %v", err)
+	if err := mm.rdb.ZAdd(mm.ctx, fmt.Sprintf("queue:%s:%s", req.Category, req.Difficulty), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("[Instance %s] Failed to add to exact queue: %v", mm.instanceID, err)
 	}
-	if err := matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s", req.Category), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
-		log.Printf("Failed to add to category queue: %v", err)
+	if err := mm.rdb.ZAdd(mm.ctx, fmt.Sprintf("queue:%s", req.Category), redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("[Instance %s] Failed to add to category queue: %v", mm.instanceID, err)
 	}
-	if err := matchManager.rdb.ZAdd(matchManager.ctx, "queue:all", redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
-		log.Printf("Failed to add to all queue: %v", err)
+	if err := mm.rdb.ZAdd(mm.ctx, "queue:all", redis.Z{Score: now, Member: req.UserID}).Err(); err != nil {
+		log.Printf("[Instance %s] Failed to add to all queue: %v", mm.instanceID, err)
 	}
 
-	log.Printf("User %s joined queue: category=%s, difficulty=%s", req.UserID, req.Category, req.Difficulty)
+	log.Printf("[Instance %s] User %s joined queue: category=%s, difficulty=%s", mm.instanceID, req.UserID, req.Category, req.Difficulty)
 
 	// Try immediate match
-	matchManager.tryMatchStage(req.Category, req.Difficulty, 1)
+	mm.tryMatchStage(req.Category, req.Difficulty, 1)
 
 	utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "queued"})
 }
 
 // --- Cancel Handler ---
-func (matchManager *MatchManager) CancelHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) CancelHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
 
 	if r.Method == http.MethodOptions {
@@ -140,7 +132,7 @@ func (matchManager *MatchManager) CancelHandler(w http.ResponseWriter, r *http.R
 
 	// Get user's original preferences from Redis
 	userKey := fmt.Sprintf("user:%s", req.UserID)
-	user, err := matchManager.rdb.HGetAll(matchManager.ctx, userKey).Result()
+	user, err := mm.rdb.HGetAll(mm.ctx, userKey).Result()
 	if err != nil || len(user) == 0 {
 		utils.WriteJSON(w, http.StatusNotFound, models.Resp{OK: false, Info: "not in queue"})
 		return
@@ -150,13 +142,14 @@ func (matchManager *MatchManager) CancelHandler(w http.ResponseWriter, r *http.R
 	difficulty := user["difficulty"]
 
 	// Remove from all queues
-	matchManager.removeUser(req.UserID, category, difficulty)
+	mm.removeUser(req.UserID, category, difficulty)
 
+	log.Printf("[Instance %s] User %s cancelled matchmaking", mm.instanceID, req.UserID)
 	utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "cancelled"})
 }
 
 // --- Check Handler ---
-func (matchManager *MatchManager) CheckHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) CheckHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
 
 	if r.Method == http.MethodOptions {
@@ -170,15 +163,18 @@ func (matchManager *MatchManager) CheckHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	matchManager.roomMu.RLock()
-	roomId, inRoom := matchManager.userToRoom[userId]
-	var room *models.RoomInfo
-	if inRoom {
-		room = matchManager.roomInfo[roomId]
+	// Check Redis for room assignment
+	roomId, err := mm.GetRoomForUser(userId)
+	if err != nil || roomId == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(models.CheckResp{InRoom: false})
+		return
 	}
-	matchManager.roomMu.RUnlock()
 
-	if !inRoom || room == nil {
+	// Get room info from Redis
+	room, err := mm.GetRoomInfo(roomId)
+	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.CheckResp{InRoom: false})
@@ -205,7 +201,7 @@ func (matchManager *MatchManager) CheckHandler(w http.ResponseWriter, r *http.Re
 }
 
 // --- Done Handler ---
-func (matchManager *MatchManager) DoneHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) DoneHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
 
 	if r.Method == http.MethodOptions {
@@ -226,49 +222,51 @@ func (matchManager *MatchManager) DoneHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	matchManager.roomMu.Lock()
-	defer matchManager.roomMu.Unlock()
-
-	roomId, inRoom := matchManager.userToRoom[req.UserID]
-	if !inRoom {
+	// Get room from Redis
+	roomId, err := mm.GetRoomForUser(req.UserID)
+	if err != nil || roomId == "" {
 		utils.WriteJSON(w, http.StatusNotFound, models.Resp{OK: false, Info: "not in a room"})
 		return
 	}
 
-	room := matchManager.roomInfo[roomId]
-	if room == nil {
+	// Get room info
+	room, err := mm.GetRoomInfo(roomId)
+	if err != nil {
 		utils.WriteJSON(w, http.StatusNotFound, models.Resp{OK: false, Info: "room not found"})
 		return
 	}
 
-	// Remove user from room
-	delete(matchManager.userToRoom, req.UserID)
+	// Remove this user's room assignment
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("user_room:%s", req.UserID))
 
-	// Check if other user is still in room
+	// Determine other user
 	otherUser := room.User1
 	if req.UserID == room.User1 {
 		otherUser = room.User2
 	}
 
-	_, otherStillInRoom := matchManager.userToRoom[otherUser]
+	// Check if other user is still in room
+	otherRoomId, err := mm.GetRoomForUser(otherUser)
+	otherStillInRoom := err == nil && otherRoomId == roomId
+
 	if otherStillInRoom {
-		log.Printf("User %s left room %s, partner %s still in room", req.UserID, roomId, otherUser)
-		matchManager.sendToUser(otherUser, map[string]interface{}{
+		log.Printf("[Instance %s] User %s left room %s, partner %s still in room", mm.instanceID, req.UserID, roomId, otherUser)
+		mm.sendToUser(otherUser, map[string]interface{}{
 			"type":    "partner_left",
 			"message": "Your partner has left the room",
 			"roomId":  roomId,
 		})
 	} else {
-		// Both users are done, delete room
-		delete(matchManager.roomInfo, roomId)
-		log.Printf("Room %s deleted - both users done", roomId)
+		// Both users are done, delete room from Redis
+		mm.rdb.Del(mm.ctx, fmt.Sprintf("room:%s", roomId))
+		log.Printf("[Instance %s] Room %s deleted - both users done", mm.instanceID, roomId)
 	}
 
 	utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "left room"})
 }
 
 // --- Handshake Handler ---
-func (matchManager *MatchManager) HandshakeHandler(w http.ResponseWriter, r *http.Request) {
+func (mm *MatchManager) HandshakeHandler(w http.ResponseWriter, r *http.Request) {
 	utils.EnableCORS(w)
 
 	if r.Method == http.MethodOptions {
@@ -287,12 +285,17 @@ func (matchManager *MatchManager) HandshakeHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	matchManager.pendingMu.Lock()
-	pending, exists := matchManager.pendingMatches[req.MatchId]
-	matchManager.pendingMu.Unlock()
-
-	if !exists {
+	// Get pending match from Redis
+	pendingKey := fmt.Sprintf("pending_match:%s", req.MatchId)
+	pendingJSON, err := mm.rdb.Get(mm.ctx, pendingKey).Result()
+	if err != nil {
 		utils.WriteJSON(w, http.StatusNotFound, models.Resp{OK: false, Info: "match not found or expired"})
+		return
+	}
+
+	var pending models.PendingMatch
+	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
+		utils.WriteJSON(w, http.StatusInternalServerError, models.Resp{OK: false, Info: "failed to parse match"})
 		return
 	}
 
@@ -302,13 +305,11 @@ func (matchManager *MatchManager) HandshakeHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	matchManager.pendingMu.Lock()
-
 	if !req.Accept {
 		// User rejected the match
-		log.Printf("User %s rejected match %s", req.UserID, req.MatchId)
+		log.Printf("[Instance %s] User %s rejected match %s", mm.instanceID, req.UserID, req.MatchId)
 
-		// Re-queue the other user
+		// Determine the other user
 		otherUser := pending.User1
 		otherUserCat := pending.User1Cat
 		otherUserDiff := pending.User1Diff
@@ -318,116 +319,40 @@ func (matchManager *MatchManager) HandshakeHandler(w http.ResponseWriter, r *htt
 			otherUserDiff = pending.User2Diff
 		}
 
-		// Get original join time
-		userKey := fmt.Sprintf("user:%s", otherUser)
-		userData, _ := matchManager.rdb.HGetAll(matchManager.ctx, userKey).Result()
-		originalTime := time.Now().Unix()
-		if joinedAt, ok := userData["joined_at"]; ok {
-			if jt, err := strconv.ParseFloat(joinedAt, 64); err == nil {
-				originalTime = int64(jt)
-			}
-		}
-
-		// Re-add other user to queue with original priority
-		matchManager.rdb.HSet(matchManager.ctx, userKey, map[string]interface{}{
-			"category":   otherUserCat,
-			"difficulty": otherUserDiff,
-			"joined_at":  float64(originalTime),
-			"stage":      1,
-		})
-		matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s:%s", otherUserCat, otherUserDiff), redis.Z{Score: float64(originalTime), Member: otherUser})
-		matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s", otherUserCat), redis.Z{Score: float64(originalTime), Member: otherUser})
-		matchManager.rdb.ZAdd(matchManager.ctx, "queue:all", redis.Z{Score: float64(originalTime), Member: otherUser})
+		// Re-queue the other user
+		mm.requeueUser(otherUser, otherUserCat, otherUserDiff)
 
 		// Notify other user they were re-queued
-		matchManager.sendToUser(otherUser, map[string]interface{}{
+		mm.sendToUser(otherUser, map[string]interface{}{
 			"type":    "requeued",
 			"message": "Other user declined the match. You have been re-queued.",
 		})
 
 		// Remove rejecting user from queue completely
-		matchManager.removeUser(req.UserID, pending.User1Cat, pending.User1Diff)
+		rejectingUserCat := pending.User1Cat
+		rejectingUserDiff := pending.User1Diff
 		if req.UserID == pending.User2 {
-			matchManager.removeUser(req.UserID, pending.User2Cat, pending.User2Diff)
+			rejectingUserCat = pending.User2Cat
+			rejectingUserDiff = pending.User2Diff
 		}
+		mm.removeUser(req.UserID, rejectingUserCat, rejectingUserDiff)
 
-		delete(matchManager.pendingMatches, req.MatchId)
-		matchManager.pendingMu.Unlock()
+		// Clean up pending match in Redis
+		mm.rdb.Del(mm.ctx, pendingKey)
+		mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", req.MatchId, pending.User1))
+		mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", req.MatchId, pending.User2))
 
 		utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "match declined"})
 		return
 	}
 
-	// User accepted
-	pending.Handshakes[req.UserID] = true
-
-	// Check if both accepted
-	if len(pending.Handshakes) == 2 {
-		// Both accepted - confirm match
-		log.Printf("Match %s confirmed by both users", req.MatchId)
-
-		room := &models.RoomInfo{
-			MatchId:    pending.MatchId,
-			User1:      pending.User1,
-			User2:      pending.User2,
-			Category:   pending.Category,
-			Difficulty: pending.Difficulty,
-			Status:     "active",
-			Token1:     pending.Token1,
-			Token2:     pending.Token2,
-			CreatedAt:  pending.CreatedAt.Format(time.RFC3339),
-		}
-
-		// Store in room maps
-		matchManager.roomMu.Lock()
-		matchManager.userToRoom[pending.User1] = pending.MatchId
-		matchManager.userToRoom[pending.User2] = pending.MatchId
-		matchManager.roomInfo[pending.MatchId] = room
-		matchManager.roomMu.Unlock()
-
-		// Notify both users
-		matchManager.sendToUser(pending.User1, map[string]interface{}{
-			"type":       "match_confirmed",
-			"matchId":    pending.MatchId,
-			"category":   pending.Category,
-			"difficulty": pending.Difficulty,
-			"token":      pending.Token1,
-		})
-
-		matchManager.sendToUser(pending.User2, map[string]interface{}{
-			"type":       "match_confirmed",
-			"matchId":    pending.MatchId,
-			"category":   pending.Category,
-			"difficulty": pending.Difficulty,
-			"token":      pending.Token2,
-		})
-
-		// Clean up
-		delete(matchManager.pendingMatches, req.MatchId)
-		matchManager.rdb.Del(matchManager.ctx, fmt.Sprintf("user:%s", pending.User1))
-		matchManager.rdb.Del(matchManager.ctx, fmt.Sprintf("user:%s", pending.User2))
-
-		// Store match info in Redis
-		matchKey := "match:" + req.MatchId
-		matchManager.rdb.HSet(matchManager.ctx, matchKey, map[string]interface{}{
-			"id":         req.MatchId,
-			"user1":      pending.User1,
-			"user2":      pending.User1,
-			"category":   pending.Category,
-			"difficulty": pending.Difficulty,
-			"token1":     pending.Token1,
-			"token2":     pending.Token1,
-			"created_at": time.Now().Format(time.RFC3339),
-			"status":     "pending", // Room creation pending
-		})
-		matchManager.rdb.LPush(matchManager.ctx, "matches", req.MatchId)
-
-		// Publish match event to Redis for collab service to process
-		data, _ := json.Marshal(room)
-		matchManager.rdb.Publish(matchManager.ctx, "matches", data)
+	// User accepted - use the HandleMatchAccept method
+	err = mm.HandleMatchAccept(req.MatchId, req.UserID)
+	if err != nil {
+		log.Printf("[Instance %s] Failed to handle match accept: %v", mm.instanceID, err)
+		utils.WriteJSON(w, http.StatusInternalServerError, models.Resp{OK: false, Info: "failed to process acceptance"})
+		return
 	}
-
-	matchManager.pendingMu.Unlock()
 
 	utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "handshake received"})
 }
