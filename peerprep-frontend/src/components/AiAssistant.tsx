@@ -33,7 +33,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
   const [hintLevel, setHintLevel] = useState<"basic" | "intermediate" | "advanced">("basic");
 
 
-  const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor", "Summary"];
+  const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor"];
   const showDetail = activeMode === "Explain";
 
   // Primary action handler
@@ -139,11 +139,6 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
                 {m === "Refactor" && (
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <path d="M4 7h7l-2-2m2 2l-2 2M20 17h-7l2 2m-2-2l2-2" stroke="currentColor" strokeWidth="1.6"/>
-                  </svg>
-                )}
-                {m === "Summary" && (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 7h12M6 12h12M6 17h8" stroke="currentColor" strokeWidth="1.6"/>
                   </svg>
                 )}
               </div>
