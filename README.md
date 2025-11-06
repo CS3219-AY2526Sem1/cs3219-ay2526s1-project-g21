@@ -59,6 +59,10 @@ Note that the following services/databases will be setup locally:
 - .github/workflows/ci.yml : minimal CI (test + build)
 
 
+## Disclaimer on AI Usage
+
+AI tools were used in this project to assist with **code autocompletion**, **refactoring**, **code review suggestions**, and **documentation improvements**. All outputs were reviewed and verified by the development team before inclusion.
+
 ### Note: 
 - You are required to develop individual microservices within separate folders within this repository.
 - The teaching team should be given access to the repositories as we may require viewing the history of the repository in case of any disputes or disagreements. 
