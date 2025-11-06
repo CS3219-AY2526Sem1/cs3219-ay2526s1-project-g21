@@ -48,14 +48,12 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
 
         if (activeMode === "Hint") {
         setText("Generating hint...");
+        const q = getQuestion()
         const resp = await getHint({
             code: getCode(),
             language,
             hint_level: hintLevel,
-            question: {
-            prompt_markdown:
-                "Given the current problem in the editor, provide a helpful coding hint based on the code below.",
-            },
+            question: q,
         });
         setText(resp.hint);
         return;
