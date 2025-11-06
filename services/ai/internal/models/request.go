@@ -1,5 +1,9 @@
 package models
 
+import (
+	"strings"
+)
+
 type ExplainRequest struct {
 	Code        string `json:"code"`
 	Language    string `json:"language"`
@@ -129,6 +133,30 @@ func (r *TestGenRequest) Validate() error {
 	}
 	if r.Question.PromptMarkdown == "" {
 		return &ErrorResponse{Code: "missing_question_prompt", Message: "question.prompt_markdown must not be empty"}
+	}
+	return nil
+}
+
+type RefactorTipsRequest struct {
+	Code      string           `json:"code"`
+	Language  string           `json:"language"`
+	Question  *QuestionContext `json:"question"`
+	RequestID string           `json:"request_id"`
+}
+
+func (r *RefactorTipsRequest) Validate() error {
+	if strings.TrimSpace(r.Code) == "" {
+		return &ErrorResponse{Code: "missing_code", Message: "code is required"}
+	}
+	if strings.TrimSpace(r.Language) == "" {
+		return &ErrorResponse{Code: "missing_language", Message: "language is required"}
+	}
+	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
+	if !supported[strings.ToLower(r.Language)] {
+		return &ErrorResponse{Code: "unsupported_language", Message: "language must be one of python/java/cpp/javascript"}
+	}
+	if r.Question == nil || strings.TrimSpace(r.Question.PromptMarkdown) == "" {
+		return &ErrorResponse{Code: "missing_question_context", Message: "question.prompt_markdown is required"}
 	}
 	return nil
 }

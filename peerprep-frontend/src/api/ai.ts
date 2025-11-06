@@ -84,3 +84,27 @@ export async function generateTests(payload: any) {
   }
   return json as { tests_code: string; request_id: string; metadata: any };
 }
+
+export async function generateRefactorTips(payload: {
+  code: string;
+  language: "python" | "java" | "cpp" | "javascript" | "typescript";
+  question: { prompt_markdown: string; title?: string; difficulty?: string; constraints?: string; topic_tags?: string[] };
+  request_id?: string;
+}) {
+  const url = aiUrl("refactor-tips");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch { /* ignore */ }
+
+  if (!res.ok) {
+    throw new Error(`(${res.status}) ${json?.message || text}`);
+  }
+  // { tips_text: string, request_id, metadata }
+  return json as { tips_text: string; request_id: string; metadata: any };
+}

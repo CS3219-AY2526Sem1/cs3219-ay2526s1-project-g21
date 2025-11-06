@@ -45,3 +45,9 @@ type TestGenResponse struct {
 	RequestID string              `json:"request_id"`
 	Metadata  ExplanationMetadata `json:"metadata"`
 }
+
+type RefactorTipsTextResponse struct {
+	TipsText  string              `json:"tips_text"`
+	RequestID string              `json:"request_id"`
+	Metadata  ExplanationMetadata `json:"metadata"`
+}

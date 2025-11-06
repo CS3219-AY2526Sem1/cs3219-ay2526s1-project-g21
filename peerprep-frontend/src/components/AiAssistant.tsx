@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
-import { getHint, generateTests } from "@/api/ai";
+import { getHint, generateTests, generateRefactorTips } from "@/api/ai";
 
 type Mode = "Explain" | "Hint" | "Tests" | "Refactor" | "Summary";
 
@@ -75,6 +75,23 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
           setText(resp.tests_code);
           return;
         }
+
+        if (activeMode === "Refactor") {
+          setText("Reviewing your code for refactor opportunities...");
+          try {
+            const q = getQuestion();
+            const resp = await generateRefactorTips({
+              code: getCode(),
+              language,
+              question: q,
+            });
+            setText(resp.tips_text || "No significant refactor tips found.");
+          } catch (e: any) {
+            setError(e?.message ?? "Failed to generate refactor tips");
+          }
+          return;
+        }
+
 
         // Default stub for other modes
         setText(`${activeMode} is not implemented yet — coming soon.`);
