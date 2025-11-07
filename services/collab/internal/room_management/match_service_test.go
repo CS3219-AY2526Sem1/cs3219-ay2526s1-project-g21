@@ -36,7 +36,10 @@ func setupRoomManager(t *testing.T, questionHandler http.HandlerFunc) (*RoomMana
 	}
 
 	manager := NewRoomManager(mr.Addr(), questionURL)
-	t.Cleanup(func() { _ = manager.rdb.Close() })
+	t.Cleanup(func() {
+		manager.Cleanup()
+		_ = manager.rdb.Close()
+	})
 	return manager, mr, server
 }
 
@@ -84,7 +87,6 @@ func TestSubscribeToMatchesInvalidPayload(t *testing.T) {
 		t.Fatalf("publish invalid payload: %v", err)
 	}
 
-	manager.rdb.Close()
 	time.Sleep(100 * time.Millisecond)
 	cancel()
 }
@@ -96,8 +98,117 @@ func TestSubscribeToMatchesWithNilContext(t *testing.T) {
 	if err := manager.rdb.Publish(context.Background(), "matches", "bad").Err(); err != nil {
 		t.Fatalf("publish failed: %v", err)
 	}
-	manager.rdb.Close()
 	time.Sleep(100 * time.Millisecond)
+}
+
+func TestSubscribeToRoomUpdates(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var callbackCalled atomic.Bool
+	var callbackMatchId string
+	var callbackRoomInfo *models.RoomInfo
+
+	manager.SetRoomUpdateCallback(func(matchId string, roomInfo *models.RoomInfo) {
+		callbackCalled.Store(true)
+		callbackMatchId = matchId
+		callbackRoomInfo = roomInfo
+	})
+
+	go manager.SubscribeToRoomUpdates(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Publish a room update event (simulating another instance)
+	event := struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}{
+		Type:       "room_updated",
+		InstanceID: "other-instance",
+		MatchId:    "match123",
+		RoomInfo: &models.RoomInfo{
+			MatchId:    "match123",
+			User1:      "u1",
+			User2:      "u2",
+			Status:     "ready",
+			Category:   "arrays",
+			Difficulty: "easy",
+		},
+	}
+
+	eventJSON, _ := json.Marshal(event)
+	if err := manager.rdb.Publish(context.Background(), "room_updates", string(eventJSON)).Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	waitUntil(t, 2*time.Second, func() bool {
+		return callbackCalled.Load()
+	})
+
+	if !callbackCalled.Load() {
+		t.Fatal("callback should have been called")
+	}
+	if callbackMatchId != "match123" {
+		t.Fatalf("expected match123, got %s", callbackMatchId)
+	}
+	if callbackRoomInfo == nil {
+		t.Fatal("callbackRoomInfo should not be nil")
+	}
+	if callbackRoomInfo.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", callbackRoomInfo.MatchId)
+	}
+
+	// Verify room was cached
+	manager.mu.RLock()
+	cached, exists := manager.roomStatusMap["match123"]
+	manager.mu.RUnlock()
+	if !exists {
+		t.Fatal("room should be cached")
+	}
+	if cached.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", cached.MatchId)
+	}
+}
+
+func TestSubscribeToRoomUpdates_IgnoresOwnEvents(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var callbackCalled atomic.Bool
+	manager.SetRoomUpdateCallback(func(matchId string, roomInfo *models.RoomInfo) {
+		callbackCalled.Store(true)
+	})
+
+	go manager.SubscribeToRoomUpdates(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Publish event with same instance ID (should be ignored)
+	event := struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}{
+		Type:       "room_updated",
+		InstanceID: manager.instanceID, // Same instance
+		MatchId:    "match123",
+		RoomInfo:   &models.RoomInfo{MatchId: "match123"},
+	}
+
+	eventJSON, _ := json.Marshal(event)
+	if err := manager.rdb.Publish(context.Background(), "room_updates", string(eventJSON)).Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	if callbackCalled.Load() {
+		t.Fatal("callback should not be called for own events")
+	}
+	cancel()
 }
 
 func TestHandleMatchPayloadInvalid(t *testing.T) {
@@ -163,6 +274,7 @@ func TestFetchQuestion(t *testing.T) {
 
 func TestFetchQuestionNetworkError(t *testing.T) {
 	manager := NewRoomManager("localhost:0", "http://127.0.0.1:0")
+	defer manager.Cleanup()
 	if _, err := manager.fetchQuestion("cat", "easy"); err == nil {
 		t.Fatalf("expected network error")
 	}
@@ -197,7 +309,6 @@ func TestFetchAlternativeQuestion(t *testing.T) {
 	if _, err := manager.fetchAlternativeQuestion("cat", "hard", 0); err == nil {
 		t.Fatalf("expected error when fetchQuestion fails")
 	}
-
 }
 
 func TestUpdateAndFetchRoomStatusFromRedis(t *testing.T) {
@@ -413,6 +524,133 @@ func TestValidateRoomAccessMissingRoom(t *testing.T) {
 	}
 	if _, err := manager.ValidateRoomAccess(token); err == nil {
 		t.Fatalf("expected room not found error")
+	}
+}
+
+func TestPublishSessionEnded(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	event := models.SessionEndedEvent{
+		MatchID:    "match123",
+		User1:      "u1",
+		User2:      "u2",
+		QuestionID: 42,
+		Category:   "arrays",
+		Difficulty: "easy",
+	}
+
+	err := manager.PublishSessionEnded(event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetActiveRoomForUser(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	// Create room in Redis
+	roomInfo := &models.RoomInfo{
+		MatchId:    "match123",
+		User1:      "user1",
+		User2:      "user2",
+		Category:   "arrays",
+		Difficulty: "easy",
+		Status:     "ready",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	// Get active room for user1
+	activeRoom, err := manager.GetActiveRoomForUser("user1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activeRoom.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", activeRoom.MatchId)
+	}
+
+	// Get active room for user2
+	activeRoom, err = manager.GetActiveRoomForUser("user2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activeRoom.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", activeRoom.MatchId)
+	}
+
+	// User not in any room
+	_, err = manager.GetActiveRoomForUser("nonexistent")
+	if err == nil {
+		t.Fatalf("expected error for user not in room")
+	}
+
+	// Room with non-ready status should not be returned
+	roomInfo.Status = "processing"
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+	_, err = manager.GetActiveRoomForUser("user1")
+	if err == nil {
+		t.Fatalf("expected error for non-ready room")
+	}
+}
+
+func TestMarkRoomAsEnded(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	// Create room in Redis
+	roomInfo := &models.RoomInfo{
+		MatchId:    "match123",
+		User1:      "user1",
+		User2:      "user2",
+		Status:     "ready",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	// Cache it
+	manager.mu.Lock()
+	manager.roomStatusMap["match123"] = roomInfo
+	manager.mu.Unlock()
+
+	// Mark as ended
+	err := manager.MarkRoomAsEnded("match123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify in Redis
+	ctx := context.Background()
+	status := manager.rdb.HGet(ctx, "room:match123", "status").Val()
+	if status != "ended" {
+		t.Fatalf("expected status 'ended', got %s", status)
+	}
+
+	// Verify in-memory cache
+	manager.mu.RLock()
+	cached := manager.roomStatusMap["match123"]
+	manager.mu.RUnlock()
+	if cached.Status != "ended" {
+		t.Fatalf("expected cached status 'ended', got %s", cached.Status)
+	}
+}
+
+func TestGetRoomInfoForSession(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	roomInfo := &models.RoomInfo{
+		MatchId:    "match123",
+		User1:      "user1",
+		User2:      "user2",
+		Status:     "ready",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	info, err := manager.GetRoomInfoForSession("match123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", info.MatchId)
 	}
 }
 
