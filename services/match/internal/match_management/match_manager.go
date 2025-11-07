@@ -46,10 +46,16 @@ type MatchManager struct {
 func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
 	// Create separate Redis clients for pub/sub
 	subClient := redis.NewClient(&redis.Options{
-		Addr:     rdb.Options().Addr,
-		Password: rdb.Options().Password,
-		DB:       rdb.Options().DB,
+		Addr: rdb.Options().Addr,
+		DB:   rdb.Options().DB,
 	})
+
+	// Test connection
+	if err := subClient.Ping(context.Background()).Err(); err != nil {
+		log.Printf("WARNING: subClient ping failed: %v", err)
+	} else {
+		log.Printf("subClient connected successfully")
+	}
 
 	mm := &MatchManager{
 		ctx:       context.Background(),
@@ -88,6 +94,7 @@ func (mm *MatchManager) subscribeToUserMessages() {
 			continue
 		}
 		userId := msg.Channel[5 : len(msg.Channel)-8] // Remove "user:" and ":message"
+		log.Printf("[Instance %s] Received message for user %s", mm.instanceID, userId)
 
 		mm.mu.Lock()
 		conn, ok := mm.connections[userId]
@@ -117,7 +124,7 @@ func (mm *MatchManager) subscribeToUserMessages() {
 
 // --- Redis Subscriber for Events ---
 func (mm *MatchManager) subscribeToRedis() {
-	subscriber := mm.rdb.Subscribe(mm.ctx, "matches", "session_ended")
+	subscriber := mm.subClient.Subscribe(mm.ctx, "matches", "session_ended")
 	ch := subscriber.Channel()
 
 	log.Printf("[Instance %s] Subscribed to matches and session_ended channels", mm.instanceID)
