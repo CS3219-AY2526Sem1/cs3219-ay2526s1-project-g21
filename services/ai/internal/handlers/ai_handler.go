@@ -3,16 +3,17 @@ package handlers
 import (
 	"net/http"
 
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"fmt"
 	"peerprep/ai/internal/llm"
 	"peerprep/ai/internal/middleware"
 	"peerprep/ai/internal/models"
 	"peerprep/ai/internal/prompts"
 	"peerprep/ai/internal/utils"
-	"strings"
 )
 
 type AIHandler struct {

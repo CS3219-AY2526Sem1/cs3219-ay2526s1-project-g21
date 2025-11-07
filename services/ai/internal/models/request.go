@@ -118,14 +118,15 @@ type TestGenRequest struct {
 }
 
 func (r *TestGenRequest) Validate() error {
-	if r.Code == "" {
+	if strings.TrimSpace(r.Code) == "" {
 		return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
 	}
 	if r.Language == "" {
 		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
+	lang := strings.ToLower(r.Language)
 	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[r.Language] {
+	if !supported[lang] {
 		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported (python, java, cpp, javascript)"}
 	}
 	if r.Question == nil {

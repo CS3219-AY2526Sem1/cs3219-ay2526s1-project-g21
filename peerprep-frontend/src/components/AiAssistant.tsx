@@ -48,7 +48,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
 
         if (activeMode === "Hint") {
         setText("Generating hint...");
-        const q = getQuestion()
+        const q = getQuestion();
         const resp = await getHint({
             code: getCode(),
             language,
