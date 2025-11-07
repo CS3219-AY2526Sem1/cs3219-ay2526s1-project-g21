@@ -54,6 +54,7 @@ type mockRoomManager struct {
 	validateFn func(string) (*models.RoomInfo, error)
 	getFn      func(string) (*models.RoomInfo, error)
 	rerollFn   func(string) (*models.RoomInfo, error)
+    cb         func(string, *models.RoomInfo)
 }
 
 func (m *mockRoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
@@ -87,6 +88,18 @@ func (m *mockRoomManager) PublishSessionEnded(event models.SessionEndedEvent) er
 
 func (m *mockRoomManager) MarkRoomAsEnded(matchID string) error {
 	return nil
+}
+
+func (m *mockRoomManager) GetInstanceID() string {
+	return "abcd"
+}
+
+func (m *mockRoomManager) SetRoomUpdateCallback(callback func(matchId string, roomInfo *models.RoomInfo)) {
+    m.cb = callback
+}
+
+func (m *mockRoomManager) SubscribeToRoomUpdates(ctx context.Context) {
+    // no-op in tests
 }
 
 func newTestHandlers(runner runner, rm roomManager) *Handlers {
