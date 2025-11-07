@@ -105,7 +105,6 @@ export default function InterviewLobby() {
       }
 
       if (roomInfo.status === "ready") {
-        console.log("Room is ready, redirecting...");
         toast.success("Room is ready! Redirecting...", {
           position: "bottom-center",
           duration: 3000,
