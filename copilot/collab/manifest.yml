@@ -17,10 +17,21 @@ image:
 
 cpu: 256 # Number of CPU units for the task.
 memory: 512 # Amount of memory in MiB used by the task.
-count: 1 # Number of tasks that should be running in your service.
+count: 2 # Number of tasks that should be running in your service.
 exec: true # Enable running commands in your container.
 network:
   connect: true # Enable Service Connect for intra-environment traffic between services.
+
+http:
+path: "/"
+healthcheck:
+  path: /health
+  healthy_threshold: 2
+  unhealthy_threshold: 3
+  interval: 30s
+  timeout: 5s
+stickiness: true
+deregistration_delay: 60s
 
 # storage:
 # readonly_fs: true       # Limit to read-only access to mounted root filesystems.
