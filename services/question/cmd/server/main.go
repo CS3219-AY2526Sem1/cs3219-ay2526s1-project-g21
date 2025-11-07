@@ -44,7 +44,8 @@ func main() {
 
 	// CORS middleware
 	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		// AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"http://localhost:5173", "https://d1z9c2graxigrz.cloudfront.net/"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
 		AllowCredentials: true,
