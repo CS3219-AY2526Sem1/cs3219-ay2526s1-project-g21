@@ -166,9 +166,7 @@ func stripFences(s string) string {
 			s = s[3+i+1:]
 		}
 	}
-	if strings.HasSuffix(s, "```") {
-		s = strings.TrimSuffix(s, "```")
-	}
+	s = strings.TrimSuffix(s, "```")
 	return strings.TrimSpace(s)
 }
 
