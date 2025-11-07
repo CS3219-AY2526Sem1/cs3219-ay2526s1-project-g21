@@ -54,7 +54,7 @@ type mockRoomManager struct {
 	validateFn func(string) (*models.RoomInfo, error)
 	getFn      func(string) (*models.RoomInfo, error)
 	rerollFn   func(string) (*models.RoomInfo, error)
-    cb         func(string, *models.RoomInfo)
+	cb         func(string, *models.RoomInfo)
 }
 
 func (m *mockRoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
@@ -95,11 +95,11 @@ func (m *mockRoomManager) GetInstanceID() string {
 }
 
 func (m *mockRoomManager) SetRoomUpdateCallback(callback func(matchId string, roomInfo *models.RoomInfo)) {
-    m.cb = callback
+	m.cb = callback
 }
 
 func (m *mockRoomManager) SubscribeToRoomUpdates(ctx context.Context) {
-    // no-op in tests
+	// no-op in tests
 }
 
 func newTestHandlers(runner runner, rm roomManager) *Handlers {

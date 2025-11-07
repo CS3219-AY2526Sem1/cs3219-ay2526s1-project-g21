@@ -598,11 +598,11 @@ func TestMarkRoomAsEnded(t *testing.T) {
 
 	// Create room in Redis
 	roomInfo := &models.RoomInfo{
-		MatchId:    "match123",
-		User1:      "user1",
-		User2:      "user2",
-		Status:     "ready",
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		MatchId:   "match123",
+		User1:     "user1",
+		User2:     "user2",
+		Status:    "ready",
+		CreatedAt: time.Now().Format(time.RFC3339),
 	}
 	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
 
@@ -637,11 +637,11 @@ func TestGetRoomInfoForSession(t *testing.T) {
 	manager, _, _ := setupRoomManager(t, nil)
 
 	roomInfo := &models.RoomInfo{
-		MatchId:    "match123",
-		User1:      "user1",
-		User2:      "user2",
-		Status:     "ready",
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		MatchId:   "match123",
+		User1:     "user1",
+		User2:     "user2",
+		Status:    "ready",
+		CreatedAt: time.Now().Format(time.RFC3339),
 	}
 	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
 
