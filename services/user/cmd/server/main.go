@@ -104,6 +104,9 @@ func run() error {
 	dbPass := os.Getenv("POSTGRES_PASSWORD")
 	dbName := os.Getenv("POSTGRES_DB")
 	sslmode := os.Getenv("POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable" // or "require" based on your requirements
+	}
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=%s", dbHost,
 		dbUser, dbPass, dbName, sslmode)
 
