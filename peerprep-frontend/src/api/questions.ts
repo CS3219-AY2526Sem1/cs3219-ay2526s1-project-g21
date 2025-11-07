@@ -88,8 +88,6 @@ export async function getAllQuestions(page?: number, limit?: number): Promise<{
 }> {
   let path = "/";
 
-  console.log("Fetching questions with page:", page, "limit:", limit);
-
   if (page !== undefined || limit !== undefined) {
     const params = new URLSearchParams();
 
