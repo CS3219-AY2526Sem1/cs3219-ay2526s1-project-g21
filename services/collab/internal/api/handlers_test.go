@@ -73,7 +73,12 @@ func (m *mockRoomManager) GetRoomStatus(id string) (*models.RoomInfo, error) {
 
 func (m *mockRoomManager) RerollQuestion(id string) (*models.RoomInfo, error) {
 	if m.rerollFn != nil {
-		return m.rerollFn(id)
+		updated, err := m.rerollFn(id)
+		if err == nil && updated != nil && m.cb != nil {
+			// simulate publishing an update which the Handlers would receive via callback
+			m.cb(id, updated)
+		}
+		return updated, err
 	}
 	return nil, errors.New("not implemented")
 }
