@@ -76,13 +76,8 @@ func generateRequestID() string {
 }
 
 func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
-	req, ok := r.Context().Value("validated_request").(*models.HintRequest)
-	if !ok || req == nil {
-		utils.JSON(w, http.StatusBadRequest, models.ErrorResponse{
-			Code: "bad_request", Message: "Invalid request",
-		})
-		return
-	}
+	// Get the validated request from middleware
+	req := middleware.GetValidatedRequest[*models.HintRequest](r)
 
 	if req.RequestID == "" {
 		req.RequestID = generateRequestID()

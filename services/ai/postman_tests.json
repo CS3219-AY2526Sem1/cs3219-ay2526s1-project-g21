@@ -42,6 +42,26 @@
 			"response": []
 		},
 		{
+			"name": "Versioned Health Check - /api/v1/ai/healthz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/api/v1/ai/healthz",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"healthz"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Explain Code - Python Basic",
 			"request": {
 				"method": "POST",
@@ -56,11 +76,13 @@
 					"raw": "{\n  \"code\": \"def hello():\\n    print(\\\"Hello World\\\")\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-python-basic\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -83,11 +105,13 @@
 					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-java-intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -110,11 +134,13 @@
 					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-java-intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -137,11 +163,13 @@
 					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -164,11 +192,13 @@
 					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -191,11 +221,13 @@
 					"raw": "{\n  \"code\": \"const numbers = [1, 2, 3, 4, 5];\\nconst doubled = numbers.map(n => n * 2);\\nconsole.log(doubled);\",\n  \"language\": \"javascript\",\n  \"request_id\": \"test-js-default\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -218,13 +250,102 @@
 					"raw": "{\n  \"code\": \"def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\",\n  \"language\": \"python\",\n  \"detail_level\": \"intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - Python Basic",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    # TODO: implement\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"basic\",\n  \"request_id\": \"test-hint-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - Java Intermediate",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    // TODO: implement\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Find two numbers in array that sum to target\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"intermediate\",\n  \"request_id\": \"test-hint-java\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - No Request ID (Auto-generated)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function findMax(arr) {\\n    // TODO\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 2,\n    \"title\": \"Find Maximum\",\n    \"prompt_markdown\": \"Find the maximum element in an array\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\"]\n  },\n  \"hint_level\": \"basic\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
 					]
 				}
 			},
@@ -245,11 +366,13 @@
 					"raw": "{\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -272,11 +395,13 @@
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -299,11 +424,13 @@
 					"raw": "{\n  \"code\": \"puts 'Hello World'\",\n  \"language\": \"ruby\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -326,11 +453,13 @@
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"expert\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
