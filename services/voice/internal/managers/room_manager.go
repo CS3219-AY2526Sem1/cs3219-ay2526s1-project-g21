@@ -42,7 +42,14 @@ func NewRoomManager(redisAddr string) *RoomManager {
 
 	go rm.subscribeToPresenceEvents()
 
+	log.Printf("[Voice RoomManager %s] Initialized", rm.instanceID)
+
 	return rm
+}
+
+// GetInstanceID returns the instance ID for this room manager
+func (rm *RoomManager) GetInstanceID() string {
+	return rm.instanceID
 }
 
 // GetOrCreateRoom gets or creates an in-memory voice room
@@ -56,7 +63,7 @@ func (rm *RoomManager) GetOrCreateRoom(roomID string) *models.Room {
 
 	room := models.NewRoom(roomID)
 	rm.rooms[roomID] = room
-	log.Printf("Created new voice room: %s (instance: %s)", roomID, rm.instanceID)
+	log.Printf("[Voice RoomManager %s] Created new voice room: %s", rm.instanceID, roomID)
 	return room
 }
 
@@ -65,7 +72,7 @@ func (rm *RoomManager) DeleteRoom(roomID string) {
 	defer rm.mu.Unlock()
 
 	delete(rm.rooms, roomID)
-	log.Printf("Deleted voice room: %s (instance: %s)", roomID, rm.instanceID)
+	log.Printf("[Voice RoomManager %s] Deleted voice room: %s", rm.instanceID, roomID)
 }
 
 func (rm *RoomManager) PublishPresenceEvent(event *models.PresenceEvent) error {
@@ -168,32 +175,32 @@ func (rm *RoomManager) handlePresenceEvent(event *models.PresenceEvent) {
 	}
 }
 
-func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
-	ms.mu.RLock()
-	if roomInfo, exists := ms.roomStatusMap[matchId]; exists {
+func (rm *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
+	rm.mu.RLock()
+	if roomInfo, exists := rm.roomStatusMap[matchId]; exists {
 		copy := cloneRoomInfo(roomInfo)
-		ms.mu.RUnlock()
+		rm.mu.RUnlock()
 		return copy, nil
 	}
-	ms.mu.RUnlock()
+	rm.mu.RUnlock()
 
-	roomInfo, err := ms.fetchRoomStatusFromRedis(matchId)
+	roomInfo, err := rm.fetchRoomStatusFromRedis(matchId)
 	if err != nil {
 		return nil, err
 	}
 
-	ms.mu.Lock()
-	ms.roomStatusMap[matchId] = roomInfo
-	ms.mu.Unlock()
+	rm.mu.Lock()
+	rm.roomStatusMap[matchId] = roomInfo
+	rm.mu.Unlock()
 
 	return cloneRoomInfo(roomInfo), nil
 }
 
-func (ms *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInfo, error) {
+func (rm *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInfo, error) {
 	ctx := context.Background()
 	roomKey := "room:" + matchId
 
-	result := ms.rdb.HGetAll(ctx, roomKey)
+	result := rm.rdb.HGetAll(ctx, roomKey)
 	if result.Err() != nil {
 		return nil, fmt.Errorf("failed to get room from Redis: %w", result.Err())
 	}
@@ -226,13 +233,13 @@ func cloneRoomInfo(src *models.RoomInfo) *models.RoomInfo {
 	return &copy
 }
 
-func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
+func (rm *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
 	claims, err := utils.ValidateRoomToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	roomInfo, err := ms.GetRoomStatus(claims.MatchId)
+	roomInfo, err := rm.GetRoomStatus(claims.MatchId)
 	if err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
 	}
@@ -242,4 +249,35 @@ func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error
 	}
 
 	return roomInfo, nil
+}
+
+func (rm *RoomManager) Cleanup() {
+	log.Printf("[Voice RoomManager %s] Starting cleanup", rm.instanceID)
+
+	// Stop pub/sub subscriptions
+	rm.cancelPubSub()
+
+	// Close all active rooms and connections
+	rm.mu.Lock()
+	for roomID, room := range rm.rooms {
+		log.Printf("[Voice RoomManager %s] Cleaning up room: %s", rm.instanceID, roomID)
+
+		// Broadcast disconnection to all users
+		room.BroadcastJSON(models.SignalingMessage{
+			Type: "server-shutdown",
+			Data: map[string]string{
+				"message": "Server is shutting down. Please reconnect.",
+			},
+			Timestamp: time.Now(),
+		})
+
+		// Close all connections in the room
+		for userID := range room.Connections {
+			room.RemoveConn(userID)
+		}
+	}
+	rm.rooms = make(map[string]*models.Room)
+	rm.mu.Unlock()
+
+	log.Printf("[Voice RoomManager %s] Cleanup completed", rm.instanceID)
 }

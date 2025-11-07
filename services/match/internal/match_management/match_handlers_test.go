@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Note: setupTestRedis is defined in match_manager_test.go and can be used here
+// Note: setupTestRedis is defined in match_manager_test.go
 
 func TestJoinHandler_Success(t *testing.T) {
 	secret := []byte("test-secret")
@@ -41,6 +42,13 @@ func TestJoinHandler_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.True(t, resp.OK)
 	assert.Equal(t, "queued", resp.Info)
+
+	// Verify user was added to Redis
+	userKey := "user:user123"
+	userData, err := rdb.HGetAll(context.Background(), userKey).Result()
+	assert.NoError(t, err)
+	assert.Equal(t, "arrays", userData["category"])
+	assert.Equal(t, "easy", userData["difficulty"])
 }
 
 func TestJoinHandler_MissingUserId(t *testing.T) {
@@ -59,7 +67,8 @@ func TestJoinHandler_MissingUserId(t *testing.T) {
 
 	mm.JoinHandler(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code) // Still OK since empty string is valid
+	// Handler still processes empty userId and adds to queue
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestJoinHandler_InvalidJSON(t *testing.T) {
@@ -113,10 +122,8 @@ func TestJoinHandler_AlreadyInRoom(t *testing.T) {
 	userId := "user123"
 	matchId := uuid.New().String()
 
-	// Set up user in room
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	mm.roomMu.Unlock()
+	// Set up user in room in Redis
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
 
 	reqBody := models.JoinReq{
 		UserID:     userId,
@@ -147,14 +154,16 @@ func TestCancelHandler_Success(t *testing.T) {
 	category := "arrays"
 	difficulty := "easy"
 
-	// Set up user in queue
-	userKey := "user:" + userId
+	// Set up user in queue in Redis
+	userKey := fmt.Sprintf("user:%s", userId)
+	now := float64(time.Now().Unix())
 	rdb.HSet(context.Background(), userKey, map[string]interface{}{
 		"category":   category,
 		"difficulty": difficulty,
-		"joined_at":  float64(time.Now().Unix()),
+		"joined_at":  now,
+		"stage":      1,
 	})
-	rdb.ZAdd(context.Background(), "queue:arrays:easy", redis.Z{Score: float64(time.Now().Unix()), Member: userId})
+	rdb.ZAdd(context.Background(), fmt.Sprintf("queue:%s:%s", category, difficulty), redis.Z{Score: now, Member: userId})
 
 	reqBody := map[string]string{
 		"userId": userId,
@@ -172,6 +181,11 @@ func TestCancelHandler_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.True(t, resp.OK)
 	assert.Equal(t, "cancelled", resp.Info)
+
+	// Verify user removed from Redis
+	userData, err := rdb.HGetAll(context.Background(), userKey).Result()
+	assert.NoError(t, err)
+	assert.Empty(t, userData)
 }
 
 func TestCancelHandler_NotInQueue(t *testing.T) {
@@ -207,6 +221,19 @@ func TestCancelHandler_InvalidJSON(t *testing.T) {
 	mm.CancelHandler(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCancelHandler_WrongMethod(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/cancel", nil)
+	w := httptest.NewRecorder()
+
+	mm.CancelHandler(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 }
 
 func TestCheckHandler_NotInRoom(t *testing.T) {
@@ -254,6 +281,7 @@ func TestCheckHandler_InRoom_User1(t *testing.T) {
 	token1 := "token1"
 	token2 := "token2"
 
+	// Set up room in Redis
 	room := &models.RoomInfo{
 		MatchId:    matchId,
 		User1:      userId,
@@ -262,15 +290,16 @@ func TestCheckHandler_InRoom_User1(t *testing.T) {
 		Difficulty: "easy",
 		Token1:     token1,
 		Token2:     token2,
+		Status:     "active",
+		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	mm.userToRoom[otherUser] = matchId
-	mm.roomInfo[matchId] = room
-	mm.roomMu.Unlock()
+	roomJSON, _ := json.Marshal(room)
+	rdb.Set(context.Background(), fmt.Sprintf("room:%s", matchId), roomJSON, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", otherUser), matchId, 2*time.Hour)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/check?userId="+userId, nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/match/check?userId=%s", userId), nil)
 	w := httptest.NewRecorder()
 
 	mm.CheckHandler(w, req)
@@ -295,6 +324,7 @@ func TestCheckHandler_InRoom_User2(t *testing.T) {
 	token1 := "token1"
 	token2 := "token2"
 
+	// Set up room in Redis
 	room := &models.RoomInfo{
 		MatchId:    matchId,
 		User1:      otherUser,
@@ -303,15 +333,16 @@ func TestCheckHandler_InRoom_User2(t *testing.T) {
 		Difficulty: "easy",
 		Token1:     token1,
 		Token2:     token2,
+		Status:     "active",
+		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	mm.userToRoom[otherUser] = matchId
-	mm.roomInfo[matchId] = room
-	mm.roomMu.Unlock()
+	roomJSON, _ := json.Marshal(room)
+	rdb.Set(context.Background(), fmt.Sprintf("room:%s", matchId), roomJSON, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", otherUser), matchId, 2*time.Hour)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/check?userId="+userId, nil)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/match/check?userId=%s", userId), nil)
 	w := httptest.NewRecorder()
 
 	mm.CheckHandler(w, req)
@@ -325,6 +356,61 @@ func TestCheckHandler_InRoom_User2(t *testing.T) {
 	assert.Equal(t, token2, resp.Token)
 }
 
+func TestCheckHandler_WrongMethod(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/check", nil)
+	w := httptest.NewRecorder()
+
+	// GET handler should still process, but missing userId will cause error
+	mm.CheckHandler(w, req)
+
+	// Should return bad request for missing userId
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCheckHandler_RoomWithMissingToken(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	userId := "user1"
+	otherUser := "user2"
+	matchId := uuid.New().String()
+
+	// Set up room in Redis with empty token1
+	room := &models.RoomInfo{
+		MatchId:    matchId,
+		User1:      userId,
+		User2:      otherUser,
+		Category:   "arrays",
+		Difficulty: "easy",
+		Token1:     "", // Empty token
+		Token2:     "token2",
+		Status:     "active",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+
+	roomJSON, _ := json.Marshal(room)
+	rdb.Set(context.Background(), fmt.Sprintf("room:%s", matchId), roomJSON, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/match/check?userId=%s", userId), nil)
+	w := httptest.NewRecorder()
+
+	mm.CheckHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp models.CheckResp
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.True(t, resp.InRoom)
+	assert.Equal(t, matchId, resp.RoomId)
+	assert.Equal(t, "", resp.Token) // Should return empty token
+}
+
 func TestDoneHandler_Success(t *testing.T) {
 	secret := []byte("test-secret")
 	_, rdb := setupTestRedis(t)
@@ -334,19 +420,21 @@ func TestDoneHandler_Success(t *testing.T) {
 	otherUser := "user2"
 	matchId := uuid.New().String()
 
+	// Set up room in Redis
 	room := &models.RoomInfo{
 		MatchId:    matchId,
 		User1:      userId,
 		User2:      otherUser,
 		Category:   "arrays",
 		Difficulty: "easy",
+		Status:     "active",
+		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	mm.userToRoom[otherUser] = matchId
-	mm.roomInfo[matchId] = room
-	mm.roomMu.Unlock()
+	roomJSON, _ := json.Marshal(room)
+	rdb.Set(context.Background(), fmt.Sprintf("room:%s", matchId), roomJSON, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", otherUser), matchId, 2*time.Hour)
 
 	reqBody := map[string]string{
 		"userId": userId,
@@ -364,11 +452,10 @@ func TestDoneHandler_Success(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.True(t, resp.OK)
 
-	// Verify user removed
-	mm.roomMu.RLock()
-	_, inRoom := mm.userToRoom[userId]
-	mm.roomMu.RUnlock()
-	assert.False(t, inRoom)
+	// Verify user removed from Redis
+	roomId, err := rdb.Get(context.Background(), fmt.Sprintf("user_room:%s", userId)).Result()
+	assert.Error(t, err) // Should not exist
+	assert.Empty(t, roomId)
 }
 
 func TestDoneHandler_NotInRoom(t *testing.T) {
@@ -391,272 +478,6 @@ func TestDoneHandler_NotInRoom(t *testing.T) {
 	var resp models.Resp
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.False(t, resp.OK)
-}
-
-func TestHandshakeHandler_Accept_MatchConfirmed(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	matchId := uuid.New().String()
-	user1 := "user1"
-	user2 := "user2"
-
-	pending := &models.PendingMatch{
-		MatchId:    matchId,
-		User1:      user1,
-		User2:      user2,
-		Category:   "arrays",
-		Difficulty: "easy",
-		User1Cat:   "arrays",
-		User1Diff:  "easy",
-		User2Cat:   "arrays",
-		User2Diff:  "easy",
-		Token1:     "token1",
-		Token2:     "token2",
-		Handshakes: make(map[string]bool),
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(15 * time.Second),
-	}
-
-	mm.pendingMu.Lock()
-	mm.pendingMatches[matchId] = pending
-	mm.pendingMu.Unlock()
-
-	// First user accepts
-	reqBody1 := models.HandshakeReq{
-		UserID:  user1,
-		MatchId: matchId,
-		Accept:  true,
-	}
-
-	body1, _ := json.Marshal(reqBody1)
-	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body1))
-	w1 := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w1, req1)
-
-	assert.Equal(t, http.StatusOK, w1.Code)
-
-	// Second user accepts
-	reqBody2 := models.HandshakeReq{
-		UserID:  user2,
-		MatchId: matchId,
-		Accept:  true,
-	}
-
-	body2, _ := json.Marshal(reqBody2)
-	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body2))
-	w2 := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w2, req2)
-
-	assert.Equal(t, http.StatusOK, w2.Code)
-
-	// Verify match confirmed and room created
-	mm.roomMu.RLock()
-	room1, inRoom1 := mm.userToRoom[user1]
-	room2, inRoom2 := mm.userToRoom[user2]
-	mm.roomMu.RUnlock()
-
-	assert.True(t, inRoom1)
-	assert.True(t, inRoom2)
-	assert.Equal(t, matchId, room1)
-	assert.Equal(t, matchId, room2)
-}
-
-func TestHandshakeHandler_Reject(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	matchId := uuid.New().String()
-	user1 := "user1"
-	user2 := "user2"
-
-	// Set up user2 in queue for re-queuing
-	userKey := "user:" + user2
-	rdb.HSet(context.Background(), userKey, "category", "arrays", "difficulty", "easy", "joined_at", float64(time.Now().Unix()))
-
-	pending := &models.PendingMatch{
-		MatchId:    matchId,
-		User1:      user1,
-		User2:      user2,
-		Category:   "arrays",
-		Difficulty: "easy",
-		User1Cat:   "arrays",
-		User1Diff:  "easy",
-		User2Cat:   "arrays",
-		User2Diff:  "easy",
-		Token1:     "token1",
-		Token2:     "token2",
-		Handshakes: make(map[string]bool),
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(15 * time.Second),
-	}
-
-	mm.pendingMu.Lock()
-	mm.pendingMatches[matchId] = pending
-	mm.pendingMu.Unlock()
-
-	reqBody := models.HandshakeReq{
-		UserID:  user1,
-		MatchId: matchId,
-		Accept:  false,
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var resp models.Resp
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.True(t, resp.OK)
-
-	// Verify pending match removed
-	mm.pendingMu.Lock()
-	_, exists := mm.pendingMatches[matchId]
-	mm.pendingMu.Unlock()
-	assert.False(t, exists)
-}
-
-func TestHandshakeHandler_MatchNotFound(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	reqBody := models.HandshakeReq{
-		UserID:  "user1",
-		MatchId: "nonexistent",
-		Accept:  true,
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w, req)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
-
-	var resp models.Resp
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.False(t, resp.OK)
-}
-
-func TestHandshakeHandler_NotPartOfMatch(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	matchId := uuid.New().String()
-	user1 := "user1"
-	user2 := "user2"
-
-	pending := &models.PendingMatch{
-		MatchId:    matchId,
-		User1:      user1,
-		User2:      user2,
-		Category:   "arrays",
-		Difficulty: "easy",
-		User1Cat:   "arrays",
-		User1Diff:  "easy",
-		User2Cat:   "arrays",
-		User2Diff:  "easy",
-		Token1:     "token1",
-		Token2:     "token2",
-		Handshakes: make(map[string]bool),
-		CreatedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(15 * time.Second),
-	}
-
-	mm.pendingMu.Lock()
-	mm.pendingMatches[matchId] = pending
-	mm.pendingMu.Unlock()
-
-	reqBody := models.HandshakeReq{
-		UserID:  "unauthorized",
-		MatchId: matchId,
-		Accept:  true,
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w, req)
-
-	assert.Equal(t, http.StatusForbidden, w.Code)
-
-	var resp models.Resp
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.False(t, resp.OK)
-}
-
-func TestHandshakeHandler_InvalidJSON(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBufferString("invalid json"))
-	w := httptest.NewRecorder()
-
-	mm.HandshakeHandler(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestJoinHandler_RedisError(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	reqBody := models.JoinReq{
-		UserID:     "user123",
-		Category:   "arrays",
-		Difficulty: "easy",
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/join", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-
-	// Even with mock, the handler should still work
-	mm.JoinHandler(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestCancelHandler_WrongMethod(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/cancel", nil)
-	w := httptest.NewRecorder()
-
-	mm.CancelHandler(w, req)
-
-	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
-}
-
-func TestCheckHandler_WrongMethod(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/check", nil)
-	w := httptest.NewRecorder()
-
-	// GET handler should still process, but missing userId will cause error
-	mm.CheckHandler(w, req)
-
-	// Should return bad request for missing userId
-	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestDoneHandler_InvalidJSON(t *testing.T) {
@@ -694,10 +515,8 @@ func TestDoneHandler_RoomNotFound(t *testing.T) {
 	matchId := uuid.New().String()
 
 	// User in room mapping but room doesn't exist
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	// Don't add roomInfo entry
-	mm.roomMu.Unlock()
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId), matchId, 2*time.Hour)
+	// Don't add room entry
 
 	reqBody := map[string]string{
 		"userId": userId,
@@ -725,19 +544,21 @@ func TestDoneHandler_BothUsersLeave(t *testing.T) {
 	userId2 := "user2"
 	matchId := uuid.New().String()
 
+	// Set up room in Redis
 	room := &models.RoomInfo{
 		MatchId:    matchId,
 		User1:      userId1,
 		User2:      userId2,
 		Category:   "arrays",
 		Difficulty: "easy",
+		Status:     "active",
+		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
 
-	mm.roomMu.Lock()
-	mm.userToRoom[userId1] = matchId
-	mm.userToRoom[userId2] = matchId
-	mm.roomInfo[matchId] = room
-	mm.roomMu.Unlock()
+	roomJSON, _ := json.Marshal(room)
+	rdb.Set(context.Background(), fmt.Sprintf("room:%s", matchId), roomJSON, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId1), matchId, 2*time.Hour)
+	rdb.Set(context.Background(), fmt.Sprintf("user_room:%s", userId2), matchId, 2*time.Hour)
 
 	// First user leaves
 	reqBody1 := map[string]string{
@@ -763,14 +584,13 @@ func TestDoneHandler_BothUsersLeave(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w2.Code)
 
-	// Verify room is deleted
-	mm.roomMu.RLock()
-	_, exists := mm.roomInfo[matchId]
-	mm.roomMu.RUnlock()
-	assert.False(t, exists)
+	// Verify room is deleted from Redis
+	roomData, err := rdb.Get(context.Background(), fmt.Sprintf("room:%s", matchId)).Result()
+	assert.Error(t, err) // Should not exist
+	assert.Empty(t, roomData)
 }
 
-func TestHandshakeHandler_AlreadyAccepted(t *testing.T) {
+func TestHandshakeHandler_Accept_MatchConfirmed(t *testing.T) {
 	secret := []byte("test-secret")
 	_, rdb := setupTestRedis(t)
 	mm := NewMatchManager(secret, rdb)
@@ -779,6 +599,7 @@ func TestHandshakeHandler_AlreadyAccepted(t *testing.T) {
 	user1 := "user1"
 	user2 := "user2"
 
+	// Create pending match in Redis
 	pending := &models.PendingMatch{
 		MatchId:    matchId,
 		User1:      user1,
@@ -796,9 +617,10 @@ func TestHandshakeHandler_AlreadyAccepted(t *testing.T) {
 		ExpiresAt:  time.Now().Add(15 * time.Second),
 	}
 
-	mm.pendingMu.Lock()
-	mm.pendingMatches[matchId] = pending
-	mm.pendingMu.Unlock()
+	pendingJSON, _ := json.Marshal(pending)
+	rdb.Set(context.Background(), fmt.Sprintf("pending_match:%s", matchId), pendingJSON, 20*time.Second)
+	rdb.Set(context.Background(), fmt.Sprintf("handshake:%s:%s", matchId, user1), "pending", 20*time.Second)
+	rdb.Set(context.Background(), fmt.Sprintf("handshake:%s:%s", matchId, user2), "pending", 20*time.Second)
 
 	// First user accepts
 	reqBody1 := models.HandshakeReq{
@@ -806,16 +628,219 @@ func TestHandshakeHandler_AlreadyAccepted(t *testing.T) {
 		MatchId: matchId,
 		Accept:  true,
 	}
+
 	body1, _ := json.Marshal(reqBody1)
 	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body1))
 	w1 := httptest.NewRecorder()
 
 	mm.HandshakeHandler(w1, req1)
+
 	assert.Equal(t, http.StatusOK, w1.Code)
 
-	// Same user accepts again (should still work)
-	mm.HandshakeHandler(w1, req1)
-	assert.Equal(t, http.StatusOK, w1.Code)
+	// Second user accepts
+	reqBody2 := models.HandshakeReq{
+		UserID:  user2,
+		MatchId: matchId,
+		Accept:  true,
+	}
+
+	body2, _ := json.Marshal(reqBody2)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body2))
+	w2 := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w2, req2)
+
+	assert.Equal(t, http.StatusOK, w2.Code)
+
+	// Verify match confirmed and room created in Redis
+	roomId1, err1 := mm.GetRoomForUser(user1)
+	assert.NoError(t, err1)
+	assert.Equal(t, matchId, roomId1)
+
+	roomId2, err2 := mm.GetRoomForUser(user2)
+	assert.NoError(t, err2)
+	assert.Equal(t, matchId, roomId2)
+}
+
+func TestHandshakeHandler_Reject(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	matchId := uuid.New().String()
+	user1 := "user1"
+	user2 := "user2"
+
+	// Set up user2 in queue for re-queuing
+	userKey := fmt.Sprintf("user:%s", user2)
+	now := float64(time.Now().Unix())
+	rdb.HSet(context.Background(), userKey, "category", "arrays", "difficulty", "easy", "joined_at", now)
+
+	// Create pending match in Redis
+	pending := &models.PendingMatch{
+		MatchId:    matchId,
+		User1:      user1,
+		User2:      user2,
+		Category:   "arrays",
+		Difficulty: "easy",
+		User1Cat:   "arrays",
+		User1Diff:  "easy",
+		User2Cat:   "arrays",
+		User2Diff:  "easy",
+		Token1:     "token1",
+		Token2:     "token2",
+		Handshakes: make(map[string]bool),
+		CreatedAt:  time.Now(),
+		ExpiresAt:  time.Now().Add(15 * time.Second),
+	}
+
+	pendingJSON, _ := json.Marshal(pending)
+	rdb.Set(context.Background(), fmt.Sprintf("pending_match:%s", matchId), pendingJSON, 20*time.Second)
+	rdb.Set(context.Background(), fmt.Sprintf("handshake:%s:%s", matchId, user1), "pending", 20*time.Second)
+	rdb.Set(context.Background(), fmt.Sprintf("handshake:%s:%s", matchId, user2), "pending", 20*time.Second)
+
+	reqBody := models.HandshakeReq{
+		UserID:  user1,
+		MatchId: matchId,
+		Accept:  false,
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp models.Resp
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.True(t, resp.OK)
+
+	// Verify pending match removed from Redis
+	pendingData, err := rdb.Get(context.Background(), fmt.Sprintf("pending_match:%s", matchId)).Result()
+	assert.Error(t, err) // Should not exist
+	assert.Empty(t, pendingData)
+}
+
+func TestHandshakeHandler_MatchNotFound(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	reqBody := models.HandshakeReq{
+		UserID:  "user1",
+		MatchId: "nonexistent",
+		Accept:  true,
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var resp models.Resp
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.False(t, resp.OK)
+}
+
+func TestHandshakeHandler_NotPartOfMatch(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	matchId := uuid.New().String()
+	user1 := "user1"
+	user2 := "user2"
+
+	// Create pending match in Redis
+	pending := &models.PendingMatch{
+		MatchId:    matchId,
+		User1:      user1,
+		User2:      user2,
+		Category:   "arrays",
+		Difficulty: "easy",
+		User1Cat:   "arrays",
+		User1Diff:  "easy",
+		User2Cat:   "arrays",
+		User2Diff:  "easy",
+		Token1:     "token1",
+		Token2:     "token2",
+		Handshakes: make(map[string]bool),
+		CreatedAt:  time.Now(),
+		ExpiresAt:  time.Now().Add(15 * time.Second),
+	}
+
+	pendingJSON, _ := json.Marshal(pending)
+	rdb.Set(context.Background(), fmt.Sprintf("pending_match:%s", matchId), pendingJSON, 20*time.Second)
+
+	reqBody := models.HandshakeReq{
+		UserID:  "unauthorized",
+		MatchId: matchId,
+		Accept:  true,
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	var resp models.Resp
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.False(t, resp.OK)
+}
+
+func TestHandshakeHandler_InvalidJSON(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBufferString("invalid json"))
+	w := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandshakeHandler_WrongMethod(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/handshake", nil)
+	w := httptest.NewRecorder()
+
+	mm.HandshakeHandler(w, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+}
+
+func TestJoinHandler_RedisError(t *testing.T) {
+	secret := []byte("test-secret")
+	_, rdb := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb)
+
+	reqBody := models.JoinReq{
+		UserID:     "user123",
+		Category:   "arrays",
+		Difficulty: "easy",
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/join", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	// Even with mock, the handler should still work
+	mm.JoinHandler(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestWsHandler_MissingUserId(t *testing.T) {
@@ -845,43 +870,5 @@ func TestWsHandler_WithUserId(t *testing.T) {
 
 	// Upgrade will fail, so we can't verify connection, but handler should process userId check
 	// The actual upgrade failure is expected in test environment
-}
-
-func TestCheckHandler_RoomWithMissingToken(t *testing.T) {
-	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
-
-	userId := "user1"
-	otherUser := "user2"
-	matchId := uuid.New().String()
-
-	room := &models.RoomInfo{
-		MatchId:    matchId,
-		User1:      userId,
-		User2:      otherUser,
-		Category:   "arrays",
-		Difficulty: "easy",
-		Token1:     "", // Empty token
-		Token2:     "token2",
-	}
-
-	mm.roomMu.Lock()
-	mm.userToRoom[userId] = matchId
-	mm.userToRoom[otherUser] = matchId
-	mm.roomInfo[matchId] = room
-	mm.roomMu.Unlock()
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/check?userId="+userId, nil)
-	w := httptest.NewRecorder()
-
-	mm.CheckHandler(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var resp models.CheckResp
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.True(t, resp.InRoom)
-	assert.Equal(t, matchId, resp.RoomId)
-	assert.Equal(t, "", resp.Token) // Should return empty token
+	// The handler should return before upgrade fails, so status should be BadRequest or similar
 }

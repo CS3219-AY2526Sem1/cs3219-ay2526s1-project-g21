@@ -40,7 +40,6 @@ func main() {
 	mm := match_management.NewMatchManager(jwtSecret, rdb)
 
 	// Start background processes
-	go mm.SubscribeToRedis()
 	go mm.StartMatchmakingLoop()
 	go mm.StartPendingMatchExpirationLoop()
 

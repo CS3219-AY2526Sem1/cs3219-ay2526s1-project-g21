@@ -14,14 +14,22 @@ import (
 	"collab/internal/models"
 	"collab/internal/utils"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 type RoomManager struct {
 	rdb           *redis.Client
+	pubClient     *redis.Client
+	subClient     *redis.Client
 	questionURL   string
 	roomStatusMap map[string]*models.RoomInfo
 	mu            sync.RWMutex
+	instanceID    string
+	ctx           context.Context
+
+	// Callback for room update events (set by handlers)
+	onRoomUpdate func(matchId string, roomInfo *models.RoomInfo)
 }
 
 const (
@@ -38,47 +46,135 @@ func NewRoomManager(redisAddr, questionURL string) *RoomManager {
 		Addr: redisAddr,
 	})
 
-	return &RoomManager{
+	// Separate client for pub/sub
+	subClient := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+
+	rm := &RoomManager{
 		rdb:           rdb,
+		pubClient:     rdb,
+		subClient:     subClient,
 		questionURL:   questionURL,
 		roomStatusMap: make(map[string]*models.RoomInfo),
+		instanceID:    uuid.New().String()[:8], // Short instance ID for logging
+		ctx:           context.Background(),
 	}
+
+	log.Printf("[RoomManager %s] Initialized", rm.instanceID)
+
+	return rm
+}
+
+func (rm *RoomManager) GetInstanceID() string {
+	return rm.instanceID
+}
+
+// SetRoomUpdateCallback sets the callback for when room updates are received
+// This is typically called by the handlers to broadcast updates to WebSocket clients
+func (rm *RoomManager) SetRoomUpdateCallback(callback func(matchId string, roomInfo *models.RoomInfo)) {
+	rm.onRoomUpdate = callback
+}
+
+// GetRedisClient returns the Redis client (needed for handlers to subscribe)
+func (rm *RoomManager) GetRedisClient() *redis.Client {
+	return rm.rdb
 }
 
 // SubscribeToMatches listens for match events until the provided context is cancelled.
-func (ms *RoomManager) SubscribeToMatches(ctx context.Context) {
+func (rm *RoomManager) SubscribeToMatches(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	subscriber := ms.rdb.Subscribe(ctx, "matches")
+	subscriber := rm.rdb.Subscribe(ctx, "matches")
 	defer subscriber.Close()
 	ch := subscriber.Channel()
 
-	log.Println("Match service: Subscribed to match events")
+	log.Printf("[RoomManager %s] Subscribed to match events", rm.instanceID)
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("[RoomManager %s] Stopping match subscription", rm.instanceID)
 			return
 		case msg, ok := <-ch:
 			if !ok {
 				return
 			}
-			ms.handleMatchPayload(msg.Payload)
+			rm.handleMatchPayload(msg.Payload)
 		}
 	}
 }
 
-func (ms *RoomManager) handleMatchPayload(payload string) {
+// SubscribeToRoomUpdates listens for room update events (rerolls, status changes)
+// This allows instances without active WebSocket connections to stay in sync
+func (rm *RoomManager) SubscribeToRoomUpdates(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	subscriber := rm.subClient.Subscribe(ctx, "room_updates")
+	defer subscriber.Close()
+	ch := subscriber.Channel()
+
+	log.Printf("[RoomManager %s] Subscribed to room update events", rm.instanceID)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[RoomManager %s] Stopping room updates subscription", rm.instanceID)
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			rm.handleRoomUpdateEvent(msg.Payload)
+		}
+	}
+}
+
+func (rm *RoomManager) handleMatchPayload(payload string) {
 	var event models.RoomInfo
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		log.Printf("[RoomManager %s] Failed to parse match event: %v", rm.instanceID, err)
 		return
 	}
-	go ms.processMatchEvent(event)
+	go rm.processMatchEvent(event)
+}
+
+func (rm *RoomManager) handleRoomUpdateEvent(payload string) {
+	var event struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}
+
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		log.Printf("[RoomManager %s] Failed to parse room update event: %v", rm.instanceID, err)
+		return
+	}
+
+	// Ignore our own events
+	if event.InstanceID == rm.instanceID {
+		return
+	}
+
+	log.Printf("[RoomManager %s] Received room update from instance %s for match %s",
+		rm.instanceID, event.InstanceID, event.MatchId)
+
+	// Update local cache
+	rm.mu.Lock()
+	rm.roomStatusMap[event.MatchId] = event.RoomInfo
+	rm.mu.Unlock()
+
+	// Trigger callback if set (handlers will use this to broadcast to WebSocket clients)
+	if rm.onRoomUpdate != nil {
+		rm.onRoomUpdate(event.MatchId, event.RoomInfo)
+	}
 }
 
 // Process a match event by fetching question and creating room
-func (ms *RoomManager) processMatchEvent(event models.RoomInfo) {
+func (rm *RoomManager) processMatchEvent(event models.RoomInfo) {
 	ctx := context.Background()
 
 	roomInfo := &models.RoomInfo{
@@ -94,35 +190,43 @@ func (ms *RoomManager) processMatchEvent(event models.RoomInfo) {
 		Token2:           event.Token2,
 	}
 
-	ms.mu.Lock()
-	ms.roomStatusMap[event.MatchId] = roomInfo
-	ms.mu.Unlock()
+	rm.mu.Lock()
+	rm.roomStatusMap[event.MatchId] = roomInfo
+	rm.mu.Unlock()
 
-	ms.updateRoomStatusInRedis(ctx, roomInfo)
+	rm.updateRoomStatusInRedis(ctx, roomInfo)
 
-	question, err := ms.fetchQuestion(event.Category, event.Difficulty)
+	log.Printf("[RoomManager %s] Processing match %s", rm.instanceID, event.MatchId)
+
+	question, err := rm.fetchQuestion(event.Category, event.Difficulty)
 	if err != nil {
-		log.Printf("Failed to fetch question: %v", err)
-		ms.mu.Lock()
+		log.Printf("[RoomManager %s] Failed to fetch question for match %s: %v",
+			rm.instanceID, event.MatchId, err)
+		rm.mu.Lock()
 		roomInfo.Status = "error"
-		ms.mu.Unlock()
-		ms.updateRoomStatusInRedis(ctx, roomInfo)
+		rm.mu.Unlock()
+		rm.updateRoomStatusInRedis(ctx, roomInfo)
 		return
 	}
 
-	ms.mu.Lock()
+	rm.mu.Lock()
 	roomInfo.Question = question
 	roomInfo.Status = "ready"
-	ms.mu.Unlock()
+	rm.mu.Unlock()
 
-	ms.updateRoomStatusInRedis(ctx, roomInfo)
+	rm.updateRoomStatusInRedis(ctx, roomInfo)
 
-	log.Printf("Match service: Room %s is ready with question %d", event.MatchId, question.ID)
+	// Publish room update event
+	rm.publishRoomUpdate(event.MatchId, roomInfo)
+
+	log.Printf("[RoomManager %s] Room %s is ready with question %d",
+		rm.instanceID, event.MatchId, question.ID)
 }
 
 // Fetch a random question from the question service
-func (ms *RoomManager) fetchQuestion(category string, difficulty string) (*models.Question, error) {
-	url := fmt.Sprintf("%s/api/v1/questions/random?difficulty=%s&topic=%s", ms.questionURL, difficulty, category)
+func (rm *RoomManager) fetchQuestion(category string, difficulty string) (*models.Question, error) {
+	url := fmt.Sprintf("%s/api/v1/questions/random?difficulty=%s&topic=%s",
+		rm.questionURL, difficulty, category)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -142,9 +246,9 @@ func (ms *RoomManager) fetchQuestion(category string, difficulty string) (*model
 	return &question, nil
 }
 
-func (ms *RoomManager) fetchAlternativeQuestion(category string, difficulty string, currentID int) (*models.Question, error) {
+func (rm *RoomManager) fetchAlternativeQuestion(category string, difficulty string, currentID int) (*models.Question, error) {
 	for i := 0; i < maxFetchAttempts; i++ {
-		question, err := ms.fetchQuestion(category, difficulty)
+		question, err := rm.fetchQuestion(category, difficulty)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +260,7 @@ func (ms *RoomManager) fetchAlternativeQuestion(category string, difficulty stri
 }
 
 // Update room status in Redis
-func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo) {
+func (rm *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *models.RoomInfo) {
 	roomKey := "room:" + roomInfo.MatchId
 
 	questionJSON := ""
@@ -166,7 +270,7 @@ func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *mo
 		}
 	}
 
-	ms.rdb.HSet(ctx, roomKey, map[string]interface{}{
+	rm.rdb.HSet(ctx, roomKey, map[string]interface{}{
 		"matchId":          roomInfo.MatchId,
 		"user1":            roomInfo.User1,
 		"user2":            roomInfo.User2,
@@ -180,36 +284,64 @@ func (ms *RoomManager) updateRoomStatusInRedis(ctx context.Context, roomInfo *mo
 		"createdAt":        roomInfo.CreatedAt,
 	})
 
-	ms.rdb.Expire(ctx, roomKey, 24*time.Hour)
+	rm.rdb.Expire(ctx, roomKey, 24*time.Hour)
+}
+
+// publishRoomUpdate publishes room update to Redis for other instances
+func (rm *RoomManager) publishRoomUpdate(matchId string, roomInfo *models.RoomInfo) {
+	event := struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}{
+		Type:       "room_updated",
+		InstanceID: rm.instanceID,
+		MatchId:    matchId,
+		RoomInfo:   roomInfo,
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("[RoomManager %s] Failed to marshal room update event: %v", rm.instanceID, err)
+		return
+	}
+
+	if err := rm.pubClient.Publish(rm.ctx, "room_updates", string(eventJSON)).Err(); err != nil {
+		log.Printf("[RoomManager %s] Failed to publish room update: %v", rm.instanceID, err)
+		return
+	}
+
+	log.Printf("[RoomManager %s] Published room update for match %s", rm.instanceID, matchId)
 }
 
 // Get room status by match ID
-func (ms *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
-	ms.mu.RLock()
-	if roomInfo, exists := ms.roomStatusMap[matchId]; exists {
+func (rm *RoomManager) GetRoomStatus(matchId string) (*models.RoomInfo, error) {
+	rm.mu.RLock()
+	if roomInfo, exists := rm.roomStatusMap[matchId]; exists {
 		copy := cloneRoomInfo(roomInfo)
-		ms.mu.RUnlock()
+		rm.mu.RUnlock()
 		return copy, nil
 	}
-	ms.mu.RUnlock()
+	rm.mu.RUnlock()
 
-	roomInfo, err := ms.fetchRoomStatusFromRedis(matchId)
+	roomInfo, err := rm.fetchRoomStatusFromRedis(matchId)
 	if err != nil {
 		return nil, err
 	}
 
-	ms.mu.Lock()
-	ms.roomStatusMap[matchId] = roomInfo
-	ms.mu.Unlock()
+	rm.mu.Lock()
+	rm.roomStatusMap[matchId] = roomInfo
+	rm.mu.Unlock()
 
 	return cloneRoomInfo(roomInfo), nil
 }
 
-func (ms *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInfo, error) {
+func (rm *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInfo, error) {
 	ctx := context.Background()
 	roomKey := "room:" + matchId
 
-	result := ms.rdb.HGetAll(ctx, roomKey)
+	result := rm.rdb.HGetAll(ctx, roomKey)
 	if result.Err() != nil {
 		return nil, fmt.Errorf("failed to get room from Redis: %w", result.Err())
 	}
@@ -241,7 +373,8 @@ func (ms *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInf
 	if questionData := roomMap["question"]; questionData != "" {
 		var question models.Question
 		if err := json.Unmarshal([]byte(questionData), &question); err != nil {
-			log.Printf("Match service: Failed to decode question for room %s: %v", matchId, err)
+			log.Printf("[RoomManager %s] Failed to decode question for room %s: %v",
+				rm.instanceID, matchId, err)
 		} else {
 			roomInfo.Question = &question
 		}
@@ -262,29 +395,31 @@ func cloneRoomInfo(src *models.RoomInfo) *models.RoomInfo {
 	return &copy
 }
 
-func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) {
-	ms.mu.Lock()
-	roomInfo, exists := ms.roomStatusMap[matchId]
-	ms.mu.Unlock()
+func (rm *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) {
+	log.Printf("[RoomManager %s] Reroll requested for match %s", rm.instanceID, matchId)
+
+	rm.mu.Lock()
+	roomInfo, exists := rm.roomStatusMap[matchId]
+	rm.mu.Unlock()
 
 	if !exists {
-		loaded, err := ms.fetchRoomStatusFromRedis(matchId)
+		loaded, err := rm.fetchRoomStatusFromRedis(matchId)
 		if err != nil {
 			return nil, err
 		}
 
-		ms.mu.Lock()
-		roomInfo, exists = ms.roomStatusMap[matchId]
+		rm.mu.Lock()
+		roomInfo, exists = rm.roomStatusMap[matchId]
 		if !exists {
-			ms.roomStatusMap[matchId] = loaded
+			rm.roomStatusMap[matchId] = loaded
 			roomInfo = loaded
 		}
-		ms.mu.Unlock()
+		rm.mu.Unlock()
 	}
 
-	ms.mu.Lock()
+	rm.mu.Lock()
 	if roomInfo.RerollsRemaining <= 0 {
-		ms.mu.Unlock()
+		rm.mu.Unlock()
 		return nil, ErrNoRerolls
 	}
 	roomInfo.RerollsRemaining--
@@ -294,38 +429,44 @@ func (ms *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) 
 	if roomInfo.Question != nil {
 		currentQuestionID = roomInfo.Question.ID
 	}
-	ms.mu.Unlock()
+	rm.mu.Unlock()
 
-	question, err := ms.fetchAlternativeQuestion(category, difficulty, currentQuestionID)
+	question, err := rm.fetchAlternativeQuestion(category, difficulty, currentQuestionID)
 	if err != nil {
-		ms.mu.Lock()
+		rm.mu.Lock()
 		roomInfo.RerollsRemaining++
-		ms.mu.Unlock()
-		log.Printf("Failed to reroll question for room %s: %v", matchId, err)
+		rm.mu.Unlock()
+		log.Printf("[RoomManager %s] Failed to reroll question for room %s: %v",
+			rm.instanceID, matchId, err)
 		return nil, err
 	}
 
-	ms.mu.Lock()
+	rm.mu.Lock()
 	roomInfo.Question = question
 	roomInfo.Status = "ready"
 	updatedCopy := cloneRoomInfo(roomInfo)
-	ms.mu.Unlock()
+	rm.mu.Unlock()
 
-	go ms.updateRoomStatusInRedis(context.Background(), roomInfo)
+	// Update Redis
+	go rm.updateRoomStatusInRedis(context.Background(), roomInfo)
 
-	log.Printf("Match service: Room %s rerolled question to %d", matchId, question.ID)
+	// Publish room update event so other instances can broadcast to their WebSocket clients
+	rm.publishRoomUpdate(matchId, updatedCopy)
+
+	log.Printf("[RoomManager %s] Room %s rerolled question to %d",
+		rm.instanceID, matchId, question.ID)
 
 	return updatedCopy, nil
 }
 
 // ValidateRoomAccess validates if a user can access a room using their token
-func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
+func (rm *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error) {
 	claims, err := utils.ValidateRoomToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	roomInfo, err := ms.GetRoomStatus(claims.MatchId)
+	roomInfo, err := rm.GetRoomStatus(claims.MatchId)
 	if err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
 	}
@@ -338,7 +479,7 @@ func (ms *RoomManager) ValidateRoomAccess(token string) (*models.RoomInfo, error
 }
 
 // PublishSessionEnded publishes a session ended event to Redis
-func (ms *RoomManager) PublishSessionEnded(event models.SessionEndedEvent) error {
+func (rm *RoomManager) PublishSessionEnded(event models.SessionEndedEvent) error {
 	ctx := context.Background()
 
 	eventJSON, err := json.Marshal(event)
@@ -346,34 +487,34 @@ func (ms *RoomManager) PublishSessionEnded(event models.SessionEndedEvent) error
 		return fmt.Errorf("failed to marshal session ended event: %w", err)
 	}
 
-	if err := ms.rdb.Publish(ctx, "session_ended", string(eventJSON)).Err(); err != nil {
+	if err := rm.rdb.Publish(ctx, "session_ended", string(eventJSON)).Err(); err != nil {
 		return fmt.Errorf("failed to publish session ended event: %w", err)
 	}
 
-	log.Printf("Published session_ended event for match %s", event.MatchID)
+	log.Printf("[RoomManager %s] Published session_ended event for match %s",
+		rm.instanceID, event.MatchID)
 	return nil
 }
 
 // GetRoomInfoForSession retrieves room information for a session
-func (ms *RoomManager) GetRoomInfoForSession(matchID string) (*models.RoomInfo, error) {
-	return ms.GetRoomStatus(matchID)
+func (rm *RoomManager) GetRoomInfoForSession(matchID string) (*models.RoomInfo, error) {
+	return rm.GetRoomStatus(matchID)
 }
 
 // GetActiveRoomForUser checks if a user has an active room
-func (ms *RoomManager) GetActiveRoomForUser(userID string) (*models.RoomInfo, error) {
+func (rm *RoomManager) GetActiveRoomForUser(userID string) (*models.RoomInfo, error) {
 	ctx := context.Background()
 
 	// Search for rooms in Redis where user is either user1 or user2
-	// We'll scan for room:* keys and check if the user is in any active room
-	iter := ms.rdb.Scan(ctx, 0, "room:*", 0).Iterator()
+	iter := rm.rdb.Scan(ctx, 0, "room:*", 0).Iterator()
 	for iter.Next(ctx) {
 		roomKey := iter.Val()
-		roomMap := ms.rdb.HGetAll(ctx, roomKey).Val()
+		roomMap := rm.rdb.HGetAll(ctx, roomKey).Val()
 
 		// Check if user is in this room and room is active (ready status)
 		if (roomMap["user1"] == userID || roomMap["user2"] == userID) && roomMap["status"] == "ready" {
 			matchID := roomMap["matchId"]
-			return ms.GetRoomStatus(matchID)
+			return rm.GetRoomStatus(matchID)
 		}
 	}
 
@@ -385,25 +526,33 @@ func (ms *RoomManager) GetActiveRoomForUser(userID string) (*models.RoomInfo, er
 }
 
 // MarkRoomAsEnded updates the room status to "ended" in Redis
-func (ms *RoomManager) MarkRoomAsEnded(matchID string) error {
+func (rm *RoomManager) MarkRoomAsEnded(matchID string) error {
 	ctx := context.Background()
 	roomKey := "room:" + matchID
 
 	// Update the status field to "ended"
-	if err := ms.rdb.HSet(ctx, roomKey, "status", "ended").Err(); err != nil {
+	if err := rm.rdb.HSet(ctx, roomKey, "status", "ended").Err(); err != nil {
 		return fmt.Errorf("failed to mark room as ended: %w", err)
 	}
 
 	// Update in-memory cache
-	ms.mu.Lock()
-	if roomInfo, exists := ms.roomStatusMap[matchID]; exists {
+	rm.mu.Lock()
+	if roomInfo, exists := rm.roomStatusMap[matchID]; exists {
 		roomInfo.Status = "ended"
+		// Publish update
+		go rm.publishRoomUpdate(matchID, roomInfo)
 	}
-	ms.mu.Unlock()
+	rm.mu.Unlock()
 
-	// Set a shorter TTL (1 minute) for ended rooms
-	ms.rdb.Expire(ctx, roomKey, 1*time.Minute)
+	// Set a shorter TTL (1 hour) for ended rooms
+	rm.rdb.Expire(ctx, roomKey, 1*time.Hour)
 
-	log.Printf("Marked room %s as ended", matchID)
+	log.Printf("[RoomManager %s] Marked room %s as ended", rm.instanceID, matchID)
 	return nil
+}
+
+// Cleanup closes Redis connections
+func (rm *RoomManager) Cleanup() {
+	rm.subClient.Close()
+	log.Printf("[RoomManager %s] Cleaned up Redis connections", rm.instanceID)
 }

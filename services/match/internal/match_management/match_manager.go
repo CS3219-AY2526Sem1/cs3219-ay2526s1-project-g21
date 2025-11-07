@@ -23,96 +23,157 @@ const (
 	STAGE1_TIMEOUT        = 100
 	STAGE2_TIMEOUT        = 200
 	STAGE3_TIMEOUT        = 300
+	RoomExpiration        = 2 * time.Hour
 )
 
 type MatchManager struct {
-	ctx         context.Context
-	rdb         *redis.Client
-	upgrader    websocket.Upgrader
+	ctx       context.Context
+	rdb       *redis.Client
+	pubClient *redis.Client // For publishing messages
+	subClient *redis.Client // For subscribing (needs separate connection)
+	upgrader  websocket.Upgrader
+
+	// Only store LOCAL WebSocket connections (not shared between instances)
 	connections map[string]*websocket.Conn
 	mu          sync.Mutex
-	jwtSecret   []byte
 
-	// Maps for room tracking
-	userToRoom map[string]string
-	roomInfo   map[string]*models.RoomInfo
-	roomMu     sync.RWMutex
+	jwtSecret []byte
 
-	// Pending matches awaiting handshake
-	pendingMatches map[string]*models.PendingMatch
-	pendingMu      sync.Mutex
+	// Instance ID for debugging
+	instanceID string
 }
 
 func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
-	return &MatchManager{
-		ctx: context.Background(),
-		rdb: rdb,
+	// Create separate Redis clients for pub/sub
+	subClient := redis.NewClient(&redis.Options{
+		Addr: rdb.Options().Addr,
+		DB:   rdb.Options().DB,
+	})
+
+	// Test connection
+	if err := subClient.Ping(context.Background()).Err(); err != nil {
+		log.Printf("WARNING: subClient ping failed: %v", err)
+	} else {
+		log.Printf("subClient connected successfully")
+	}
+
+	mm := &MatchManager{
+		ctx:       context.Background(),
+		rdb:       rdb,
+		pubClient: rdb,
+		subClient: subClient,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 		connections: make(map[string]*websocket.Conn),
 		jwtSecret:   secret,
+		instanceID:  uuid.New().String()[:8], // Short ID for logging
+	}
 
-		userToRoom: make(map[string]string),
-		roomInfo:   make(map[string]*models.RoomInfo),
+	// Start background subscribers
+	go mm.subscribeToUserMessages()
+	go mm.subscribeToRedis()
 
-		pendingMatches: make(map[string]*models.PendingMatch),
+	log.Printf("Match Manager instance %s started", mm.instanceID)
+
+	return mm
+}
+
+// --- Redis Pub/Sub for WebSocket Messages ---
+// This allows any instance to send messages to users connected to any other instance
+func (mm *MatchManager) subscribeToUserMessages() {
+	pubsub := mm.subClient.PSubscribe(mm.ctx, "user:*:message")
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+	log.Printf("[Instance %s] Subscribed to user message channels", mm.instanceID)
+
+	for msg := range ch {
+		// Extract userId from channel name: "user:123:message"
+		if len(msg.Channel) < 13 { // "user:X:message" minimum length
+			continue
+		}
+		userId := msg.Channel[5 : len(msg.Channel)-8] // Remove "user:" and ":message"
+		log.Printf("[Instance %s] Received message for user %s", mm.instanceID, userId)
+
+		mm.mu.Lock()
+		conn, ok := mm.connections[userId]
+		mm.mu.Unlock()
+
+		if ok {
+			// This user is connected to THIS instance, forward the message
+			var data interface{}
+			if err := json.Unmarshal([]byte(msg.Payload), &data); err != nil {
+				log.Printf("[Instance %s] Failed to parse message for user %s: %v", mm.instanceID, userId, err)
+				continue
+			}
+
+			if err := conn.WriteJSON(data); err != nil {
+				log.Printf("[Instance %s] Error sending to user %s: %v", mm.instanceID, userId, err)
+				mm.mu.Lock()
+				delete(mm.connections, userId)
+				mm.mu.Unlock()
+				conn.Close()
+			} else {
+				log.Printf("[Instance %s] Delivered message to user %s", mm.instanceID, userId)
+			}
+		}
+		// If user not connected to this instance, ignore (another instance will handle it)
 	}
 }
 
-// --- Redis Subscriber ---
-func (matchManager *MatchManager) SubscribeToRedis() {
-	subscriber := matchManager.rdb.Subscribe(matchManager.ctx, "matches", "session_ended")
+// --- Redis Subscriber for Events ---
+func (mm *MatchManager) subscribeToRedis() {
+	subscriber := mm.subClient.Subscribe(mm.ctx, "matches", "session_ended")
 	ch := subscriber.Channel()
 
+	log.Printf("[Instance %s] Subscribed to matches and session_ended channels", mm.instanceID)
+
 	for msg := range ch {
-		// Handle different event types based on channel
 		if msg.Channel == "session_ended" {
-			matchManager.handleSessionEndedEvent(msg.Payload)
+			mm.handleSessionEndedEvent(msg.Payload)
 		} else {
 			var event map[string]interface{}
 			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
 				log.Println("Failed to parse event:", err)
 				continue
 			}
-			log.Printf("Redis event received: %v", event)
+			log.Printf("[Instance %s] Redis event received: %v", mm.instanceID, event)
 		}
 	}
 }
 
 // Handle session_ended events to clean up match service state
-func (matchManager *MatchManager) handleSessionEndedEvent(payload string) {
+func (mm *MatchManager) handleSessionEndedEvent(payload string) {
 	var event struct {
 		MatchID string `json:"matchId"`
 		User1   string `json:"user1"`
 		User2   string `json:"user2"`
 	}
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
-		log.Printf("Failed to parse session_ended event: %v", err)
+		log.Printf("[Instance %s] Failed to parse session_ended event: %v", mm.instanceID, err)
 		return
 	}
 
-	matchManager.roomMu.Lock()
-	defer matchManager.roomMu.Unlock()
+	// Clean up Redis state (shared across all instances)
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("user_room:%s", event.User1))
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("user_room:%s", event.User2))
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("room:%s", event.MatchID))
 
-	// Remove both users from tracking
-	delete(matchManager.userToRoom, event.User1)
-	delete(matchManager.userToRoom, event.User2)
-
-	// Remove room info
-	delete(matchManager.roomInfo, event.MatchID)
-
-	log.Printf("Cleaned up match service state for ended session %s", event.MatchID)
+	log.Printf("[Instance %s] Cleaned up match service state for ended session %s", mm.instanceID, event.MatchID)
 }
 
-func (matchManager *MatchManager) StartMatchmakingLoop() {
+// --- Matchmaking Loop ---
+func (mm *MatchManager) StartMatchmakingLoop() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
+	log.Printf("[Instance %s] Started matchmaking loop", mm.instanceID)
+
 	for range ticker.C {
-		keys, _ := matchManager.rdb.Keys(matchManager.ctx, "user:*").Result()
+		keys, _ := mm.rdb.Keys(mm.ctx, "user:*").Result()
 		for _, key := range keys {
-			user, _ := matchManager.rdb.HGetAll(matchManager.ctx, key).Result()
+			user, _ := mm.rdb.HGetAll(mm.ctx, key).Result()
 			if len(user) == 0 {
 				continue
 			}
@@ -127,18 +188,18 @@ func (matchManager *MatchManager) StartMatchmakingLoop() {
 			switch stage {
 			case 1:
 				if elapsed > STAGE1_TIMEOUT {
-					matchManager.rdb.HSet(matchManager.ctx, key, "stage", 2)
-					matchManager.tryMatchStage(category, difficulty, 2)
+					mm.rdb.HSet(mm.ctx, key, "stage", 2)
+					mm.tryMatchStage(category, difficulty, 2)
 				}
 			case 2:
 				if elapsed > STAGE2_TIMEOUT {
-					matchManager.rdb.HSet(matchManager.ctx, key, "stage", 3)
-					matchManager.tryMatchStage(category, difficulty, 3)
+					mm.rdb.HSet(mm.ctx, key, "stage", 3)
+					mm.tryMatchStage(category, difficulty, 3)
 				}
 			case 3:
 				if elapsed > STAGE3_TIMEOUT {
-					matchManager.removeUser(userId, category, difficulty)
-					matchManager.sendToUser(userId, map[string]interface{}{
+					mm.removeUser(userId, category, difficulty)
+					mm.sendToUser(userId, map[string]interface{}{
 						"type":    "timeout",
 						"message": "Matchmaking timed out",
 					})
@@ -149,83 +210,113 @@ func (matchManager *MatchManager) StartMatchmakingLoop() {
 }
 
 // --- Pending Match Expiration Loop ---
-func (matchManager *MatchManager) StartPendingMatchExpirationLoop() {
-	ticker := time.NewTicker(1 * time.Second)
+// Now checks Redis instead of local memory
+func (mm *MatchManager) StartPendingMatchExpirationLoop() {
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	log.Printf("[Instance %s] Started pending match expiration loop", mm.instanceID)
+
 	for range ticker.C {
-		now := time.Now()
+		// Find all pending matches in Redis
+		pendingKeys, _ := mm.rdb.Keys(mm.ctx, "pending_match:*").Result()
 
-		matchManager.pendingMu.Lock()
-		for matchId, pending := range matchManager.pendingMatches {
-			if now.After(pending.ExpiresAt) {
-				log.Printf("Match %s expired - not all users accepted in time", matchId)
+		for _, pendingKey := range pendingKeys {
+			pendingJSON, err := mm.rdb.Get(mm.ctx, pendingKey).Result()
+			if err != nil {
+				continue // Already expired or deleted
+			}
 
-				// Re-queue users who accepted
-				for userId, accepted := range pending.Handshakes {
-					if accepted {
-						var cat, diff string
-						var originalTime float64
+			var pending models.PendingMatch
+			if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
+				log.Printf("[Instance %s] Failed to parse pending match: %v", mm.instanceID, err)
+				continue
+			}
 
-						if userId == pending.User1 {
-							cat = pending.User1Cat
-							diff = pending.User1Diff
-						} else {
-							cat = pending.User2Cat
-							diff = pending.User2Diff
-						}
-
-						userKey := fmt.Sprintf("user:%s", userId)
-						userData, _ := matchManager.rdb.HGetAll(matchManager.ctx, userKey).Result()
-						if joinedAt, ok := userData["joined_at"]; ok {
-							originalTime, _ = strconv.ParseFloat(joinedAt, 64)
-						} else {
-							originalTime = float64(time.Now().Unix())
-						}
-
-						// Re-add to queue
-						matchManager.rdb.HSet(matchManager.ctx, userKey, map[string]interface{}{
-							"category":   cat,
-							"difficulty": diff,
-							"joined_at":  originalTime,
-							"stage":      1,
-						})
-						matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s:%s", cat, diff), redis.Z{Score: originalTime, Member: userId})
-						matchManager.rdb.ZAdd(matchManager.ctx, fmt.Sprintf("queue:%s", cat), redis.Z{Score: originalTime, Member: userId})
-						matchManager.rdb.ZAdd(matchManager.ctx, "queue:all", redis.Z{Score: originalTime, Member: userId})
-
-						matchManager.sendToUser(userId, map[string]interface{}{
-							"type":    "requeued",
-							"message": "Other user did not accept in time. You have been re-queued.",
-						})
-					}
-				}
-
-				// Remove users who didn't accept
-				if !pending.Handshakes[pending.User1] {
-					matchManager.removeUser(pending.User1, pending.User1Cat, pending.User1Diff)
-					matchManager.sendToUser(pending.User1, map[string]interface{}{
-						"type":    "timeout",
-						"message": "Match expired - you did not accept in time",
-					})
-				}
-				if !pending.Handshakes[pending.User2] {
-					matchManager.removeUser(pending.User2, pending.User2Cat, pending.User2Diff)
-					matchManager.sendToUser(pending.User2, map[string]interface{}{
-						"type":    "timeout",
-						"message": "Match expired - you did not accept in time",
-					})
-				}
-
-				delete(matchManager.pendingMatches, matchId)
+			// Check if expired
+			if time.Now().After(pending.ExpiresAt) {
+				mm.handleExpiredMatch(&pending)
 			}
 		}
-		matchManager.pendingMu.Unlock()
 	}
 }
 
+// Handle expired pending match
+func (mm *MatchManager) handleExpiredMatch(pending *models.PendingMatch) {
+	matchID := pending.MatchId
+	log.Printf("[Instance %s] Match %s expired - checking handshakes", mm.instanceID, matchID)
+
+	// Check handshake status
+	h1, err1 := mm.rdb.Get(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User1)).Result()
+	h2, err2 := mm.rdb.Get(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User2)).Result()
+
+	user1Accepted := err1 == nil && h1 == "accepted"
+	user2Accepted := err2 == nil && h2 == "accepted"
+
+	// Re-queue users who accepted
+	if user1Accepted {
+		mm.requeueUser(pending.User1, pending.User1Cat, pending.User1Diff)
+		mm.sendToUser(pending.User1, map[string]interface{}{
+			"type":    "requeued",
+			"message": "Other user did not accept in time. You have been re-queued.",
+		})
+	} else {
+		mm.removeUser(pending.User1, pending.User1Cat, pending.User1Diff)
+		mm.sendToUser(pending.User1, map[string]interface{}{
+			"type":    "timeout",
+			"message": "Match expired - you did not accept in time",
+		})
+	}
+
+	if user2Accepted {
+		mm.requeueUser(pending.User2, pending.User2Cat, pending.User2Diff)
+		mm.sendToUser(pending.User2, map[string]interface{}{
+			"type":    "requeued",
+			"message": "Other user did not accept in time. You have been re-queued.",
+		})
+	} else {
+		mm.removeUser(pending.User2, pending.User2Cat, pending.User2Diff)
+		mm.sendToUser(pending.User2, map[string]interface{}{
+			"type":    "timeout",
+			"message": "Match expired - you did not accept in time",
+		})
+	}
+
+	// Clean up Redis
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("pending_match:%s", matchID))
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User1))
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User2))
+}
+
+// Re-queue a user (preserving original timestamp)
+func (mm *MatchManager) requeueUser(userId, category, difficulty string) {
+	userKey := fmt.Sprintf("user:%s", userId)
+
+	// Get original timestamp if exists, otherwise use current time
+	var originalTime float64
+	userData, _ := mm.rdb.HGetAll(mm.ctx, userKey).Result()
+	if joinedAt, ok := userData["joined_at"]; ok {
+		originalTime, _ = strconv.ParseFloat(joinedAt, 64)
+	} else {
+		originalTime = float64(time.Now().Unix())
+	}
+
+	// Re-add to queue
+	mm.rdb.HSet(mm.ctx, userKey, map[string]interface{}{
+		"category":   category,
+		"difficulty": difficulty,
+		"joined_at":  originalTime,
+		"stage":      1,
+	})
+	mm.rdb.ZAdd(mm.ctx, fmt.Sprintf("queue:%s:%s", category, difficulty), redis.Z{Score: originalTime, Member: userId})
+	mm.rdb.ZAdd(mm.ctx, fmt.Sprintf("queue:%s", category), redis.Z{Score: originalTime, Member: userId})
+	mm.rdb.ZAdd(mm.ctx, "queue:all", redis.Z{Score: originalTime, Member: userId})
+
+	log.Printf("[Instance %s] Re-queued user %s", mm.instanceID, userId)
+}
+
 // --- Try Match at Stage ---
-func (matchManager *MatchManager) tryMatchStage(category, difficulty string, stage int) {
+func (mm *MatchManager) tryMatchStage(category, difficulty string, stage int) {
 	var queueKeys []string
 	switch stage {
 	case 1:
@@ -246,7 +337,7 @@ func (matchManager *MatchManager) tryMatchStage(category, difficulty string, sta
 	}
 
 	for _, queueKey := range queueKeys {
-		users, _ := matchManager.rdb.ZRange(matchManager.ctx, queueKey, 0, 1).Result()
+		users, _ := mm.rdb.ZRange(mm.ctx, queueKey, 0, 1).Result()
 		if len(users) < 2 {
 			continue
 		}
@@ -254,50 +345,47 @@ func (matchManager *MatchManager) tryMatchStage(category, difficulty string, sta
 		u1, u2 := users[0], users[1]
 
 		// Get their original preferences
-		user1Data, _ := matchManager.rdb.HGetAll(matchManager.ctx, fmt.Sprintf("user:%s", u1)).Result()
-		user2Data, _ := matchManager.rdb.HGetAll(matchManager.ctx, fmt.Sprintf("user:%s", u2)).Result()
+		user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
+		user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
 
-		matchManager.createPendingMatch(u1, u2,
+		mm.createPendingMatch(u1, u2,
 			user1Data["category"], user1Data["difficulty"],
 			user2Data["category"], user2Data["difficulty"], stage)
 		return
 	}
 }
 
-// --- Create Pending Match ---
-func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
-	log.Printf("Creating pending match between %s (%s/%s) and %s (%s/%s) at stage %d",
-		u1, cat1, diff1, u2, cat2, diff2, stage)
+// --- Create Pending Match (now stores in Redis) ---
+func (mm *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, diff2 string, stage int) {
+	log.Printf("[Instance %s] Creating pending match between %s (%s/%s) and %s (%s/%s) at stage %d",
+		mm.instanceID, u1, cat1, diff1, u2, cat2, diff2, stage)
 
 	var finalCat, finalDiff string
 
 	switch stage {
 	case 1:
-		// Strict match - same category and difficulty
 		finalCat = cat1
 		finalDiff = diff1
 	case 2:
-		// Category match - average difficulty
 		finalCat = cat1
 		finalDiff = utils.GetAverageDifficulty(diff1, diff2)
 	case 3:
-		// Any match - random category, average difficulty
 		finalCat = utils.GetRandomCategory(cat1, cat2)
 		finalDiff = utils.GetAverageDifficulty(diff1, diff2)
 	}
 
 	// Remove users from their respective queues
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s:%s", cat1, diff1), u1)
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s", cat1), u1)
-	matchManager.rdb.ZRem(matchManager.ctx, "queue:all", u1)
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s:%s", cat1, diff1), u1)
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s", cat1), u1)
+	mm.rdb.ZRem(mm.ctx, "queue:all", u1)
 
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s:%s", cat2, diff2), u2)
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s", cat2), u2)
-	matchManager.rdb.ZRem(matchManager.ctx, "queue:all", u2)
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s:%s", cat2, diff2), u2)
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s", cat2), u2)
+	mm.rdb.ZRem(mm.ctx, "queue:all", u2)
 
 	matchID := uuid.New().String()
-	token1, _ := utils.GenerateRoomToken(matchID, u1, matchManager.jwtSecret)
-	token2, _ := utils.GenerateRoomToken(matchID, u2, matchManager.jwtSecret)
+	token1, _ := utils.GenerateRoomToken(matchID, u1, mm.jwtSecret)
+	token2, _ := utils.GenerateRoomToken(matchID, u2, mm.jwtSecret)
 
 	pending := &models.PendingMatch{
 		MatchId:    matchID,
@@ -316,12 +404,16 @@ func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, 
 		ExpiresAt:  time.Now().Add(MatchHandshakeTimeout * time.Second),
 	}
 
-	matchManager.pendingMu.Lock()
-	matchManager.pendingMatches[matchID] = pending
-	matchManager.pendingMu.Unlock()
+	// Store in Redis with expiration (shared across all instances)
+	pendingJSON, _ := json.Marshal(pending)
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("pending_match:%s", matchID), pendingJSON, (MatchHandshakeTimeout+5)*time.Second)
 
-	// Notify both users about pending match
-	matchManager.sendToUser(u1, map[string]interface{}{
+	// Create handshake tracking keys
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, u1), "pending", (MatchHandshakeTimeout+5)*time.Second)
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, u2), "pending", (MatchHandshakeTimeout+5)*time.Second)
+
+	// Notify both users (via Redis pub/sub, works across instances)
+	mm.sendToUser(u1, map[string]interface{}{
 		"type":       "match_pending",
 		"matchId":    matchID,
 		"category":   finalCat,
@@ -329,36 +421,170 @@ func (matchManager *MatchManager) createPendingMatch(u1, u2, cat1, diff1, cat2, 
 		"expiresIn":  MatchHandshakeTimeout,
 	})
 
-	matchManager.sendToUser(u2, map[string]interface{}{
+	mm.sendToUser(u2, map[string]interface{}{
 		"type":       "match_pending",
 		"matchId":    matchID,
 		"category":   finalCat,
 		"difficulty": finalDiff,
 		"expiresIn":  MatchHandshakeTimeout,
 	})
+}
+
+// --- Handle Match Accept ---
+func (mm *MatchManager) HandleMatchAccept(matchID, userId string) error {
+	log.Printf("[Instance %s] User %s accepted match %s", mm.instanceID, userId, matchID)
+
+	// Mark handshake as accepted in Redis
+	key := fmt.Sprintf("handshake:%s:%s", matchID, userId)
+	err := mm.rdb.Set(mm.ctx, key, "accepted", (MatchHandshakeTimeout+5)*time.Second).Err()
+	if err != nil {
+		return fmt.Errorf("failed to mark handshake: %w", err)
+	}
+
+	// Get pending match from Redis
+	pendingKey := fmt.Sprintf("pending_match:%s", matchID)
+	pendingJSON, err := mm.rdb.Get(mm.ctx, pendingKey).Result()
+	if err != nil {
+		return fmt.Errorf("pending match not found: %w", err)
+	}
+
+	var pending models.PendingMatch
+	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
+		return fmt.Errorf("failed to parse pending match: %w", err)
+	}
+
+	// Check if both users accepted
+	h1, err1 := mm.rdb.Get(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User1)).Result()
+	h2, err2 := mm.rdb.Get(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User2)).Result()
+
+	if err1 == nil && h1 == "accepted" && err2 == nil && h2 == "accepted" {
+		// Both accepted! Finalize match
+		log.Printf("[Instance %s] Both users accepted match %s - finalizing", mm.instanceID, matchID)
+		mm.finalizeMatch(&pending)
+
+		// Clean up Redis keys
+		mm.rdb.Del(mm.ctx, pendingKey)
+		mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User1))
+		mm.rdb.Del(mm.ctx, fmt.Sprintf("handshake:%s:%s", matchID, pending.User2))
+	}
+
+	return nil
+}
+
+// --- Finalize Match ---
+func (mm *MatchManager) finalizeMatch(pending *models.PendingMatch) {
+	// Store room info in Redis (shared across instances)
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("user_room:%s", pending.User1), pending.MatchId, RoomExpiration)
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("user_room:%s", pending.User2), pending.MatchId, RoomExpiration)
+
+	roomInfo := models.RoomInfo{
+		MatchId:    pending.MatchId,
+		User1:      pending.User1,
+		User2:      pending.User2,
+		Category:   pending.Category,
+		Difficulty: pending.Difficulty,
+		Status:     "active",
+		Token1:     pending.Token1,
+		Token2:     pending.Token2,
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+
+	roomJSON, _ := json.Marshal(roomInfo)
+	mm.rdb.Set(mm.ctx, fmt.Sprintf("room:%s", pending.MatchId), roomJSON, RoomExpiration)
+
+	// Send tokens to both users
+	mm.sendToUser(pending.User1, map[string]interface{}{
+		"type":       "match_confirmed",
+		"matchId":    pending.MatchId,
+		"token":      pending.Token1,
+		"category":   pending.Category,
+		"difficulty": pending.Difficulty,
+	})
+
+	mm.sendToUser(pending.User2, map[string]interface{}{
+		"type":       "match_confirmed",
+		"matchId":    pending.MatchId,
+		"token":      pending.Token2,
+		"category":   pending.Category,
+		"difficulty": pending.Difficulty,
+	})
+
+	// Publish match event
+	matchEvent := map[string]interface{}{
+		"type":       "match_created",
+		"matchId":    pending.MatchId,
+		"user1":      pending.User1,
+		"user2":      pending.User2,
+		"category":   pending.Category,
+		"difficulty": pending.Difficulty,
+	}
+	eventJSON, _ := json.Marshal(matchEvent)
+	mm.pubClient.Publish(mm.ctx, "matches", eventJSON)
+
+	log.Printf("[Instance %s] Match %s finalized successfully", mm.instanceID, pending.MatchId)
 }
 
 // --- Remove User ---
-func (matchManager *MatchManager) removeUser(userId, category, difficulty string) {
-	log.Printf("Removing user %s from queues", userId)
-	matchManager.rdb.Del(matchManager.ctx, fmt.Sprintf("user:%s", userId))
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s:%s", category, difficulty), userId)
-	matchManager.rdb.ZRem(matchManager.ctx, fmt.Sprintf("queue:%s", category), userId)
-	matchManager.rdb.ZRem(matchManager.ctx, "queue:all", userId)
+func (mm *MatchManager) removeUser(userId, category, difficulty string) {
+	log.Printf("[Instance %s] Removing user %s from queues", mm.instanceID, userId)
+	mm.rdb.Del(mm.ctx, fmt.Sprintf("user:%s", userId))
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s:%s", category, difficulty), userId)
+	mm.rdb.ZRem(mm.ctx, fmt.Sprintf("queue:%s", category), userId)
+	mm.rdb.ZRem(mm.ctx, "queue:all", userId)
 }
 
-func (matchManager *MatchManager) sendToUser(userId string, data interface{}) {
-	matchManager.mu.Lock()
-	conn, ok := matchManager.connections[userId]
-	matchManager.mu.Unlock()
-
-	if ok {
-		if err := conn.WriteJSON(data); err != nil {
-			log.Printf("Error sending to user %s: %v", userId, err)
-			matchManager.mu.Lock()
-			delete(matchManager.connections, userId)
-			matchManager.mu.Unlock()
-			conn.Close()
-		}
+// --- Send To User (via Redis Pub/Sub) ---
+// This publishes to a Redis channel that ALL instances subscribe to
+// The instance with the actual WebSocket connection will deliver it
+func (mm *MatchManager) sendToUser(userId string, data interface{}) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("[Instance %s] Error marshaling message for user %s: %v", mm.instanceID, userId, err)
+		return
 	}
+
+	// Publish to Redis channel for this user
+	channel := fmt.Sprintf("user:%s:message", userId)
+	err = mm.pubClient.Publish(mm.ctx, channel, payload).Err()
+	if err != nil {
+		log.Printf("[Instance %s] Error publishing message for user %s: %v", mm.instanceID, userId, err)
+	} else {
+		log.Printf("[Instance %s] Published message to channel %s", mm.instanceID, channel)
+	}
+}
+
+// --- Register WebSocket Connection (local to this instance) ---
+func (mm *MatchManager) RegisterConnection(userId string, conn *websocket.Conn) {
+	mm.mu.Lock()
+	mm.connections[userId] = conn
+	mm.mu.Unlock()
+	log.Printf("[Instance %s] Registered WebSocket connection for user %s", mm.instanceID, userId)
+}
+
+// --- Unregister WebSocket Connection ---
+func (mm *MatchManager) UnregisterConnection(userId string) {
+	mm.mu.Lock()
+	delete(mm.connections, userId)
+	mm.mu.Unlock()
+	log.Printf("[Instance %s] Unregistered WebSocket connection for user %s", mm.instanceID, userId)
+}
+
+// --- Get Room for User (from Redis) ---
+func (mm *MatchManager) GetRoomForUser(userId string) (string, error) {
+	return mm.rdb.Get(mm.ctx, fmt.Sprintf("user_room:%s", userId)).Result()
+}
+
+// --- Get Room Info (from Redis) ---
+func (mm *MatchManager) GetRoomInfo(matchID string) (*models.RoomInfo, error) {
+	roomJSON, err := mm.rdb.Get(mm.ctx, fmt.Sprintf("room:%s", matchID)).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	var roomInfo models.RoomInfo
+	if err := json.Unmarshal([]byte(roomJSON), &roomInfo); err != nil {
+		return nil, err
+	}
+
+	return &roomInfo, nil
 }
