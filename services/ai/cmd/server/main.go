@@ -51,7 +51,7 @@ func main() {
 	}
 
 	aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
-	healthHandler := handlers.NewHealthHandler()
+	healthHandler := handlers.NewHealthHandler(aiProvider, promptManager, cfg)
 
 	router := chi.NewRouter()
 

@@ -58,6 +58,11 @@ func (pm *PromptManager) BuildPrompt(mode, variant string, data interface{}) (st
 	return buf.String(), nil
 }
 
+// return the lloaded templates map for health checking
+func (pm *PromptManager) GetTemplates() map[string]map[string]*template.Template {
+	return pm.templates
+}
+
 // loadPrompts loads all YAML prompt files from the embedded filesystem
 func (pm *PromptManager) loadPrompts() error {
 	entries, err := templateFS.ReadDir("templates")
