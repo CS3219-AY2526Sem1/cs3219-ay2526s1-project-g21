@@ -30,7 +30,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
   const { run, loading, text, error, setText, setError } = useExplain();
-  const [hintLevel, setHintLevel] = useState<"basic" | "intermediate" | "advanced">("basic");
+  const [hintLevel, setHintLevel] = useState<DetailLevel>("beginner");
 
 
   const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor"];
@@ -186,10 +186,10 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
             Hint Level
             <select
                 value={hintLevel}
-                onChange={(e) => setHintLevel(e.target.value as "basic" | "intermediate" | "advanced")}
+                onChange={(e) => setHintLevel(e.target.value as DetailLevel)}
                 className="ml-2 border rounded px-2 py-1 text-sm"
             >
-                <option value="basic">Basic</option>
+                <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate</option>
                 <option value="advanced">Advanced</option>
             </select>
