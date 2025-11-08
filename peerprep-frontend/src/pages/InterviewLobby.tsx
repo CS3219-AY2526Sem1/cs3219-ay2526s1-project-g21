@@ -97,7 +97,6 @@ export default function InterviewLobby() {
 
       attempts++;
       const roomInfo = await checkRoomStatus();
-
       if (!roomInfo) {
         // Room not found yet, wait and retry
         setTimeout(pollRoom, 1000);

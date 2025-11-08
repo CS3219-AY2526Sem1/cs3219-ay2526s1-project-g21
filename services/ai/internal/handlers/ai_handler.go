@@ -3,6 +3,9 @@ package handlers
 import (
 	"net/http"
 
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
@@ -117,4 +120,106 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.JSON(w, http.StatusOK, resp)
+}
+
+func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
+	req := middleware.GetValidatedRequest[*models.TestGenRequest](r)
+	if req.RequestID == "" {
+		req.RequestID = generateRequestID()
+	}
+
+	// Build prompt from templates/tests.yaml
+	promptData := map[string]interface{}{
+		"Language":  req.Language,
+		"Code":      req.Code,
+		"Question":  req.Question,
+		"Framework": req.Framework,
+	}
+	prompt, err := h.promptManager.BuildPrompt("tests", "default", promptData)
+	if err != nil {
+		h.logger.Error("tests: build prompt failed", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "prompt_error", Message: "Failed to build AI prompt",
+		})
+		return
+	}
+
+	// Reuse provider call
+	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	if err != nil {
+		h.logger.Error("tests: provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "ai_error", Message: "Failed to generate test cases",
+		})
+		return
+	}
+
+	resp := models.TestGenResponse{
+		TestsCode: out.Explanation,
+		RequestID: req.RequestID,
+		Metadata:  out.Metadata,
+	}
+	utils.JSON(w, http.StatusOK, resp)
+}
+
+func stripFences(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```") {
+		if i := strings.IndexByte(s[3:], '\n'); i >= 0 {
+			s = s[3+i+1:]
+		}
+	}
+	s = strings.TrimSuffix(s, "```")
+	return strings.TrimSpace(s)
+}
+
+// Used for refactor prompts so the LLM can refer to specific lines accurately.
+func addLineNumbers(src string) string {
+	if src == "" {
+		return ""
+	}
+	lines := strings.Split(src, "\n")
+	for i := range lines {
+		lines[i] = fmt.Sprintf("%d: %s", i+1, lines[i])
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) {
+	req := middleware.GetValidatedRequest[*models.RefactorTipsRequest](r)
+	if req.RequestID == "" {
+		req.RequestID = generateRequestID()
+	}
+
+	data := map[string]interface{}{
+		"Language": req.Language,
+		"Code":     addLineNumbers(req.Code),
+		"Question": req.Question,
+	}
+
+	prompt, err := h.promptManager.BuildPrompt("refactor_tips", "default", data)
+	if err != nil {
+		h.logger.Error("refactor_tips prompt build", zap.Error(err))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "prompt_error", Message: "Failed to build prompt",
+		})
+		return
+	}
+
+	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	if err != nil {
+		h.logger.Error("refactor_tips provider", zap.Error(err))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code: "ai_error", Message: "Failed to generate refactor tips",
+		})
+		return
+	}
+
+	cleaned := stripFences(result.Explanation)
+
+	utils.JSON(w, http.StatusOK, models.RefactorTipsTextResponse{
+		TipsText:  cleaned,
+		RequestID: req.RequestID,
+		Metadata:  result.Metadata,
+	})
 }

@@ -59,6 +59,7 @@ func run(parent context.Context) error {
 	}
 
 	roomManager := room_management.NewRoomManager(redisAddr, questionURL)
+	defer roomManager.Cleanup()
 
 	// Start Redis subscription in background
 	go roomManager.SubscribeToMatches(ctx)

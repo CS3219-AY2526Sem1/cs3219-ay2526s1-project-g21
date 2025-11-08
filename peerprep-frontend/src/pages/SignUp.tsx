@@ -32,7 +32,7 @@ export default function SignUp() {
     setLoading(true);
     try {
       await register(form.username, form.email, form.password);
-      toast.success("Successfully created account", {
+      toast.success("Account created. Please confirm your email by checking your inbox.", {
         position: "bottom-center",
       });
       nav("/login");

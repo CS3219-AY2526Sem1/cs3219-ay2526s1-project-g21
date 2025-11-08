@@ -33,12 +33,15 @@ type runner interface {
 }
 
 type roomManager interface {
+	GetInstanceID() string
 	ValidateRoomAccess(token string) (*models.RoomInfo, error)
 	GetRoomStatus(matchId string) (*models.RoomInfo, error)
 	RerollQuestion(matchId string) (*models.RoomInfo, error)
 	GetActiveRoomForUser(userId string) (*models.RoomInfo, error)
 	PublishSessionEnded(event models.SessionEndedEvent) error
 	MarkRoomAsEnded(matchID string) error
+	SetRoomUpdateCallback(callback func(matchId string, roomInfo *models.RoomInfo))
+	SubscribeToRoomUpdates(ctx context.Context)
 }
 
 func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *Handlers {
@@ -46,16 +49,65 @@ func NewHandlers(log *utils.Logger, roomManager *room_management.RoomManager) *H
 }
 
 func NewHandlersWithDeps(log *utils.Logger, runner runner, hub *session.Hub, roomManager roomManager) *Handlers {
-	return &Handlers{
+	h := &Handlers{
 		log:         log,
 		runner:      runner,
 		hub:         hub,
 		roomManager: roomManager,
 	}
+
+	// Set up callback for room updates
+	roomManager.SetRoomUpdateCallback(h.handleRoomUpdate)
+
+	// Subscribe to room updates in background
+	go roomManager.SubscribeToRoomUpdates(context.Background())
+
+	log.Info("Handlers initialized with room update subscription")
+
+	return h
+}
+
+// handleRoomUpdate is called when a room update is received from Redis
+// This broadcasts the update to WebSocket clients connected to THIS instance
+func (h *Handlers) handleRoomUpdate(matchId string, roomInfo *models.RoomInfo) {
+	h.log.Info("Received room update", "matchId", matchId, "status", roomInfo.Status)
+
+	// Check if this instance has active WebSocket connections for this room
+	room, ok := h.hub.Get(matchId)
+	if !ok {
+		// No active connections on this instance, nothing to do
+		return
+	}
+
+	// Broadcast update to all connected clients in this room
+	if roomInfo.Question != nil {
+		room.BroadcastAll(models.WSFrame{
+			Type: "question",
+			Data: models.QuestionUpdate{
+				Question:         roomInfo.Question,
+				RerollsRemaining: roomInfo.RerollsRemaining,
+			},
+		})
+		h.log.Info("Broadcasted question update to WebSocket clients", "matchId", matchId)
+	}
+
+	// If room was ended, notify clients
+	if roomInfo.Status == "ended" {
+		room.BroadcastAll(models.WSFrame{
+			Type: "session_ended",
+			Data: map[string]string{"reason": "session_ended"},
+		})
+		h.log.Info("Broadcasted session ended to WebSocket clients", "matchId", matchId)
+	}
 }
 
 func (h *Handlers) Health(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+func (h *Handlers) GetInstanceID(w http.ResponseWriter, _ *http.Request) {
+	managerId := h.roomManager.GetInstanceID()
+	writeJSON(w, map[string]string{"managerId": managerId})
 }
 
 // Get room status by match ID (requires token)
@@ -156,15 +208,9 @@ func (h *Handlers) RerollQuestion(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, updated)
 
-	if room, ok := h.hub.Get(matchId); ok {
-		room.BroadcastAll(models.WSFrame{
-			Type: "question",
-			Data: models.QuestionUpdate{
-				Question:         updated.Question,
-				RerollsRemaining: updated.RerollsRemaining,
-			},
-		})
-	}
+	// The broadcast to WebSocket clients will happen automatically via handleRoomUpdate callback
+	// No need to manually broadcast here - the RoomManager will publish to Redis,
+	// and all instances (including this one) will receive the update
 }
 
 func (h *Handlers) ListLanguages(w http.ResponseWriter, _ *http.Request) {
@@ -226,11 +272,21 @@ func (h *Handlers) RunOnce(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-/*** Collab WebSocket: shared editor + run streaming (no question fetching here) ***/
+/*** Collab WebSocket: shared editor + run streaming ***/
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
 func (h *Handlers) CollabWS(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
+
+	// Set cookie for sticky routing BEFORE upgrading to WebSocket
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    sessionID,
+		Path:     "/",
+		MaxAge:   86400, // 24 hours
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	// Extract token from query parameter
 	token := r.URL.Query().Get("token")

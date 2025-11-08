@@ -70,6 +70,17 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set sticky session cookie BEFORE upgrading to WebSocket
+	// This ensures both users in the same room connect to the same instance
+	http.SetCookie(w, &http.Cookie{
+		Name:     "voice_room_id",
+		Value:    roomID,
+		Path:     "/",
+		MaxAge:   86400, // 24 hours
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		http.Error(w, "token is required", http.StatusUnauthorized)
@@ -144,7 +155,8 @@ func (h *Handlers) VoiceChatWS(w http.ResponseWriter, r *http.Request) {
 	// Broadcast updated room status
 	h.broadcastRoomStatus(room)
 
-	log.Printf("User %s joined room %s", username, room.ID)
+	log.Printf("[Instance %s] User %s joined room %s",
+		h.roomManager.GetInstanceID(), username, room.ID)
 
 	// Message loop
 	for {

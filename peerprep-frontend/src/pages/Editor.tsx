@@ -60,6 +60,16 @@ export default function Editor() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const getCode = useCallback(() => code, [code]);
+  const getQuestion = useCallback(() => {
+  return {
+    prompt_markdown: question?.prompt_markdown ?? "",
+    title: question?.title ?? "",
+    difficulty: question?.difficulty ?? "",
+    constraints: question?.constraints ?? "",
+    topic_tags: question?.topic_tags ?? [],
+  };
+}, [question]);
+
 
 
   const nav = useNavigate();
@@ -544,6 +554,7 @@ export default function Editor() {
             <AiAssistantDropdown
               getCode={getCode}  
               language={aiLanguage}
+              getQuestion={getQuestion}
             />
         </div>
 

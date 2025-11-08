@@ -103,8 +103,12 @@ func run() error {
 	dbUser := os.Getenv("POSTGRES_USER")
 	dbPass := os.Getenv("POSTGRES_PASSWORD")
 	dbName := os.Getenv("POSTGRES_DB")
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=disable", dbHost,
-		dbUser, dbPass, dbName)
+	sslmode := os.Getenv("POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable" // or "require" based on your requirements
+	}
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=5432 sslmode=%s", dbHost,
+		dbUser, dbPass, dbName, sslmode)
 
 	db, err := connectWithRetry(dsn, dbConnectTimeout, logger)
 	if err != nil {
@@ -113,15 +117,16 @@ func run() error {
 	}
 
 	// Auto-migrate models
-	if err := runAutoMigrate(db, &models.User{}, &models.InterviewHistory{}); err != nil {
+	if err := runAutoMigrate(db, &models.User{}, &models.Token{}, &models.InterviewHistory{}); err != nil {
 		logger.Error("Failed to migrate database", zap.Error(err))
 		return err
 	}
 
 	// Initialize repository and handlers
 	userRepo := &repositories.UserRepository{DB: db}
-	authHandler := handlers.NewAuthHandler(userRepo)
-	userHandler := &handlers.UserHandler{Repo: userRepo, JWTSecret: authHandler.JWTSecret}
+	tokenRepo := &repositories.TokenRepository{DB: db}
+	authHandler := handlers.NewAuthHandler(userRepo, tokenRepo)
+	userHandler := &handlers.UserHandler{Repo: userRepo, JWTSecret: authHandler.JWTSecret, Tokens: tokenRepo}
 
 	historyRepo := &repositories.HistoryRepository{DB: db}
 	historyHandler := &handlers.HistoryHandler{Repo: historyRepo}
