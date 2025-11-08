@@ -1,13 +1,20 @@
 import { useMemo, useState } from "react";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
-import { getHint } from "@/api/ai";
+import { getHint, generateTests, generateRefactorTips } from "@/api/ai";
 
 type Mode = "Explain" | "Hint" | "Tests" | "Refactor" | "Summary";
 
 interface Props {
   getCode: () => string;
   language: Language;
+  getQuestion: () => {
+    prompt_markdown: string;
+    title?: string;
+    difficulty?: string;
+    constraints?: string;
+    topic_tags?: string[];
+  };
   className?: string;
 }
 
@@ -19,14 +26,14 @@ const ACTION_LABEL: Record<Mode, string> = {
   Summary: "Give Summary",
 };
 
-export default function AIAssistant({ getCode, language, className }: Props) {
+export default function AIAssistant({ getCode, language, getQuestion, className }: Props) {
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
   const { run, loading, text, error, setText, setError } = useExplain();
   const [hintLevel, setHintLevel] = useState<"basic" | "intermediate" | "advanced">("basic");
 
 
-  const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor", "Summary"];
+  const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor"];
   const showDetail = activeMode === "Explain";
 
   // Primary action handler
@@ -41,18 +48,50 @@ export default function AIAssistant({ getCode, language, className }: Props) {
 
         if (activeMode === "Hint") {
         setText("Generating hint...");
+        const q = getQuestion();
         const resp = await getHint({
             code: getCode(),
             language,
             hint_level: hintLevel,
-            question: {
-            prompt_markdown:
-                "Given the current problem in the editor, provide a helpful coding hint based on the code below.",
-            },
+            question: q,
         });
         setText(resp.hint);
         return;
         }
+
+
+        if (activeMode === "Tests") {
+        setText("Generating test cases...");
+        const q = getQuestion(); // grab the latest question context
+        if (!q?.prompt_markdown || q.prompt_markdown.trim().length === 0) {
+          setError("Missing question context. Please open a question or ensure its description is loaded.");
+          return;
+        }
+        const resp = await generateTests({
+            code: getCode(),
+            language,
+            question: q,
+          });
+          setText(resp.tests_code);
+          return;
+        }
+
+        if (activeMode === "Refactor") {
+          setText("Reviewing your code for refactor opportunities...");
+          try {
+            const q = getQuestion();
+            const resp = await generateRefactorTips({
+              code: getCode(),
+              language,
+              question: q,
+            });
+            setText(resp.tips_text || "No significant refactor tips found.");
+          } catch (e: any) {
+            setError(e?.message ?? "Failed to generate refactor tips");
+          }
+          return;
+        }
+
 
         // Default stub for other modes
         setText(`${activeMode} is not implemented yet — coming soon.`);
@@ -100,11 +139,6 @@ export default function AIAssistant({ getCode, language, className }: Props) {
                 {m === "Refactor" && (
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <path d="M4 7h7l-2-2m2 2l-2 2M20 17h-7l2 2m-2-2l2-2" stroke="currentColor" strokeWidth="1.6"/>
-                  </svg>
-                )}
-                {m === "Summary" && (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 7h12M6 12h12M6 17h8" stroke="currentColor" strokeWidth="1.6"/>
                   </svg>
                 )}
               </div>
