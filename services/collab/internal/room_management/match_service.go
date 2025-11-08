@@ -448,7 +448,7 @@ func (rm *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) 
 	rm.mu.Unlock()
 
 	if rm.onRoomUpdate != nil {
-		rm.onRoomUpdate(matchId, cloneRoomInfo(updatedCopy))
+		rm.onRoomUpdate(matchId, updatedCopy)
 	}
 
 	// Update Redis
