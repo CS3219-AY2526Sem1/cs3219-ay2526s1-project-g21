@@ -21,11 +21,11 @@ type ReadinessResponse struct {
 
 type HealthHandler struct {
 	provider      llm.Provider
-	promptManager *prompts.PromptManager
+	promptManager prompts.PromptProvider
 	config        *config.Config
 }
 
-func NewHealthHandler(provider llm.Provider, promptManager *prompts.PromptManager, cfg *config.Config) *HealthHandler {
+func NewHealthHandler(provider llm.Provider, promptManager prompts.PromptProvider, cfg *config.Config) *HealthHandler {
 	return &HealthHandler{
 		provider:      provider,
 		promptManager: promptManager,

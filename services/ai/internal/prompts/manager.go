@@ -15,6 +15,12 @@ import (
 //go:embed templates/*.yaml
 var templateFS embed.FS
 
+// interface for prompt management
+type PromptProvider interface {
+	BuildPrompt(mode, variant string, data interface{}) (string, error)
+	GetTemplates() map[string]map[string]*template.Template
+}
+
 type PromptManager struct {
 	templates map[string]map[string]*template.Template // mode -> variant -> compiled template
 }

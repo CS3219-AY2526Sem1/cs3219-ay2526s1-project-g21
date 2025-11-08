@@ -15,11 +15,11 @@ import (
 
 type AIHandler struct {
 	provider      llm.Provider
-	promptManager *prompts.PromptManager
+	promptManager prompts.PromptProvider
 	logger        *zap.Logger
 }
 
-func NewAIHandler(provider llm.Provider, promptManager *prompts.PromptManager, logger *zap.Logger) *AIHandler {
+func NewAIHandler(provider llm.Provider, promptManager prompts.PromptProvider, logger *zap.Logger) *AIHandler {
 	return &AIHandler{
 		provider:      provider,
 		promptManager: promptManager,
