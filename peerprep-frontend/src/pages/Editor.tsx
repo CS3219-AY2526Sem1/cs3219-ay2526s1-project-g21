@@ -1,21 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import CodeEditor from "@uiw/react-textarea-code-editor";
+import MonacoEditor, { type OnMount } from "@monaco-editor/react";;
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
-import { exitRoom, getRoomStatus, rerollQuestion } from "@/api/match";
+import { getRoomStatus, rerollQuestion } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 import AiAssistantDropdown from "@/components/AiAssistantDropdown";
 import { Language } from "@/api/ai";
-import { useCallback } from "react";
+import type { editor as MonacoEditorNS } from "monaco-editor";
 
-
-
+type MonacoType = typeof import("monaco-editor");
 
 type WSFrame =
   | { type: "init"; data: { sessionId: string; doc: { text: string; version: number }; language: string } }
@@ -31,6 +30,12 @@ type WSFrame =
   | { type: "error"; data: string }
   | { type: "session_ended"; data: { reason?: string } };
 
+type EditChange = {
+  rangeStart: number;
+  rangeEnd: number;
+  text: string;
+};
+
 const CODE_TEMPLATES: Record<string, string> = {
   python: 'print("Hello from Python!")\n',
   cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello from C++!" << std::endl;\n    return 0;\n}\n',
@@ -38,6 +43,34 @@ const CODE_TEMPLATES: Record<string, string> = {
 };
 
 const COLLAB_WEBSOCKET_BASE = (import.meta as any).env?.VITE_COLLAB_WEBSOCKET_BASE || "ws://localhost:8084";
+
+function computeEditChange(prev: string, next: string): EditChange | null {
+  if (prev === next) {
+    return null;
+  }
+
+  let start = 0;
+  const prevLen = prev.length;
+  const nextLen = next.length;
+
+  while (start < prevLen && start < nextLen && prev[start] === next[start]) {
+    start++;
+  }
+
+  let endPrev = prevLen - 1;
+  let endNext = nextLen - 1;
+
+  while (endPrev >= start && endNext >= start && prev[endPrev] === next[endNext]) {
+    endPrev--;
+    endNext--;
+  }
+
+  return {
+    rangeStart: start,
+    rangeEnd: endPrev + 1,
+    text: next.slice(start, endNext + 1),
+  };
+}
 
 export default function Editor() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -57,21 +90,23 @@ export default function Editor() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isRerolling, setIsRerolling] = useState<boolean>(false);
   const [rerollsRemaining, setRerollsRemaining] = useState<number>(0);
-  
 
   const wsRef = useRef<WebSocket | null>(null);
+  const docVersionRef = useRef(docVersion);
+  const editorRef = useRef<MonacoEditorNS.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<MonacoType | null>(null);
+  const suppressChangeRef = useRef(false);
+  const codeRef = useRef(code);
   const getCode = useCallback(() => code, [code]);
   const getQuestion = useCallback(() => {
-  return {
-    prompt_markdown: question?.prompt_markdown ?? "",
-    title: question?.title ?? "",
-    difficulty: question?.difficulty ?? "",
-    constraints: question?.constraints ?? "",
-    topic_tags: question?.topic_tags ?? [],
-  };
-}, [question]);
-
-
+    return {
+      prompt_markdown: question?.prompt_markdown ?? "",
+      title: question?.title ?? "",
+      difficulty: question?.difficulty ?? "",
+      constraints: question?.constraints ?? "",
+      topic_tags: question?.topic_tags ?? [],
+    };
+  }, [question]);
 
   const nav = useNavigate();
   const matchId = roomInfo?.matchId;
@@ -83,30 +118,157 @@ export default function Editor() {
     setRunError(null);
   };
 
+  useEffect(() => {
+    docVersionRef.current = docVersion;
+  }, [docVersion]);
+
+  useEffect(() => {
+    codeRef.current = code;
+  }, [code]);
+
+  const applyDocToEditor = useCallback((nextText: string) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) {
+      return;
+    }
+    const model = editor.getModel();
+    if (!model) {
+      return;
+    }
+    const prevValue = model.getValue();
+    if (prevValue === nextText) {
+      return;
+    }
+    const change = computeEditChange(prevValue, nextText);
+    if (!change) {
+      return;
+    }
+    const startPos = model.getPositionAt(change.rangeStart);
+    const endPos = model.getPositionAt(change.rangeEnd);
+
+    suppressChangeRef.current = true;
+    model.pushEditOperations(
+      [],
+      [
+        {
+          range: new monaco.Range(
+            startPos.lineNumber,
+            startPos.column,
+            endPos.lineNumber,
+            endPos.column
+          ),
+          text: change.text,
+          forceMoveMarkers: true,
+        },
+      ],
+      () => null
+    );
+    suppressChangeRef.current = false;
+  }, []);
+
+  const sendEdit = useCallback(
+    (change: EditChange | null) => {
+      if (!change) {
+        return;
+      }
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      ws.send(
+        JSON.stringify({
+          type: "edit",
+          data: {
+            baseVersion: docVersionRef.current,
+            rangeStart: change.rangeStart,
+            rangeEnd: change.rangeEnd,
+            text: change.text,
+          },
+        })
+      );
+    },
+    []
+  );
+
+  const handleEditorMount = useCallback<OnMount>((editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco as MonacoType;
+    suppressChangeRef.current = true;
+    editor.setValue(codeRef.current);
+    suppressChangeRef.current = false;
+    const model = editor.getModel();
+    if (model) {
+      monaco.editor.setModelLanguage(model, language);
+    }
+  }, [language]);
+
+  const handleEditorChange = useCallback(
+    (value?: string, ev?: MonacoEditorNS.IModelContentChangedEvent) => {
+      if (suppressChangeRef.current) {
+        return;
+      }
+      const nextValue = value ?? "";
+      const prevValue = codeRef.current;
+
+      setCode(nextValue);
+      codeRef.current = nextValue;
+
+      if (!ev || ev.changes.length === 0) {
+        sendEdit(computeEditChange(prevValue, nextValue));
+        return;
+      }
+
+      for (const change of ev.changes) {
+        sendEdit({
+          rangeStart: change.rangeOffset,
+          rangeEnd: change.rangeOffset + change.rangeLength,
+          text: change.text,
+        })
+      }
+    },
+    [sendEdit]
+  );
+
+  const applyServerDoc = useCallback(
+    (doc: { text: string; version: number }) => {
+      codeRef.current = doc.text;
+      docVersionRef.current = doc.version;
+      setCode(doc.text);
+      setDocVersion(doc.version);
+      applyDocToEditor(doc.text);
+    },
+    [applyDocToEditor]
+  );
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const editor = editorRef.current;
+    if (monaco && editor) {
+      const model = editor.getModel();
+      if (model) {
+        monaco.editor.setModelLanguage(model, language);
+      }
+    }
+  }, [language]);
+
   const applyTemplate = (lang: string) => {
     const template = CODE_TEMPLATES[lang];
     if (!template) return;
 
     const currentCode = code;
-    const currentVersion = docVersion;
+    codeRef.current = template;
     setCode(template);
     resetRunOutputs();
     setIsRunning(false);
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: "edit",
-          data: {
-            baseVersion: currentVersion,
-            rangeStart: 0,
-            rangeEnd: currentCode.length,
-            text: template,
-          },
-        })
-      );
-      setDocVersion(currentVersion + 1);
-    }
+    applyDocToEditor(template);
+
+    sendEdit({
+      rangeStart: 0,
+      rangeEnd: currentCode.length,
+      text: template,
+    });
   };
 
 
@@ -203,14 +365,15 @@ export default function Editor() {
       const frame: WSFrame = JSON.parse(msg.data);
 
       switch (frame.type) {
-        case "init":
-          setLanguage(frame.data.language ?? language);
-          setCode(frame.data.doc.text);
-          setDocVersion(frame.data.doc.version);
+        case "init": {
+          if (frame.data.language) {
+            setLanguage(frame.data.language);
+          }
+          applyServerDoc(frame.data.doc);
           break;
+        }
         case "doc":
-          setCode(frame.data.text);
-          setDocVersion(frame.data.version);
+          applyServerDoc(frame.data);
           break;
         case "language":
           setLanguage(frame.data);
@@ -306,23 +469,6 @@ export default function Editor() {
     return () => ws.close();
   }, [matchId, language, nav]);
 
-  const handleChange = (evn: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newCode = evn.target.value;
-    setCode(newCode);
-
-    wsRef.current?.send(
-      JSON.stringify({
-        type: "edit",
-        data: {
-          baseVersion: docVersion,
-          rangeStart: 0,
-          rangeEnd: code.length,
-          text: newCode,
-        },
-      })
-    );
-  };
-
   const handleLanguageChange = (nextLang: string) => {
     const nextTemplate = CODE_TEMPLATES[nextLang];
     const currentTrimmed = code.trim();
@@ -375,7 +521,7 @@ export default function Editor() {
         type: "run",
         data: {
           language,
-          code,
+          code: codeRef.current,
         },
       })
     );
@@ -437,7 +583,6 @@ export default function Editor() {
     nav("/")
   }
 
-  // Show loading state while room is being set up
   if (roomLoading || !roomInfo) {
     return (
       <div className="mx-auto w-full px-0 md:px-2">
@@ -653,20 +798,19 @@ export default function Editor() {
             </div>
             <div className="p-3">
               <div className="max-h-[70vh] min-h-[320px] overflow-auto rounded-md bg-[#1E1E1E]">
-                <CodeEditor
-                  value={code}
-                  language={language}
-                  placeholder={`Write ${language} code...`}
-                  onChange={handleChange}
-                  data-color-mode="dark"
-                  padding={15}
-                  minHeight={320}
-                  style={{
-                    backgroundColor: "transparent",
-                    width: "100%",
-                    borderRadius: "5px",
-                    fontFamily:
-                      "ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace",
+                <MonacoEditor
+                  height="70vh"
+                  defaultLanguage={language}
+                  defaultValue={code}
+                  onMount={handleEditorMount}
+                  onChange={handleEditorChange}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    fontSize: 14,
+                    fontLigatures: true,
                   }}
                 />
               </div>
