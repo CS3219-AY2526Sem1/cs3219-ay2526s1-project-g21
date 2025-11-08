@@ -16,7 +16,7 @@ export function useExplain() {
         language: args.language,
         detail_level: args.detail,
       });
-      setText(resp.explanation);
+      setText(resp.content);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to generate explanation');
     } finally {
