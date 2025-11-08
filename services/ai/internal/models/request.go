@@ -1,6 +1,8 @@
 package models
 
 import (
+	"fmt"
+	"peerprep/ai/internal/utils"
 	"strings"
 )
 
@@ -28,37 +30,29 @@ func (r *ExplainRequest) Validate() error {
 		}
 	}
 
-	// Validate supported languages
-	supportedLanguages := map[string]bool{
-		"python":     true,
-		"java":       true,
-		"cpp":        true,
-		"javascript": true,
-	}
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
 
-	if !supportedLanguages[r.Language] {
+	if !SupportedLanguages[r.Language] {
 		return &ErrorResponse{
 			Code:    "unsupported_language",
-			Message: "Language not supported. Supported languages: python, java, cpp, javascript",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
 		}
 	}
 
-	// TODO: handle default difficulty level if not provided
+	// handle default difficulty level if not provided
 	if r.DetailLevel == "" {
-		r.DetailLevel = "intermediate"
-	}
+		r.DetailLevel = DefaultDetailLevel
+	} else {
+		originalDetailLevel := r.DetailLevel
+		r.DetailLevel = utils.NormalizeLevel(r.DetailLevel)
 
-	// Validate detail level
-	validDetailLevels := map[string]bool{
-		"beginner":     true,
-		"intermediate": true,
-		"advanced":     true,
-	}
-
-	if !validDetailLevels[r.DetailLevel] {
-		return &ErrorResponse{
-			Code:    "invalid_detail_level",
-			Message: "Detail level must be one of: beginner, intermediate, advanced",
+		if !ValidDetailLevels[r.DetailLevel] {
+			return &ErrorResponse{
+				Code:    "invalid_detail_level",
+				Message: fmt.Sprintf("Detail level '%s' not supported. Valid levels: %s", originalDetailLevel, strings.Join(ValidDetailLevelsList(), ", ")),
+			}
 		}
 	}
 
@@ -89,10 +83,18 @@ func (r *HintRequest) Validate() error {
 	if r.Language == "" {
 		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
-	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[r.Language] {
-		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported"}
+
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
+
+	if !SupportedLanguages[r.Language] {
+		return &ErrorResponse{
+			Code:    "unsupported_language",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
+		}
 	}
+
 	if r.Question == nil {
 		return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
 	}
@@ -100,9 +102,18 @@ func (r *HintRequest) Validate() error {
 		return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown must not be empty"}
 	}
 
-	levels := map[string]bool{"basic": true, "intermediate": true, "advanced": true}
-	if !levels[r.HintLevel] {
-		return &ErrorResponse{Code: "invalid_hint_level", Message: "Hint level must be basic, intermediate, or advanced"}
+	originalHintLevel := r.HintLevel
+	r.HintLevel = utils.NormalizeLevel(r.HintLevel)
+
+	if !ValidHintLevels[r.HintLevel] {
+		return &ErrorResponse{
+			Code:    "invalid_hint_level",
+			Message: fmt.Sprintf("Hint level '%s' not supported. Valid levels: %s", originalHintLevel, strings.Join(ValidHintLevelsList(), ", ")),
+		}
+	}
+
+	if r.Question.Difficulty != "" {
+		r.Question.Difficulty = utils.NormalizeDifficulty(r.Question.Difficulty)
 	}
 
 	return nil
@@ -124,17 +135,30 @@ func (r *TestGenRequest) Validate() error {
 	if r.Language == "" {
 		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
-	lang := strings.ToLower(r.Language)
-	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[lang] {
-		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported (python, java, cpp, javascript)"}
+
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
+
+	if !SupportedLanguages[r.Language] {
+		return &ErrorResponse{
+			Code:    "unsupported_language",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
+		}
 	}
+
 	if r.Question == nil {
 		return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
 	}
 	if r.Question.PromptMarkdown == "" {
-		return &ErrorResponse{Code: "missing_question_prompt", Message: "question.prompt_markdown must not be empty"}
+		return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown is required"}
 	}
+
+	// normalize framework if provided
+	if r.Framework != "" {
+		r.Framework = strings.ToLower(r.Framework)
+	}
+
 	return nil
 }
 
@@ -147,17 +171,25 @@ type RefactorTipsRequest struct {
 
 func (r *RefactorTipsRequest) Validate() error {
 	if strings.TrimSpace(r.Code) == "" {
-		return &ErrorResponse{Code: "missing_code", Message: "code is required"}
+		return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
 	}
 	if strings.TrimSpace(r.Language) == "" {
-		return &ErrorResponse{Code: "missing_language", Message: "language is required"}
+		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
-	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[strings.ToLower(r.Language)] {
-		return &ErrorResponse{Code: "unsupported_language", Message: "language must be one of python/java/cpp/javascript"}
+
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
+
+	if !SupportedLanguages[r.Language] {
+		return &ErrorResponse{
+			Code:    "unsupported_language",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
+		}
 	}
+
 	if r.Question == nil || strings.TrimSpace(r.Question.PromptMarkdown) == "" {
-		return &ErrorResponse{Code: "missing_question_context", Message: "question.prompt_markdown is required"}
+		return &ErrorResponse{Code: "missing_question_context", Message: "Question prompt_markdown is required"}
 	}
 	return nil
 }

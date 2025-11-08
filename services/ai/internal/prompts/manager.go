@@ -15,6 +15,12 @@ import (
 //go:embed templates/*.yaml
 var templateFS embed.FS
 
+// interface for prompt management
+type PromptProvider interface {
+	BuildPrompt(mode, variant string, data interface{}) (string, error)
+	GetTemplates() map[string]map[string]*template.Template
+}
+
 type PromptManager struct {
 	templates map[string]map[string]*template.Template // mode -> variant -> compiled template
 }
@@ -56,6 +62,11 @@ func (pm *PromptManager) BuildPrompt(mode, variant string, data interface{}) (st
 	}
 
 	return buf.String(), nil
+}
+
+// return the lloaded templates map for health checking
+func (pm *PromptManager) GetTemplates() map[string]map[string]*template.Template {
+	return pm.templates
 }
 
 // loadPrompts loads all YAML prompt files from the embedded filesystem

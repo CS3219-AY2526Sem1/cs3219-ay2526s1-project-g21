@@ -51,13 +51,13 @@ func main() {
 	}
 
 	aiHandler := handlers.NewAIHandler(aiProvider, promptManager, logger)
-	healthHandler := handlers.NewHealthHandler()
+	healthHandler := handlers.NewHealthHandler(aiProvider, promptManager, cfg)
 
 	router := chi.NewRouter()
 
 	// cors middleware
 	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"http://localhost:5173", "https://d1z9c2graxigrz.cloudfront.net"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
 		AllowCredentials: true,

@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "57abd418-6d97-4b92-a39d-9184dc98115d",
+		"_postman_id": "7dc3a123-c27a-4deb-a55c-3a7d09b59d49",
 		"name": "AI_service_tests",
 		"description": "Postman test suite for all AI Service endpoints.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -42,6 +42,26 @@
 			"response": []
 		},
 		{
+			"name": "Versioned Health Check - /api/v1/ai/healthz",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/api/v1/ai/healthz",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"healthz"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Explain Code - Python Basic",
 			"request": {
 				"method": "POST",
@@ -56,11 +76,13 @@
 					"raw": "{\n  \"code\": \"def hello():\\n    print(\\\"Hello World\\\")\",\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-python-basic\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -83,11 +105,13 @@
 					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-java-intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -110,11 +134,13 @@
 					"raw": "{\n  \"code\": \"public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello World\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-java-intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -137,11 +163,13 @@
 					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"advanced\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -164,11 +192,13 @@
 					"raw": "{\n  \"code\": \"#include <iostream>\\n#include <vector>\\n#include <algorithm>\\n\\nint main() {\\n    std::vector<int> nums = {3, 1, 4, 1, 5};\\n    std::sort(nums.begin(), nums.end());\\n    for (const auto& n : nums) {\\n        std::cout << n << \\\" \\\";\\n    }\\n    return 0;\\n}\",\n  \"language\": \"cpp\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-cpp-advanced\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -191,11 +221,13 @@
 					"raw": "{\n  \"code\": \"const numbers = [1, 2, 3, 4, 5];\\nconst doubled = numbers.map(n => n * 2);\\nconsole.log(doubled);\",\n  \"language\": \"javascript\",\n  \"request_id\": \"test-js-default\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -218,13 +250,102 @@
 					"raw": "{\n  \"code\": \"def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\",\n  \"language\": \"python\",\n  \"detail_level\": \"intermediate\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - Python Beginner",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    # TODO: implement\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"beginner\",\n  \"request_id\": \"test-hint-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - Java Intermediate",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    // TODO: implement\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Find two numbers in array that sum to target\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"intermediate\",\n  \"request_id\": \"test-hint-java\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Hint - No Request ID (Auto-generated)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function findMax(arr) {\\n    // TODO\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 2,\n    \"title\": \"Find Maximum\",\n    \"prompt_markdown\": \"Find the maximum element in an array\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\"]\n  },\n  \"hint_level\": \"beginner\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
 					]
 				}
 			},
@@ -245,11 +366,13 @@
 					"raw": "{\n  \"language\": \"python\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -272,11 +395,13 @@
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -299,11 +424,13 @@
 					"raw": "{\n  \"code\": \"puts 'Hello World'\",\n  \"language\": \"ruby\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
 					]
@@ -326,13 +453,595 @@
 					"raw": "{\n  \"code\": \"print('hello')\",\n  \"language\": \"python\",\n  \"detail_level\": \"expert\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/ai/explain",
+					"raw": "{{url}}/api/v1/ai/explain",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
+						"api",
+						"v1",
 						"ai",
 						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - C++ Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"#include <iostream>\\nint main() { return 0; }\",\n  \"language\": \"Cpp\",\n  \"detail_level\": \"beginner\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - Python Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def hello(): print('hi')\",\n  \"language\": \"PYTHON\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-python-uppercase\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - JavaScript Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"const x = 5;\",\n  \"language\": \"JavaScript\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-js-uppercase\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Python",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    hash_map = {}\\n    for i, num in enumerate(nums):\\n        complement = target - num\\n        if complement in hash_map:\\n            return [hash_map[complement], i]\\n        hash_map[num] = i\\n    return []\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"pytest\",\n  \"request_id\": \"test-gen-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Java",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    Map<Integer, Integer> map = new HashMap<>();\\n    for (int i = 0; i < nums.length; i++) {\\n        int complement = target - nums[i];\\n        if (map.containsKey(complement)) {\\n            return new int[] { map.get(complement), i };\\n        }\\n        map.put(nums[i], i);\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"junit\",\n  \"request_id\": \"test-gen-java\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - JavaScript",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    const map = new Map();\\n    for (let i = 0; i < nums.length; i++) {\\n        const complement = target - nums[i];\\n        if (map.has(complement)) {\\n            return [map.get(complement), i];\\n        }\\n        map.set(nums[i], i);\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - C++",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    unordered_map<int, int> map;\\n    for (int i = 0; i < nums.size(); i++) {\\n        int complement = target - nums[i];\\n        if (map.find(complement) != map.end()) {\\n            return {map[complement], i};\\n        }\\n        map[nums[i]] = i;\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"googletest\",\n  \"request_id\": \"test-gen-cpp\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Language Normalization (PYTHON)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def add(a, b): return a + b\",\n  \"language\": \"PYTHON\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add Numbers\",\n    \"prompt_markdown\": \"Add two numbers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Python",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    for i in range(len(nums)):\\n        for j in range(i+1, len(nums)):\\n            if nums[i] + nums[j] == target:\\n                return [i, j]\\n    return []\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Java",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    for (int i = 0; i < nums.length; i++) {\\n        for (int j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return new int[] {i, j};\\n            }\\n        }\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - JavaScript",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    for (let i = 0; i < nums.length; i++) {\\n        for (let j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] === target) {\\n                return [i, j];\\n            }\\n        }\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-js\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - C++",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    for (int i = 0; i < nums.size(); i++) {\\n        for (int j = i + 1; j < nums.size(); j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return {i, j};\\n            }\\n        }\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Language Normalization (C++)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"int add(int a, int b) { return a + b; }\",\n  \"language\": \"C++\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add\",\n    \"prompt_markdown\": \"Add two integers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  },\n  \"request_id\": \"refactor-cpp-normalize\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Missing Code",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Unsupported Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"puts 'hello'\",\n  \"language\": \"ruby\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Missing Question",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def hello(): pass\",\n  \"language\": \"python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Refactor Missing Code",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Refactor Unsupported Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"fn main() {}\",\n  \"language\": \"rust\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor-tips"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Hint Missing Question",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def solve(): pass\",\n  \"language\": \"python\",\n  \"hint_level\": \"beginner\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Hint Invalid Level",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def solve(): pass\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  },\n  \"hint_level\": \"expert\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
 					]
 				}
 			},
