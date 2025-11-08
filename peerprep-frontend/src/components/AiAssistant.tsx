@@ -1,4 +1,8 @@
 import { useMemo, useState } from "react";
+import { TriangleAlert } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
 import { getHint, generateTests, generateRefactorTips } from "@/api/ai";
@@ -30,7 +34,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
   const { run, loading, text, error, setText, setError } = useExplain();
-  const [hintLevel, setHintLevel] = useState<"basic" | "intermediate" | "advanced">("basic");
+  const [hintLevel, setHintLevel] = useState<DetailLevel>("beginner");
 
 
   const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor"];
@@ -103,6 +107,14 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
 
   return (
     <div className={`flex flex-col gap-3 pt-2 ${className ?? ""}`}>
+      {/* Gen AI Warning */}
+      <div className="flex items-start gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2 text-sm">
+        <TriangleAlert className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+        <span className="text-yellow-800">
+          AI-generated content may contain errors. Please verify important information.
+        </span>
+      </div>
+
       {/* Mode bubbles */}
       <div className="grid grid-cols-2 gap-2">
         {modes.map((m) => {
@@ -186,10 +198,10 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
             Hint Level
             <select
                 value={hintLevel}
-                onChange={(e) => setHintLevel(e.target.value as "basic" | "intermediate" | "advanced")}
+                onChange={(e) => setHintLevel(e.target.value as DetailLevel)}
                 className="ml-2 border rounded px-2 py-1 text-sm"
             >
-                <option value="basic">Basic</option>
+                <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate</option>
                 <option value="advanced">Advanced</option>
             </select>
@@ -211,10 +223,53 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
       </button>
 
       {/* Response box */}
-      <div className="min-h-32 max-h-64 overflow-auto border rounded p-2 bg-neutral-50">
+      <div className="min-h-32 max-h-64 overflow-auto border rounded p-4 bg-neutral-50">
         {loading && <div className="animate-pulse">Thinking…</div>}
         {!loading && error && <div className="text-red-600">{error}</div>}
-        {!loading && !error && text && <pre className="whitespace-pre-wrap">{text}</pre>}
+        {!loading && !error && text && (
+          <div className="prose prose-sm max-w-none text-xs">
+            <ReactMarkdown
+              components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '');
+                const language = match ? match[1] : '';
+
+                return !inline && language ? (
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={language}
+                    PreTag="div"
+                    customStyle={{ fontSize: '0.75rem' }}
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code className="bg-gray-200 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              p: ({ children }) => <p className="mb-2 leading-relaxed text-xs">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-xs">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-xs">{children}</ol>,
+              li: ({ children }) => <li className="ml-4 text-xs">{children}</li>,
+              h1: ({ children }) => <h1 className="text-sm font-bold mb-2 mt-3">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-xs font-bold mb-1 mt-2">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2">{children}</h3>,
+              strong: ({ children }) => <strong className="font-semibold text-gray-900 text-xs">{children}</strong>,
+              em: ({ children }) => <em className="italic text-gray-700 text-xs">{children}</em>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 my-2 text-xs">
+                  {children}
+                </blockquote>
+              ),
+            }}
+            >
+              {text}
+            </ReactMarkdown>
+          </div>
+        )}
         {!loading && !error && !text && (
           <div className="text-gray-400">Select a mode, then click the button above.</div>
         )}
