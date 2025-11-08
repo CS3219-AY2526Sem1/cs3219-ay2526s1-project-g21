@@ -81,7 +81,7 @@ func (rm *RoomManager) GetRedisClient() *redis.Client {
 	return rm.rdb
 }
 
-// SubscribeToMatches listens for match events until the provided context is cancelled.
+// SubscribeToMatches listens for match events until the provided context is cancelled
 func (rm *RoomManager) SubscribeToMatches(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -446,6 +446,10 @@ func (rm *RoomManager) RerollQuestion(matchId string) (*models.RoomInfo, error) 
 	roomInfo.Status = "ready"
 	updatedCopy := cloneRoomInfo(roomInfo)
 	rm.mu.Unlock()
+
+	if rm.onRoomUpdate != nil {
+		rm.onRoomUpdate(matchId, cloneRoomInfo(updatedCopy))
+	}
 
 	// Update Redis
 	go rm.updateRoomStatusInRedis(context.Background(), roomInfo)

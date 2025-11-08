@@ -479,6 +479,46 @@ func TestRerollQuestionLoadsFromRedis(t *testing.T) {
 	}
 }
 
+func TestRerollQuestionTriggersLocalCallback(t *testing.T) {
+	manager, _, server := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 77})
+	})
+
+	manager.roomStatusMap["cb"] = &models.RoomInfo{
+		MatchId:          "cb",
+		Category:         "cat",
+		Difficulty:       "easy",
+		RerollsRemaining: 1,
+		Question:         &models.Question{ID: 1},
+		Status:           "ready",
+	}
+
+	var (
+		callbackCount int
+		lastInfo      *models.RoomInfo
+	)
+	manager.SetRoomUpdateCallback(func(matchId string, info *models.RoomInfo) {
+		callbackCount++
+		lastInfo = info
+	})
+
+	updated, err := manager.RerollQuestion("cb")
+	if err != nil {
+		t.Fatalf("unexpected reroll error: %v", err)
+	}
+	if callbackCount != 1 {
+		t.Fatalf("expected callback to fire once, got %d", callbackCount)
+	}
+	if lastInfo == nil || lastInfo.Question == nil || lastInfo.Question.ID != 77 {
+		t.Fatalf("callback received wrong data: %#v", lastInfo)
+	}
+	if updated.Question.ID != 77 {
+		t.Fatalf("unexpected updated question: %#v", updated.Question)
+	}
+
+	_ = server
+}
+
 func TestValidateRoomAccess(t *testing.T) {
 	manager, _, _ := setupRoomManager(t, nil)
 	manager.roomStatusMap["match"] = &models.RoomInfo{
