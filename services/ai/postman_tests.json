@@ -479,7 +479,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"#include <iostream>\\nint main() { return 0; }\",\n  \"language\": \"Cpp\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-cpp-uppercase\"\n}"
+					"raw": "{\n  \"code\": \"#include <iostream>\\nint main() { return 0; }\",\n  \"language\": \"Cpp\",\n  \"detail_level\": \"beginner\"\n}"
 				},
 				"url": {
 					"raw": "{{url}}/api/v1/ai/explain",
@@ -624,7 +624,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    const map = new Map();\\n    for (let i = 0; i < nums.length; i++) {\\n        const complement = target - nums[i];\\n        if (map.has(complement)) {\\n            return [map.get(complement), i];\\n        }\\n        map.set(nums[i], i);\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"test-gen-js\"\n}"
+					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    const map = new Map();\\n    for (let i = 0; i < nums.length; i++) {\\n        const complement = target - nums[i];\\n        if (map.has(complement)) {\\n            return [map.get(complement), i];\\n        }\\n        map.set(nums[i], i);\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
 				},
 				"url": {
 					"raw": "{{url}}/api/v1/ai/tests",
@@ -682,7 +682,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"def add(a, b): return a + b\",\n  \"language\": \"PYTHON\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add Numbers\",\n    \"prompt_markdown\": \"Add two numbers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  },\n  \"request_id\": \"test-gen-python-normalize\"\n}"
+					"raw": "{\n  \"code\": \"def add(a, b): return a + b\",\n  \"language\": \"PYTHON\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add Numbers\",\n    \"prompt_markdown\": \"Add two numbers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  }\n}"
 				},
 				"url": {
 					"raw": "{{url}}/api/v1/ai/tests",
@@ -714,7 +714,7 @@
 					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    for i in range(len(nums)):\\n        for j in range(i+1, len(nums)):\\n            if nums[i] + nums[j] == target:\\n                return [i, j]\\n    return []\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-python\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -722,7 +722,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -740,10 +740,10 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    for (int i = 0; i < nums.length; i++) {\\n        for (int j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return new int[] {i, j};\\n            }\\n        }\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-java\"\n}"
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    for (int i = 0; i < nums.length; i++) {\\n        for (int j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return new int[] {i, j};\\n            }\\n        }\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -751,7 +751,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -772,7 +772,7 @@
 					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    for (let i = 0; i < nums.length; i++) {\\n        for (let j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] === target) {\\n                return [i, j];\\n            }\\n        }\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-js\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -780,7 +780,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -798,10 +798,10 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    for (int i = 0; i < nums.size(); i++) {\\n        for (int j = i + 1; j < nums.size(); j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return {i, j};\\n            }\\n        }\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-cpp\"\n}"
+					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    for (int i = 0; i < nums.size(); i++) {\\n        for (int j = i + 1; j < nums.size(); j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return {i, j};\\n            }\\n        }\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  }\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -809,7 +809,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -830,7 +830,7 @@
 					"raw": "{\n  \"code\": \"int add(int a, int b) { return a + b; }\",\n  \"language\": \"C++\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add\",\n    \"prompt_markdown\": \"Add two integers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  },\n  \"request_id\": \"refactor-cpp-normalize\"\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -838,7 +838,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -946,7 +946,7 @@
 					"raw": "{\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -954,7 +954,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
@@ -975,7 +975,7 @@
 					"raw": "{\n  \"code\": \"fn main() {}\",\n  \"language\": \"rust\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
 				},
 				"url": {
-					"raw": "{{url}}/api/v1/ai/refactor",
+					"raw": "{{url}}/api/v1/ai/refactor-tips",
 					"host": [
 						"{{url}}"
 					],
@@ -983,7 +983,7 @@
 						"api",
 						"v1",
 						"ai",
-						"refactor"
+						"refactor-tips"
 					]
 				}
 			},
