@@ -121,6 +121,13 @@ function aiUrl(endpoint: string): string {
   return `${base}/api/v1/ai/${path}`;
 }
 
+function handleApiError(res: Response, errorJson: any, defaultMessage: string): Error {
+  if (res.status === 429) {
+    return new Error('AI resources exhausted. Please try again later');
+  }
+  return new Error(errorJson?.message ?? defaultMessage);
+}
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -133,7 +140,7 @@ export async function explainCode(payload: ExplainRequest): Promise<ExplainRespo
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.message ?? `AI explain failed with ${res.status}`);
+    throw handleApiError(res, err, `AI explain failed with ${res.status}`);
   }
   return res.json();
 }
@@ -146,7 +153,7 @@ export async function getHint(payload: HintRequest): Promise<HintResponse> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.message ?? `AI hint failed with ${res.status}`);
+    throw handleApiError(res, err, `AI hint failed with ${res.status}`);
   }
   return res.json();
 }
@@ -168,8 +175,7 @@ export async function generateTests(payload: TestsRequest): Promise<TestsRespons
   }
 
   if (!res.ok) {
-    const msg = json?.message || json?.error || bodyText || 'Failed to generate test cases';
-    throw new Error(`(${res.status}) ${msg}`);
+    throw handleApiError(res, json, 'Failed to generate test cases');
   }
   return json as TestsResponse;
 }
@@ -191,7 +197,7 @@ export async function generateRefactorTips(payload: RefactorRequest): Promise<Re
   }
 
   if (!res.ok) {
-    throw new Error(`(${res.status}) ${json?.message || text}`);
+    throw handleApiError(res, json, 'Failed to generate refactor tips');
   }
   return json as RefactorResponse;
 }
