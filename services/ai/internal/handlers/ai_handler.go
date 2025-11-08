@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -53,10 +54,22 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	// call the AI provider with the built prompt
 	response, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.DetailLevel)
 	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate explanation"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
 		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code:    "ai_error",
-			Message: "Failed to generate explanation",
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
 		})
 		return
 	}
@@ -108,10 +121,22 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	// Reuse same provider call as explain
 	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.HintLevel)
 	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate hint"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
 		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code:    "ai_error",
-			Message: "Failed to generate hint",
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
 		})
 		return
 	}
@@ -149,10 +174,22 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	// Reuse provider call
 	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate test cases"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
 		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code:    "ai_error",
-			Message: "Failed to generate test cases",
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
 		})
 		return
 	}
@@ -187,10 +224,22 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 
 	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate refactor tips"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
 		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
-		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code:    "ai_error",
-			Message: "Failed to generate refactor tips",
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
 		})
 		return
 	}
