@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import MonacoEditor, { type OnMount } from "@monaco-editor/react";
-import CodeEditor from "@uiw/react-textarea-code-editor";
+import MonacoEditor, { type OnMount } from "@monaco-editor/react";;
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
