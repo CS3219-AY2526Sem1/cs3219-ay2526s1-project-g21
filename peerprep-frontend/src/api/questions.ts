@@ -1,8 +1,10 @@
 import { Question, RandomQuestionFilters } from "@/types/question";
 
 // TODO: remove localhost call in prod
-const QUESTION_API_BASE =
-  ((import.meta as any).env?.VITE_QUESTION_API_BASE ?? "http://localhost:8082") + "/api/v1/questions";
+const baseUrl = (import.meta as any).env?.VITE_QUESTION_API_BASE ?? "http://localhost:8082";
+const QUESTION_API_BASE = baseUrl.includes('/api/v1')
+  ? `${baseUrl.replace(/\/+$/, '')}/questions`
+  : `${baseUrl}/api/v1/questions`;
 
 export async function questionApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   // building url
