@@ -43,6 +43,15 @@ Note that the following services/databases will be setup locally:
 - Redis:    redis://localhost:6379
 - Postgres: postgres://localhost:5432
 
+3. (Optional but recommended) Seed local databases with sample data
+```bash
+docker compose -f deploy/docker-compose.yaml run --rm mongo-seed
+docker compose -f deploy/docker-compose.yaml run --rm postgres-seed
+```
+   - The Postgres seed creates two verified accounts:
+     - `test_1` / `Password123!`
+     - `test_2` / `Password123!`
+
 ## Observability (Prometheus + Grafana)
 - All Go services expose a `GET /metrics` endpoint with request counters and latency histograms labelled by service, path, and status.
 - Additional metrics capture in-flight request gauges plus request/response size histograms to spot back-pressure and payload regressions quickly.
