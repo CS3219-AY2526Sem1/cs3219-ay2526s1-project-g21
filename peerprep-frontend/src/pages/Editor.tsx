@@ -107,8 +107,6 @@ export default function Editor() {
     };
   }, [question]);
 
-
-
   const nav = useNavigate();
   const matchId = roomInfo?.matchId;
 
@@ -215,17 +213,18 @@ export default function Editor() {
       setCode(nextValue);
       codeRef.current = nextValue;
 
-      if (!ev || ev.changes.length !== 1) {
+      if (!ev || ev.changes.length === 0) {
         sendEdit(computeEditChange(prevValue, nextValue));
         return;
       }
 
-      const change = ev.changes[0];
-      sendEdit({
-        rangeStart: change.rangeOffset,
-        rangeEnd: change.rangeOffset + change.rangeLength,
-        text: change.text,
-      });
+      for (const change of ev.changes) {
+        sendEdit({
+          rangeStart: change.rangeOffset,
+          rangeEnd: change.rangeOffset + change.rangeLength,
+          text: change.text,
+        })
+      }
     },
     [sendEdit]
   );
