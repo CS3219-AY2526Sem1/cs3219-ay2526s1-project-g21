@@ -5,7 +5,7 @@ const AI_BASE = import.meta.env.VITE_AI_BASE_URL ?? 'http://localhost:8086';
 // ============================================================================
 
 export type DetailLevel = 'beginner' | 'intermediate' | 'advanced';
-export type Language = 'python' | 'java' | 'cpp' | 'javascript' | 'typescript';
+export type Language = 'python' | 'java' | 'cpp';
 
 // ============================================================================
 // Constants
@@ -19,7 +19,7 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const DETAIL_LEVELS: readonly DetailLevel[] = ['beginner', 'intermediate', 'advanced'];
-export const LANGUAGES: readonly Language[] = ['python', 'java', 'cpp', 'javascript', 'typescript'];
+export const LANGUAGES: readonly Language[] = ['python', 'java', 'cpp'];
 
 // ============================================================================
 // Shared Interfaces

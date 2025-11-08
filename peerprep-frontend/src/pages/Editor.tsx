@@ -32,8 +32,6 @@ type WSFrame =
   | { type: "session_ended"; data: { reason?: string } };
 
 const CODE_TEMPLATES: Record<string, string> = {
-  javascript: 'console.log("Hello from JavaScript!");\n',
-  typescript: 'function main(): void {\n  console.log("Hello from TypeScript!");\n}\n\nmain();\n',
   python: 'print("Hello from Python!")\n',
   cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello from C++!" << std::endl;\n    return 0;\n}\n',
   java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from Java!");\n    }\n}\n',
@@ -113,10 +111,10 @@ export default function Editor() {
 
 
   // Map the editor's language (string) to AI Assistant's accepted union type
-  const aiLanguage: 'python' | 'java' | 'cpp' | 'javascript' | 'typescript' =
-  language === 'python' || language === 'java' || language === 'cpp' || language === 'javascript' || language === 'typescript'
+  const aiLanguage: 'python' | 'java' | 'cpp' =
+  language === 'python' || language === 'java' || language === 'cpp'
     ? (language as Language)
-    : 'javascript';
+    : 'python';
 
 
   useEffect(() => {
@@ -472,8 +470,6 @@ export default function Editor() {
             onChange={(e) => handleLanguageChange(e.target.value)}
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
           >
-            <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
             <option value="python">Python</option>
             <option value="cpp">C++</option>
             <option value="java">Java</option>
