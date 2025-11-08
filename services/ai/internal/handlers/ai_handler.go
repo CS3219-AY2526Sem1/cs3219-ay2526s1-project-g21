@@ -3,9 +3,6 @@ package handlers
 import (
 	"net/http"
 
-	"fmt"
-	"strings"
-
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
@@ -168,36 +165,13 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	utils.JSON(w, http.StatusOK, resp)
 }
 
-func stripFences(s string) string {
-	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, "```") {
-		if i := strings.IndexByte(s[3:], '\n'); i >= 0 {
-			s = s[3+i+1:]
-		}
-	}
-	s = strings.TrimSuffix(s, "```")
-	return strings.TrimSpace(s)
-}
-
-// Used for refactor prompts so the LLM can refer to specific lines accurately.
-func addLineNumbers(src string) string {
-	if src == "" {
-		return ""
-	}
-	lines := strings.Split(src, "\n")
-	for i := range lines {
-		lines[i] = fmt.Sprintf("%d: %s", i+1, lines[i])
-	}
-	return strings.Join(lines, "\n")
-}
-
 func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) {
 	req := middleware.GetValidatedRequest[*models.RefactorTipsRequest](r)
 	req.RequestID = ensureRequestID(req.RequestID)
 
 	data := map[string]interface{}{
 		"Language": req.Language,
-		"Code":     addLineNumbers(req.Code),
+		"Code":     utils.AddLineNumbers(req.Code),
 		"Question": req.Question,
 	}
 
@@ -221,7 +195,7 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cleaned := stripFences(result.Explanation)
+	cleaned := utils.StripFences(result.Explanation)
 
 	utils.JSON(w, http.StatusOK, models.RefactorTipsTextResponse{
 		TipsText:  cleaned,
