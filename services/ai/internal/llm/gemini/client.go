@@ -40,8 +40,8 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
-// generates a code explanation
-func (c *Client) GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error) {
+// generates AI content based on the provided prompt
+func (c *Client) GenerateContent(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.GenerationResponse, error) {
 	startTime := time.Now()
 	result, err := c.client.Models.GenerateContent(
 		ctx,
@@ -76,7 +76,7 @@ func (c *Client) GenerateExplanation(ctx context.Context, prompt string, request
 		}
 	}
 
-	explanation, err := result.Text()
+	content, err := result.Text()
 	if err != nil {
 		return nil, &llm.ProviderError{
 			Provider: "gemini",
@@ -85,7 +85,7 @@ func (c *Client) GenerateExplanation(ctx context.Context, prompt string, request
 			Err:      err,
 		}
 	}
-	if explanation == "" {
+	if content == "" {
 		return nil, &llm.ProviderError{
 			Provider: "gemini",
 			Code:     llm.ErrCodeInvalidInput,
@@ -95,10 +95,10 @@ func (c *Client) GenerateExplanation(ctx context.Context, prompt string, request
 
 	processingTime := time.Since(startTime).Milliseconds()
 
-	return &models.ExplainResponse{
-		Explanation: explanation,
-		RequestID:   requestID,
-		Metadata: models.ExplanationMetadata{
+	return &models.GenerationResponse{
+		Content:   content,
+		RequestID: requestID,
+		Metadata: models.GenerationMetadata{
 			ProcessingTime: int(processingTime),
 			DetailLevel:    detailLevel,
 			Provider:       "gemini",

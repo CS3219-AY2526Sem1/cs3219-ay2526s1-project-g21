@@ -7,7 +7,7 @@ import (
 
 // defines the interface for LLM providers
 type Provider interface {
-	GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error)
+	GenerateContent(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.GenerationResponse, error)
 	GetProviderName() string
 }
 

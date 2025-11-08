@@ -52,7 +52,7 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// call the AI provider with the built prompt
-	response, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.DetailLevel)
+	response, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, req.DetailLevel)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		errorCode := "ai_error"
@@ -119,7 +119,7 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reuse same provider call as explain
-	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.HintLevel)
+	result, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, req.HintLevel)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		errorCode := "ai_error"
@@ -142,7 +142,7 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := models.HintResponse{
-		Hint:      result.Explanation,
+		Hint:      result.Content,
 		RequestID: req.RequestID,
 		Metadata:  result.Metadata,
 	}
@@ -172,7 +172,7 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reuse provider call
-	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
+	out, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		errorCode := "ai_error"
@@ -195,7 +195,7 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := models.TestGenResponse{
-		TestsCode: out.Explanation,
+		TestsCode: out.Content,
 		RequestID: req.RequestID,
 		Metadata:  out.Metadata,
 	}
@@ -222,7 +222,7 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
+	result, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		errorCode := "ai_error"
@@ -244,7 +244,7 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cleaned := utils.StripFences(result.Explanation)
+	cleaned := utils.StripFences(result.Content)
 
 	utils.JSON(w, http.StatusOK, models.RefactorTipsTextResponse{
 		TipsText:  cleaned,

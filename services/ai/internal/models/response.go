@@ -1,14 +1,14 @@
 package models
 
-// code explanation requests
-type ExplainResponse struct {
-	Explanation string              `json:"explanation"`
-	RequestID   string              `json:"request_id"`
-	Metadata    ExplanationMetadata `json:"metadata"`
+// generic AI content generation response
+type GenerationResponse struct {
+	Content   string             `json:"content"`
+	RequestID string             `json:"request_id"`
+	Metadata  GenerationMetadata `json:"metadata"`
 }
 
-// additional information about the explanation
-type ExplanationMetadata struct {
+// additional information about the generation
+type GenerationMetadata struct {
 	ProcessingTime int    `json:"processing_time_ms"`
 	DetailLevel    string `json:"detail_level"`
 	Provider       string `json:"provider,omitempty"`
@@ -35,19 +35,19 @@ type ValidationErrorDetail struct {
 
 // HintResponse returned by /ai/hint
 type HintResponse struct {
-	Hint      string              `json:"hint"`
-	RequestID string              `json:"request_id"`
-	Metadata  ExplanationMetadata `json:"metadata"`
+	Hint      string             `json:"hint"`
+	RequestID string             `json:"request_id"`
+	Metadata  GenerationMetadata `json:"metadata"`
 }
 
 type TestGenResponse struct {
-	TestsCode string              `json:"tests_code"`
-	RequestID string              `json:"request_id"`
-	Metadata  ExplanationMetadata `json:"metadata"`
+	TestsCode string             `json:"tests_code"`
+	RequestID string             `json:"request_id"`
+	Metadata  GenerationMetadata `json:"metadata"`
 }
 
 type RefactorTipsTextResponse struct {
-	TipsText  string              `json:"tips_text"`
-	RequestID string              `json:"request_id"`
-	Metadata  ExplanationMetadata `json:"metadata"`
+	TipsText  string             `json:"tips_text"`
+	RequestID string             `json:"request_id"`
+	Metadata  GenerationMetadata `json:"metadata"`
 }

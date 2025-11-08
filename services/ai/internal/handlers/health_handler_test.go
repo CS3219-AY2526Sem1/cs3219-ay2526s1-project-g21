@@ -17,15 +17,15 @@ import (
 
 // pretends to be an llm.Provider
 type mockProvider struct {
-	generateExplanationFn func(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error)
-	getProviderNameFn     func() string
+	generateContentFn func(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.GenerationResponse, error)
+	getProviderNameFn func() string
 }
 
-func (m *mockProvider) GenerateExplanation(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.ExplainResponse, error) {
-	if m.generateExplanationFn == nil {
-		return &models.ExplainResponse{}, nil
+func (m *mockProvider) GenerateContent(ctx context.Context, prompt string, requestID string, detailLevel string) (*models.GenerationResponse, error) {
+	if m.generateContentFn == nil {
+		return &models.GenerationResponse{}, nil
 	}
-	return m.generateExplanationFn(ctx, prompt, requestID, detailLevel)
+	return m.generateContentFn(ctx, prompt, requestID, detailLevel)
 }
 
 func (m *mockProvider) GetProviderName() string {
