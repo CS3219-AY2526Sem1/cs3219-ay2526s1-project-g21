@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import CodeEditor from "@uiw/react-textarea-code-editor";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
@@ -505,39 +508,127 @@ export default function Editor() {
       <div className="px-6 flex flex-col gap-4 lg:grid lg:grid-cols-2 xl:gap-6">
         {/* Question panel */}
         <div className="flex flex-col gap-4 lg:pr-2">
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-black">{question?.title ?? "Loading..."}</h2>
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="p-5 border-b border-gray-200">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-black">{question?.title ?? "Loading..."}</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  {question?.difficulty && (
+                    <span className={`text-xs rounded-full px-2 py-1 font-medium ${
+                      question.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
+                      question.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {question.difficulty}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleReroll}
+                    disabled={roomLoading || isRerolling || rerollsRemaining <= 0}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRerolling ? "Rerolling..." : `Reroll (${rerollsRemaining} left)`}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {question?.difficulty && (
-                  <span className="text-xs rounded-full bg-gray-100 px-2 py-1 text-gray-600 capitalize">
-                    {question.difficulty.toLowerCase()}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={handleReroll}
-                  disabled={roomLoading || isRerolling || rerollsRemaining <= 0}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              {question?.topic_tags?.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {question.topic_tags.map((t) => (
+                    <span key={t} className="text-xs rounded-md bg-blue-50 px-2 py-1 text-blue-700 font-medium">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Description */}
+            <div className="p-5 border-b border-gray-100">
+              <div className="prose prose-sm max-w-none text-sm">
+                <ReactMarkdown
+                  components={{
+                    code({ node, inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+                      return !inline && language ? (
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={language}
+                          PreTag="div"
+                          customStyle={{ fontSize: '0.875rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-pink-600" {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    p: ({ children }) => <p className="mb-3 leading-relaxed text-gray-700">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-700">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-700">{children}</ol>,
+                    li: ({ children }) => <li className="ml-4">{children}</li>,
+                    h3: ({ children }) => <h3 className="text-base font-semibold mb-2 mt-4 text-gray-900">{children}</h3>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                  }}
                 >
-                  {isRerolling ? "Rerolling..." : `Reroll (${rerollsRemaining} left)`}
-                </button>
+                  {question?.prompt_markdown || ''}
+                </ReactMarkdown>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-gray-700 whitespace-pre-wrap">
-              {question?.prompt_markdown}
-            </p>
-            {question?.topic_tags?.length ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {question.topic_tags.map((t) => (
-                  <span key={t} className="text-xs rounded-md bg-gray-100 px-2 py-1 text-gray-600">
-                    {t}
-                  </span>
-                ))}
+
+            {/* Examples */}
+            {question?.test_cases && question.test_cases.length > 0 && (
+              <div className="p-5 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Examples</h3>
+                <div className="space-y-4">
+                  {question.test_cases.slice(0, 3).map((testCase, idx) => (
+                    <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <p className="text-xs font-semibold text-gray-700 mb-2">Example {idx + 1}:</p>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-xs font-medium text-gray-600">Input:</span>
+                          <pre className="mt-1 bg-white p-2 rounded border border-gray-200 text-xs font-mono overflow-x-auto">{testCase.input}</pre>
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-gray-600">Output:</span>
+                          <pre className="mt-1 bg-white p-2 rounded border border-gray-200 text-xs font-mono overflow-x-auto">{testCase.output}</pre>
+                        </div>
+                        {testCase.description && (
+                          <div>
+                            <span className="text-xs font-medium text-gray-600">Explanation:</span>
+                            <p className="mt-1 text-xs text-gray-700">{testCase.description}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : null}
+            )}
+
+            {/* Constraints */}
+            {question?.constraints && (
+              <div className="p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Constraints</h3>
+                <div className="text-xs text-gray-700 space-y-1">
+                  {question.constraints.split('\n').map((constraint, idx) => (
+                    constraint.trim() && (
+                      <div key={idx} className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-0.5">•</span>
+                        <span className="font-mono">{constraint.trim()}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Voice Chat */}
