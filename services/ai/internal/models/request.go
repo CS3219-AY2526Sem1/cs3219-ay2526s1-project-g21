@@ -43,7 +43,7 @@ func (r *ExplainRequest) Validate() error {
 
 	// handle default difficulty level if not provided
 	if r.DetailLevel == "" {
-		r.DetailLevel = "intermediate"
+		r.DetailLevel = DefaultDetailLevel
 	} else {
 		originalDetailLevel := r.DetailLevel
 		r.DetailLevel = utils.NormalizeLevel(r.DetailLevel)
@@ -135,17 +135,30 @@ func (r *TestGenRequest) Validate() error {
 	if r.Language == "" {
 		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
-	lang := strings.ToLower(r.Language)
-	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[lang] {
-		return &ErrorResponse{Code: "unsupported_language", Message: "Language not supported (python, java, cpp, javascript)"}
+
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
+
+	if !SupportedLanguages[r.Language] {
+		return &ErrorResponse{
+			Code:    "unsupported_language",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
+		}
 	}
+
 	if r.Question == nil {
 		return &ErrorResponse{Code: "missing_question_context", Message: "Question context is required"}
 	}
 	if r.Question.PromptMarkdown == "" {
-		return &ErrorResponse{Code: "missing_question_prompt", Message: "question.prompt_markdown must not be empty"}
+		return &ErrorResponse{Code: "missing_question_prompt", Message: "Question prompt_markdown is required"}
 	}
+
+	// normalize framework if provided
+	if r.Framework != "" {
+		r.Framework = strings.ToLower(r.Framework)
+	}
+
 	return nil
 }
 
@@ -158,17 +171,25 @@ type RefactorTipsRequest struct {
 
 func (r *RefactorTipsRequest) Validate() error {
 	if strings.TrimSpace(r.Code) == "" {
-		return &ErrorResponse{Code: "missing_code", Message: "code is required"}
+		return &ErrorResponse{Code: "missing_code", Message: "Code field is required"}
 	}
 	if strings.TrimSpace(r.Language) == "" {
-		return &ErrorResponse{Code: "missing_language", Message: "language is required"}
+		return &ErrorResponse{Code: "missing_language", Message: "Language field is required"}
 	}
-	supported := map[string]bool{"python": true, "java": true, "cpp": true, "javascript": true}
-	if !supported[strings.ToLower(r.Language)] {
-		return &ErrorResponse{Code: "unsupported_language", Message: "language must be one of python/java/cpp/javascript"}
+
+	// normalize and validate language
+	originalLanguage := r.Language
+	r.Language = utils.NormalizeLanguage(r.Language)
+
+	if !SupportedLanguages[r.Language] {
+		return &ErrorResponse{
+			Code:    "unsupported_language",
+			Message: fmt.Sprintf("Language '%s' not supported. Supported languages: %s", originalLanguage, strings.Join(SupportedLanguagesList(), ", ")),
+		}
 	}
+
 	if r.Question == nil || strings.TrimSpace(r.Question.PromptMarkdown) == "" {
-		return &ErrorResponse{Code: "missing_question_context", Message: "question.prompt_markdown is required"}
+		return &ErrorResponse{Code: "missing_question_context", Message: "Question prompt_markdown is required"}
 	}
 	return nil
 }

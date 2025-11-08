@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "57abd418-6d97-4b92-a39d-9184dc98115d",
+		"_postman_id": "7dc3a123-c27a-4deb-a55c-3a7d09b59d49",
 		"name": "AI_service_tests",
 		"description": "Postman test suite for all AI Service endpoints.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -265,7 +265,7 @@
 			"response": []
 		},
 		{
-			"name": "Hint - Python Basic",
+			"name": "Hint - Python Beginner",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -276,7 +276,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    # TODO: implement\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"basic\",\n  \"request_id\": \"test-hint-python\"\n}"
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    # TODO: implement\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"hint_level\": \"beginner\",\n  \"request_id\": \"test-hint-python\"\n}"
 				},
 				"url": {
 					"raw": "{{url}}/api/v1/ai/hint",
@@ -334,7 +334,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"code\": \"function findMax(arr) {\\n    // TODO\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 2,\n    \"title\": \"Find Maximum\",\n    \"prompt_markdown\": \"Find the maximum element in an array\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\"]\n  },\n  \"hint_level\": \"basic\"\n}"
+					"raw": "{\n  \"code\": \"function findMax(arr) {\\n    // TODO\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 2,\n    \"title\": \"Find Maximum\",\n    \"prompt_markdown\": \"Find the maximum element in an array\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\"]\n  },\n  \"hint_level\": \"beginner\"\n}"
 				},
 				"url": {
 					"raw": "{{url}}/api/v1/ai/hint",
@@ -462,6 +462,586 @@
 						"v1",
 						"ai",
 						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - C++ Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"#include <iostream>\\nint main() { return 0; }\",\n  \"language\": \"Cpp\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-cpp-uppercase\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - Python Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def hello(): print('hi')\",\n  \"language\": \"PYTHON\",\n  \"detail_level\": \"intermediate\",\n  \"request_id\": \"test-python-uppercase\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Language Normalization - JavaScript Uppercase",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"const x = 5;\",\n  \"language\": \"JavaScript\",\n  \"detail_level\": \"beginner\",\n  \"request_id\": \"test-js-uppercase\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/explain",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"explain"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Python",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    hash_map = {}\\n    for i, num in enumerate(nums):\\n        complement = target - num\\n        if complement in hash_map:\\n            return [hash_map[complement], i]\\n        hash_map[num] = i\\n    return []\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"pytest\",\n  \"request_id\": \"test-gen-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Java",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    Map<Integer, Integer> map = new HashMap<>();\\n    for (int i = 0; i < nums.length; i++) {\\n        int complement = target - nums[i];\\n        if (map.containsKey(complement)) {\\n            return new int[] { map.get(complement), i };\\n        }\\n        map.put(nums[i], i);\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"junit\",\n  \"request_id\": \"test-gen-java\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - JavaScript",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    const map = new Map();\\n    for (let i = 0; i < nums.length; i++) {\\n        const complement = target - nums[i];\\n        if (map.has(complement)) {\\n            return [map.get(complement), i];\\n        }\\n        map.set(nums[i], i);\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"test-gen-js\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - C++",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    unordered_map<int, int> map;\\n    for (int i = 0; i < nums.size(); i++) {\\n        int complement = target - nums[i];\\n        if (map.find(complement) != map.end()) {\\n            return {map[complement], i};\\n        }\\n        map[nums[i]] = i;\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"framework\": \"googletest\",\n  \"request_id\": \"test-gen-cpp\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Generate Tests - Language Normalization (PYTHON)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def add(a, b): return a + b\",\n  \"language\": \"PYTHON\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add Numbers\",\n    \"prompt_markdown\": \"Add two numbers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  },\n  \"request_id\": \"test-gen-python-normalize\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Python",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def two_sum(nums, target):\\n    for i in range(len(nums)):\\n        for j in range(i+1, len(nums)):\\n            if nums[i] + nums[j] == target:\\n                return [i, j]\\n    return []\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Java",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"public int[] twoSum(int[] nums, int target) {\\n    for (int i = 0; i < nums.length; i++) {\\n        for (int j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return new int[] {i, j};\\n            }\\n        }\\n    }\\n    return new int[0];\\n}\",\n  \"language\": \"java\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-java\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - JavaScript",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"function twoSum(nums, target) {\\n    for (let i = 0; i < nums.length; i++) {\\n        for (let j = i + 1; j < nums.length; j++) {\\n            if (nums[i] + nums[j] === target) {\\n                return [i, j];\\n            }\\n        }\\n    }\\n    return [];\\n}\",\n  \"language\": \"javascript\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-js\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - C++",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"vector<int> twoSum(vector<int>& nums, int target) {\\n    for (int i = 0; i < nums.size(); i++) {\\n        for (int j = i + 1; j < nums.size(); j++) {\\n            if (nums[i] + nums[j] == target) {\\n                return {i, j};\\n            }\\n        }\\n    }\\n    return {};\\n}\",\n  \"language\": \"cpp\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Two Sum\",\n    \"prompt_markdown\": \"Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"array\", \"hash-table\"]\n  },\n  \"request_id\": \"refactor-cpp\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refactor Tips - Language Normalization (C++)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"int add(int a, int b) { return a + b; }\",\n  \"language\": \"C++\",\n  \"question\": {\n    \"id\": 100,\n    \"title\": \"Add\",\n    \"prompt_markdown\": \"Add two integers\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"math\"]\n  },\n  \"request_id\": \"refactor-cpp-normalize\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Missing Code",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Unsupported Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"puts 'hello'\",\n  \"language\": \"ruby\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - TestGen Missing Question",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def hello(): pass\",\n  \"language\": \"python\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/tests",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"tests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Refactor Missing Code",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Refactor Unsupported Language",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"fn main() {}\",\n  \"language\": \"rust\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  }\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/refactor",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"refactor"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Hint Missing Question",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def solve(): pass\",\n  \"language\": \"python\",\n  \"hint_level\": \"beginner\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Error - Hint Invalid Level",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"code\": \"def solve(): pass\",\n  \"language\": \"python\",\n  \"question\": {\n    \"id\": 1,\n    \"title\": \"Test\",\n    \"prompt_markdown\": \"Test problem\",\n    \"difficulty\": \"easy\",\n    \"topic_tags\": [\"test\"]\n  },\n  \"hint_level\": \"expert\"\n}"
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/ai/hint",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"ai",
+						"hint"
 					]
 				}
 			},

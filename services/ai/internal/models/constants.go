@@ -17,10 +17,13 @@ var ValidDetailLevels = map[string]bool{
 
 // contains all valid hint levels (in lowercase)
 var ValidHintLevels = map[string]bool{
-	"basic":        true,
+	"beginner":     true,
 	"intermediate": true,
 	"advanced":     true,
 }
+
+// Default detail level for endpoints that don't specify one
+const DefaultDetailLevel = "intermediate"
 
 func SupportedLanguagesList() []string {
 	return []string{"python", "java", "cpp", "javascript"}
@@ -31,5 +34,5 @@ func ValidDetailLevelsList() []string {
 }
 
 func ValidHintLevelsList() []string {
-	return []string{"basic", "intermediate", "advanced"}
+	return []string{"beginner", "intermediate", "advanced"}
 }

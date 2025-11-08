@@ -35,9 +35,7 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 	req := middleware.GetValidatedRequest[*models.ExplainRequest](r)
 
 	// Generate request ID if not provided
-	if req.RequestID == "" {
-		req.RequestID = generateRequestID()
-	}
+	req.RequestID = ensureRequestID(req.RequestID)
 
 	// build the prompt using the prompt manager
 	promptData := map[string]interface{}{
@@ -78,13 +76,19 @@ func generateRequestID() string {
 	return uuid.New().String()
 }
 
+// ensureRequestID generates a request ID if one is not provided
+func ensureRequestID(requestID string) string {
+	if requestID == "" {
+		return generateRequestID()
+	}
+	return requestID
+}
+
 func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	// Get the validated request from middleware
 	req := middleware.GetValidatedRequest[*models.HintRequest](r)
 
-	if req.RequestID == "" {
-		req.RequestID = generateRequestID()
-	}
+	req.RequestID = ensureRequestID(req.RequestID)
 
 	// Build prompt directly from hint.yaml
 	promptData := map[string]interface{}{
@@ -96,9 +100,10 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 
 	prompt, err := h.promptManager.BuildPrompt("hint", "default", promptData)
 	if err != nil {
-		h.logger.Error("hint: failed to build prompt", zap.Error(err))
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "prompt_error", Message: "Failed to build AI prompt",
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
 		})
 		return
 	}
@@ -106,9 +111,10 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 	// Reuse same provider call as explain
 	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, req.HintLevel)
 	if err != nil {
-		h.logger.Error("hint: provider error", zap.Error(err))
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "ai_error", Message: "Failed to generate hint",
+			Code:    "ai_error",
+			Message: "Failed to generate hint",
 		})
 		return
 	}
@@ -124,9 +130,7 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	req := middleware.GetValidatedRequest[*models.TestGenRequest](r)
-	if req.RequestID == "" {
-		req.RequestID = generateRequestID()
-	}
+	req.RequestID = ensureRequestID(req.RequestID)
 
 	// Build prompt from templates/tests.yaml
 	promptData := map[string]interface{}{
@@ -137,19 +141,21 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	prompt, err := h.promptManager.BuildPrompt("tests", "default", promptData)
 	if err != nil {
-		h.logger.Error("tests: build prompt failed", zap.Error(err), zap.String("request_id", req.RequestID))
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "prompt_error", Message: "Failed to build AI prompt",
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
 		})
 		return
 	}
 
 	// Reuse provider call
-	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	out, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
-		h.logger.Error("tests: provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "ai_error", Message: "Failed to generate test cases",
+			Code:    "ai_error",
+			Message: "Failed to generate test cases",
 		})
 		return
 	}
@@ -187,9 +193,7 @@ func addLineNumbers(src string) string {
 
 func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) {
 	req := middleware.GetValidatedRequest[*models.RefactorTipsRequest](r)
-	if req.RequestID == "" {
-		req.RequestID = generateRequestID()
-	}
+	req.RequestID = ensureRequestID(req.RequestID)
 
 	data := map[string]interface{}{
 		"Language": req.Language,
@@ -199,18 +203,20 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 
 	prompt, err := h.promptManager.BuildPrompt("refactor_tips", "default", data)
 	if err != nil {
-		h.logger.Error("refactor_tips prompt build", zap.Error(err))
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "prompt_error", Message: "Failed to build prompt",
+			Code:    "prompt_error",
+			Message: "Failed to build prompt",
 		})
 		return
 	}
 
-	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, "intermediate")
+	result, err := h.provider.GenerateExplanation(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
 	if err != nil {
-		h.logger.Error("refactor_tips provider", zap.Error(err))
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
 		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
-			Code: "ai_error", Message: "Failed to generate refactor tips",
+			Code:    "ai_error",
+			Message: "Failed to generate refactor tips",
 		})
 		return
 	}
