@@ -124,6 +124,23 @@ services:
         "
       restart: "no" 
 
+  postgres-seed:
+    image: postgres:15
+    env_file: ../.env
+    depends_on:
+      - postgres
+    volumes:
+      - ./seeds:/seeds:ro
+    command: >
+      bash -lc "
+        until pg_isready -h ${POSTGRES_HOST:-postgres} -U ${POSTGRES_USER:-postgres}; do
+          echo 'waiting for postgres...';
+          sleep 1;
+        done &&
+        psql postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-postgres} -f /seeds/users.seed.sql
+      "
+    restart: "no"
+
 
 volumes:
   mongo-data:
