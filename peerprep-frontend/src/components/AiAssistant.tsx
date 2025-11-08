@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
 import { getHint, generateTests, generateRefactorTips } from "@/api/ai";
@@ -220,10 +223,53 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
       </button>
 
       {/* Response box */}
-      <div className="min-h-32 max-h-64 overflow-auto border rounded p-2 bg-neutral-50">
+      <div className="min-h-32 max-h-64 overflow-auto border rounded p-4 bg-neutral-50">
         {loading && <div className="animate-pulse">Thinking…</div>}
         {!loading && error && <div className="text-red-600">{error}</div>}
-        {!loading && !error && text && <pre className="whitespace-pre-wrap">{text}</pre>}
+        {!loading && !error && text && (
+          <div className="prose prose-sm max-w-none text-xs">
+            <ReactMarkdown
+              components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '');
+                const language = match ? match[1] : '';
+
+                return !inline && language ? (
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={language}
+                    PreTag="div"
+                    customStyle={{ fontSize: '0.75rem' }}
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code className="bg-gray-200 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              p: ({ children }) => <p className="mb-2 leading-relaxed text-xs">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-xs">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-xs">{children}</ol>,
+              li: ({ children }) => <li className="ml-4 text-xs">{children}</li>,
+              h1: ({ children }) => <h1 className="text-sm font-bold mb-2 mt-3">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-xs font-bold mb-1 mt-2">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-xs font-semibold mb-1 mt-2">{children}</h3>,
+              strong: ({ children }) => <strong className="font-semibold text-gray-900 text-xs">{children}</strong>,
+              em: ({ children }) => <em className="italic text-gray-700 text-xs">{children}</em>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-700 my-2 text-xs">
+                  {children}
+                </blockquote>
+              ),
+            }}
+            >
+              {text}
+            </ReactMarkdown>
+          </div>
+        )}
         {!loading && !error && !text && (
           <div className="text-gray-400">Select a mode, then click the button above.</div>
         )}
