@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func AIRoutes(router *chi.Mux, aiHandler *handlers.AIHandler, feedbackHandler *handlers.FeedbackHandler) {
+func AIRoutes(router *chi.Mux, aiHandler *handlers.AIHandler, feedbackHandler *handlers.FeedbackHandler, modelHandler *handlers.ModelHandler) {
 	router.Route("/api/v1/ai", func(r chi.Router) {
 		// AI generation endpoints
 		r.With(middleware.ValidateRequest[*models.ExplainRequest]()).Post("/explain", aiHandler.ExplainHandler)
@@ -20,5 +20,13 @@ func AIRoutes(router *chi.Mux, aiHandler *handlers.AIHandler, feedbackHandler *h
 		r.Post("/feedback/{request_id}", feedbackHandler.SubmitFeedback)
 		r.Get("/feedback/export", feedbackHandler.ExportFeedback)
 		r.Get("/feedback/stats", feedbackHandler.GetFeedbackStats)
+
+		// Model management endpoints
+		if modelHandler != nil {
+			r.Get("/models", modelHandler.ListModels)
+			r.Get("/models/{model_id}/stats", modelHandler.GetModelStats)
+			r.Put("/models/{model_id}/traffic", modelHandler.UpdateTrafficWeight)
+			r.Put("/models/{model_id}/deactivate", modelHandler.DeactivateModel)
+		}
 	})
 }

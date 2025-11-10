@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,9 +29,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func registerRoutes(router *chi.Mux, aiHandler *handlers.AIHandler, feedbackHandler *handlers.FeedbackHandler, healthHandler *handlers.HealthHandler) {
+func registerRoutes(router *chi.Mux, aiHandler *handlers.AIHandler, feedbackHandler *handlers.FeedbackHandler, modelHandler *handlers.ModelHandler, healthHandler *handlers.HealthHandler) {
 	routers.HealthRoutes(router, healthHandler)
-	routers.AIRoutes(router, aiHandler, feedbackHandler)
+	routers.AIRoutes(router, aiHandler, feedbackHandler, modelHandler)
 }
 
 // Helper functions for environment variables
@@ -122,7 +121,9 @@ func main() {
 	// Initialize feedback manager (only if database is available)
 	var feedbackManager *feedback.FeedbackManager
 	var feedbackHandler *handlers.FeedbackHandler
+	var modelHandler *handlers.ModelHandler
 	var exporterJob *jobs.FeedbackExporterJob
+	var geminiTuner *tuning.GeminiTuner
 
 	if db != nil {
 		cacheTTL, _ := time.ParseDuration(getEnv("FEEDBACK_CACHE_TTL", "15m"))
@@ -131,8 +132,16 @@ func main() {
 		// Set feedback manager on AI handler
 		aiHandler.SetFeedbackManager(feedbackManager)
 
+		// Set database connection on AI provider for model selection
+		// (only if provider is Gemini)
+		if cfg.Provider == "gemini" {
+			if geminiClient, ok := aiProvider.(interface{ SetDatabase(*gorm.DB) }); ok {
+				geminiClient.SetDatabase(db)
+				logger.Info("Database connection set on Gemini provider for A/B testing")
+			}
+		}
+
 		// Initialize Gemini tuner (if auto-tuning enabled)
-		var geminiTuner *tuning.GeminiTuner
 		if getEnv("FEEDBACK_AUTO_TUNE_ENABLED", "false") == "true" {
 			geminiTuner, err = tuning.NewGeminiTuner(
 				os.Getenv("GEMINI_API_KEY"),
@@ -168,6 +177,13 @@ func main() {
 
 		// Create feedback handler
 		feedbackHandler = handlers.NewFeedbackHandler(feedbackManager)
+
+		// Create model management handler (only if tuner is available)
+		if geminiTuner != nil {
+			modelHandler = handlers.NewModelHandler(db, geminiTuner)
+			logger.Info("Model management endpoints enabled")
+		}
+
 		logger.Info("Feedback system initialized successfully")
 	}
 
@@ -183,7 +199,7 @@ func main() {
 
 	router.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 
-	registerRoutes(router, aiHandler, feedbackHandler, healthHandler)
+	registerRoutes(router, aiHandler, feedbackHandler, modelHandler, healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
