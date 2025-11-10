@@ -108,3 +108,43 @@ export async function rerollQuestion(matchId: string, token: string): Promise<Ro
 
     return res.json();
 }
+
+export interface SessionMetrics {
+    voiceUsed: boolean;
+    voiceDuration: number;
+    codeChanges: number;
+    messagesExchanged: number;
+}
+
+export interface SessionFeedbackPayload {
+    sessionId: string;
+    matchId: string;
+    user1Id: string;
+    user2Id: string;
+    difficulty: string;
+    sessionDuration: number;
+    user1Metrics: SessionMetrics;
+    user2Metrics: SessionMetrics;
+}
+
+export async function submitSessionFeedback(feedback: SessionFeedbackPayload): Promise<void> {
+    try {
+        const res = await fetch(`${MATCH_API_BASE}/api/v1/match/session/feedback`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(feedback),
+        });
+
+        if (!res.ok) {
+            console.error("Failed to submit session feedback:", res.status, await res.text());
+            return;
+        }
+
+        const data = await res.json();
+        console.log("Session feedback submitted successfully:", data);
+    } catch (error) {
+        console.error("Error submitting session feedback:", error);
+    }
+}

@@ -1,21 +1,31 @@
-import React from 'react';
+import React, { useImperativeHandle, forwardRef } from 'react';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import type { VoiceChatConfig } from '@/types/voiceChat';
 
 type VoiceChatProps = VoiceChatConfig;
 
-const VoiceChat: React.FC<VoiceChatProps> = ({ roomId, userId, username, token }) => {
-  const {
-    isConnected,
-    isMuted,
-    isDeaf,
-    participants,
-    error,
-    connect,
-    disconnect,
-    toggleMute,
-    toggleDeaf,
-  } = useVoiceChat({ roomId, userId, username, token });
+export interface VoiceChatHandle {
+  isConnected: boolean;
+}
+
+const VoiceChat = forwardRef<VoiceChatHandle, VoiceChatProps>(
+  ({ roomId, userId, username, token }, ref) => {
+    const {
+      isConnected,
+      isMuted,
+      isDeaf,
+      participants,
+      error,
+      connect,
+      disconnect,
+      toggleMute,
+      toggleDeaf,
+    } = useVoiceChat({ roomId, userId, username, token });
+
+    // Expose isConnected state to parent via ref
+    useImperativeHandle(ref, () => ({
+      isConnected,
+    }));
 
   const handleConnect = () => {
     if (!isConnected) {
@@ -134,6 +144,8 @@ const VoiceChat: React.FC<VoiceChatProps> = ({ roomId, userId, username, token }
       </div>
     </div>
   );
-};
+});
+
+VoiceChat.displayName = 'VoiceChat';
 
 export default VoiceChat;

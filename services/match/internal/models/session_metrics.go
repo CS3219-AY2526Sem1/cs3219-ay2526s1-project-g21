@@ -4,10 +4,10 @@ import "time"
 
 // SessionMetrics captures engagement metrics from a completed session
 type SessionMetrics struct {
-	SessionID     string    `json:"sessionId"`
-	MatchID       string    `json:"matchId"`
-	User1ID       string    `json:"user1Id"`
-	User2ID       string    `json:"user2Id"`
+	SessionID string `json:"sessionId"`
+	MatchID   string `json:"matchId"`
+	User1ID   string `json:"user1Id"`
+	User2ID   string `json:"user2Id"`
 
 	// Question difficulty for Elo calculation
 	Difficulty string `json:"difficulty"` // "easy", "medium", "hard"
@@ -24,9 +24,9 @@ type SessionMetrics struct {
 
 // UserSessionMetrics tracks individual user engagement in a session
 type UserSessionMetrics struct {
-	VoiceUsed        bool `json:"voiceUsed"`
-	VoiceDuration    int  `json:"voiceDuration"`    // seconds
-	CodeChanges      int  `json:"codeChanges"`      // number of edits
+	VoiceUsed         bool `json:"voiceUsed"`
+	VoiceDuration     int  `json:"voiceDuration"`     // seconds
+	CodeChanges       int  `json:"codeChanges"`       // number of edits
 	MessagesExchanged int  `json:"messagesExchanged"` // chat messages sent
 }
 
@@ -120,11 +120,11 @@ func (m *UserSessionMetrics) CalculateEngagementScoreWithDifficulty(sessionDurat
 
 // EloUpdate represents a user's Elo rating change
 type EloUpdate struct {
-	UserID       string    `json:"userId"`
-	OldRating    float64   `json:"oldRating"`
-	NewRating    float64   `json:"newRating"`
-	Change       float64   `json:"change"`
-	OpponentElo  float64   `json:"opponentElo"`
-	Engagement   float64   `json:"engagement"`
-	Timestamp    time.Time `json:"timestamp"`
+	UserID      string    `json:"userId"`
+	OldRating   float64   `json:"oldRating"`
+	NewRating   float64   `json:"newRating"`
+	Change      float64   `json:"change"`
+	OpponentElo float64   `json:"opponentElo"`
+	Engagement  float64   `json:"engagement"`
+	Timestamp   time.Time `json:"timestamp"`
 }
