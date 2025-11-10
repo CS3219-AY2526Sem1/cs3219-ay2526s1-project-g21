@@ -10,14 +10,14 @@ import (
 // Note: User IDs are intentionally excluded for privacy
 type AIFeedback struct {
 	gorm.Model
-	RequestID    string    `gorm:"uniqueIndex;not null" json:"request_id"`
-	RequestType  string    `gorm:"not null" json:"request_type"` // "hint", "explanation", "solution"
-	Prompt       string    `gorm:"type:text;not null" json:"prompt"`
-	Response     string    `gorm:"type:text;not null" json:"response"`
-	IsPositive   bool      `gorm:"not null" json:"is_positive"` // true = thumbs up, false = thumbs down
-	ModelVersion string    `gorm:"not null" json:"model_version"`
-	FeedbackAt   time.Time `gorm:"not null" json:"feedback_at"`
-	Exported     bool      `gorm:"not null;default:false;index" json:"exported"`
+	RequestID    string     `gorm:"uniqueIndex;not null" json:"request_id"`
+	RequestType  string     `gorm:"not null" json:"request_type"` // "hint", "explanation", "solution"
+	Prompt       string     `gorm:"type:text;not null" json:"prompt"`
+	Response     string     `gorm:"type:text;not null" json:"response"`
+	IsPositive   bool       `gorm:"not null" json:"is_positive"` // true = thumbs up, false = thumbs down
+	ModelVersion string     `gorm:"not null" json:"model_version"`
+	FeedbackAt   time.Time  `gorm:"not null" json:"feedback_at"`
+	Exported     bool       `gorm:"not null;default:false;index" json:"exported"`
 	ExportedAt   *time.Time `json:"exported_at"`
 }
 
@@ -27,8 +27,8 @@ type TrainingDataPoint struct {
 }
 
 type TrainingContent struct {
-	Role  string          `json:"role"` // "user" or "model"
-	Parts []TrainingPart  `json:"parts"`
+	Role  string         `json:"role"` // "user" or "model"
+	Parts []TrainingPart `json:"parts"`
 }
 
 type TrainingPart struct {

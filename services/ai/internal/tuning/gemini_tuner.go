@@ -35,30 +35,30 @@ type TuningConfig struct {
 
 // VertexAITuningRequest represents the request body for creating a tuning job
 type VertexAITuningRequest struct {
-	BaseModel              string                  `json:"baseModel"`
-	SupervisedTuningSpec   SupervisedTuningSpec    `json:"supervisedTuningSpec"`
-	TunedModelDisplayName  string                  `json:"tunedModelDisplayName,omitempty"`
+	BaseModel             string               `json:"baseModel"`
+	SupervisedTuningSpec  SupervisedTuningSpec `json:"supervisedTuningSpec"`
+	TunedModelDisplayName string               `json:"tunedModelDisplayName,omitempty"`
 }
 
 type SupervisedTuningSpec struct {
-	TrainingDatasetURI string          `json:"trainingDatasetUri"`
+	TrainingDatasetURI string           `json:"trainingDatasetUri"`
 	HyperParameters    *HyperParameters `json:"hyperParameters,omitempty"`
 }
 
 type HyperParameters struct {
-	EpochCount              int     `json:"epochCount,omitempty"`
-	LearningRateMultiplier  float64 `json:"learningRateMultiplier,omitempty"`
-	AdapterSize             string  `json:"adapterSize,omitempty"`
+	EpochCount             int     `json:"epochCount,omitempty"`
+	LearningRateMultiplier float64 `json:"learningRateMultiplier,omitempty"`
+	AdapterSize            string  `json:"adapterSize,omitempty"`
 }
 
 // VertexAITuningResponse represents the response from creating a tuning job
 type VertexAITuningResponse struct {
-	Name                   string          `json:"name"`
-	BaseModel              string          `json:"baseModel"`
-	TunedModelDisplayName  string          `json:"tunedModelDisplayName"`
-	State                  string          `json:"state"`
-	CreateTime             time.Time       `json:"createTime"`
-	TunedModel             *TunedModelInfo `json:"tunedModel,omitempty"`
+	Name                  string          `json:"name"`
+	BaseModel             string          `json:"baseModel"`
+	TunedModelDisplayName string          `json:"tunedModelDisplayName"`
+	State                 string          `json:"state"`
+	CreateTime            time.Time       `json:"createTime"`
+	TunedModel            *TunedModelInfo `json:"tunedModel,omitempty"`
 }
 
 // TunedModelInfo contains information about the deployed tuned model
