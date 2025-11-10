@@ -348,71 +348,67 @@ func (mm *MatchManager) tryMatchStage(category, difficulty string, stage int) {
 			continue
 		}
 
-		// First pass: Try to find a compatible pair WITHOUT recent match history
-		for i := 0; i < len(users)-1; i++ {
-			u1 := users[i]
-			user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
-			user1Elo, _ := mm.eloManager.GetUserElo(u1)
+		for _, queueKey := range queueKeys {
+			users, _ := mm.rdb.ZRange(mm.ctx, queueKey, 0, 9).Result()
+			if len(users) < 2 {
+				continue
+			}
 
-			for j := i + 1; j < len(users); j++ {
-				u2 := users[j]
-				user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
-				user2Elo, _ := mm.eloManager.GetUserElo(u2)
-
-				// Check Elo compatibility
-				if !elo.CheckEloCompatibility(user1Elo.EloRating, user2Elo.EloRating, stage) {
-					continue
-				}
-
-				// Skip if they matched recently
-				if mm.hasRecentMatch(u1, u2) {
-					continue
-				}
-
-				// Compatible pair found with no recent match!
-				log.Printf("[Instance %s] Found compatible match at stage %d: %s (Elo: %.0f) and %s (Elo: %.0f)",
-					mm.instanceID, stage, u1, user1Elo.EloRating, u2, user2Elo.EloRating)
-
-				mm.createPendingMatch(u1, u2,
-					user1Data["category"], user1Data["difficulty"],
-					user2Data["category"], user2Data["difficulty"], stage)
+			// 1st pass: strict, avoid re-matches
+			if mm.tryMatch(users, stage, false) {
 				return
 			}
-		}
 
-		// Second pass: If no pairs found without recent matches, allow re-matching
-		// This prevents users from waiting indefinitely if they're the only ones in queue
-		for i := 0; i < len(users)-1; i++ {
-			u1 := users[i]
-			user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
-			user1Elo, _ := mm.eloManager.GetUserElo(u1)
-
-			for j := i + 1; j < len(users); j++ {
-				u2 := users[j]
-				user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
-				user2Elo, _ := mm.eloManager.GetUserElo(u2)
-
-				// Check Elo compatibility
-				if !elo.CheckEloCompatibility(user1Elo.EloRating, user2Elo.EloRating, stage) {
-					continue
-				}
-
-				// Allow re-match as fallback
-				if mm.hasRecentMatch(u1, u2) {
-					log.Printf("[Instance %s] Allowing re-match (no other options): %s and %s",
-						mm.instanceID, u1, u2)
-				}
-
-				log.Printf("[Instance %s] Found compatible match at stage %d: %s (Elo: %.0f) and %s (Elo: %.0f)",
-					mm.instanceID, stage, u1, user1Elo.EloRating, u2, user2Elo.EloRating)
-
-				mm.createPendingMatch(u1, u2,
-					user1Data["category"], user1Data["difficulty"],
-					user2Data["category"], user2Data["difficulty"], stage)
+			// 2nd pass: allow re-matches
+			if mm.tryMatch(users, stage, true) {
 				return
 			}
 		}
 	}
+}
+
+// tryMatch attempts to find a match in the given user list.
+// If allowRecentMatch = false, it skips pairs with recent matches.
+func (mm *MatchManager) tryMatch(users []string, stage int, allowRecentMatch bool) bool {
+	for i := 0; i < len(users)-1; i++ {
+		u1 := users[i]
+		user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
+		user1Elo, _ := mm.eloManager.GetUserElo(u1)
+
+		for j := i + 1; j < len(users); j++ {
+			u2 := users[j]
+			user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
+			user2Elo, _ := mm.eloManager.GetUserElo(u2)
+
+			// Elo compatibility check
+			if !elo.CheckEloCompatibility(user1Elo.EloRating, user2Elo.EloRating, stage) {
+				continue
+			}
+
+			// Respect recent match rule if required
+			if !allowRecentMatch && mm.hasRecentMatch(u1, u2) {
+				continue
+			}
+
+			// Log re-match if allowed
+			if allowRecentMatch && mm.hasRecentMatch(u1, u2) {
+				log.Printf("[Instance %s] Allowing re-match (fallback): %s and %s",
+					mm.instanceID, u1, u2)
+			}
+
+			log.Printf("[Instance %s] Found compatible match at stage %d: %s (Elo: %.0f) and %s (Elo: %.0f)",
+				mm.instanceID, stage, u1, user1Elo.EloRating, u2, user2Elo.EloRating)
+
+			mm.createPendingMatch(
+				u1, u2,
+				user1Data["category"], user1Data["difficulty"],
+				user2Data["category"], user2Data["difficulty"],
+				stage,
+			)
+			return true
+		}
+	}
+	return false
 }
 
 // --- Create Pending Match (now stores in Redis) ---
