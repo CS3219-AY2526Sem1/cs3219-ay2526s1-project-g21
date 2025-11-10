@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 
+	"match/internal/elo"
 	"match/internal/models"
 	"match/internal/utils"
 )
@@ -41,6 +42,9 @@ type MatchManager struct {
 
 	// Instance ID for debugging
 	instanceID string
+
+	// Elo rating manager
+	eloManager *elo.EloManager
 }
 
 func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
@@ -68,6 +72,7 @@ func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
 		connections: make(map[string]*websocket.Conn),
 		jwtSecret:   secret,
 		instanceID:  uuid.New().String()[:8], // Short ID for logging
+		eloManager:  elo.NewEloManager(rdb),
 	}
 
 	// Start background subscribers
@@ -337,22 +342,86 @@ func (mm *MatchManager) tryMatchStage(category, difficulty string, stage int) {
 	}
 
 	for _, queueKey := range queueKeys {
-		users, _ := mm.rdb.ZRange(mm.ctx, queueKey, 0, 1).Result()
+		// Get more users to check for Elo compatibility
+		users, _ := mm.rdb.ZRange(mm.ctx, queueKey, 0, 9).Result() // Get up to 10 users
 		if len(users) < 2 {
 			continue
 		}
 
-		u1, u2 := users[0], users[1]
+		// 1st pass: strict, avoid re-matches
+		if mm.tryMatch(users, stage, false) {
+			return
+		}
 
-		// Get their original preferences
-		user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
-		user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
-
-		mm.createPendingMatch(u1, u2,
-			user1Data["category"], user1Data["difficulty"],
-			user2Data["category"], user2Data["difficulty"], stage)
-		return
+		// 2nd pass: allow re-matches
+		if mm.tryMatch(users, stage, true) {
+			return
+		}
 	}
+}
+
+// tryMatch attempts to find a match in the given user list.
+// If allowRecentMatch = false, it skips pairs with recent matches.
+func (mm *MatchManager) tryMatch(users []string, stage int, allowRecentMatch bool) bool {
+	type userInfo struct {
+		category   string
+		difficulty string
+		elo        float64
+	}
+
+	// Preload user info once to avoid repeated Redis calls
+	userDataMap := make(map[string]userInfo, len(users))
+
+	for _, u := range users {
+		data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u)).Result()
+		eloData, _ := mm.eloManager.GetUserElo(u)
+
+		userDataMap[u] = userInfo{
+			category:   data["category"],
+			difficulty: data["difficulty"],
+			elo:        eloData.EloRating,
+		}
+	}
+
+	// Compare users
+	for i := 0; i < len(users)-1; i++ {
+		u1 := users[i]
+		u1Info := userDataMap[u1]
+
+		for j := i + 1; j < len(users); j++ {
+			u2 := users[j]
+			u2Info := userDataMap[u2]
+
+			// Check Elo compatibility
+			if !elo.CheckEloCompatibility(u1Info.elo, u2Info.elo, stage) {
+				continue
+			}
+
+			// Respect recent match rule if required
+			recent := mm.hasRecentMatch(u1, u2)
+			if !allowRecentMatch && recent {
+				continue
+			}
+
+			// Log re-match if allowed
+			if allowRecentMatch && recent {
+				log.Printf("[Instance %s] Allowing re-match (fallback): %s and %s",
+					mm.instanceID, u1, u2)
+			}
+
+			log.Printf("[Instance %s] Found compatible match at stage %d: %s (Elo: %.0f) and %s (Elo: %.0f)",
+				mm.instanceID, stage, u1, u1Info.elo, u2, u2Info.elo)
+
+			mm.createPendingMatch(
+				u1, u2,
+				u1Info.category, u1Info.difficulty,
+				u2Info.category, u2Info.difficulty,
+				stage,
+			)
+			return true
+		}
+	}
+	return false
 }
 
 // --- Create Pending Match (now stores in Redis) ---
@@ -522,6 +591,47 @@ func (mm *MatchManager) finalizeMatch(pending *models.PendingMatch) {
 	mm.pubClient.Publish(mm.ctx, "matches", eventJSON)
 
 	log.Printf("[Instance %s] Match %s finalized successfully", mm.instanceID, pending.MatchId)
+
+	// Record match history to prevent re-matches
+	mm.recordMatch(pending.User1, pending.User2)
+}
+
+// --- Match History Management ---
+
+// hasRecentMatch checks if two users have matched within the last 24 hours
+func (mm *MatchManager) hasRecentMatch(user1, user2 string) bool {
+	// Check if user2 is in user1's recent partners
+	key1 := fmt.Sprintf("user_history:%s:partners", user1)
+	isMember, err := mm.rdb.SIsMember(mm.ctx, key1, user2).Result()
+	if err == nil && isMember {
+		return true
+	}
+
+	// Check if user1 is in user2's recent partners
+	key2 := fmt.Sprintf("user_history:%s:partners", user2)
+	isMember, err = mm.rdb.SIsMember(mm.ctx, key2, user1).Result()
+	if err == nil && isMember {
+		return true
+	}
+
+	return false
+}
+
+// recordMatch records a match between two users with 24-hour expiration
+func (mm *MatchManager) recordMatch(user1, user2 string) {
+	// Add each user to the other's recent partners set
+	key1 := fmt.Sprintf("user_history:%s:partners", user1)
+	key2 := fmt.Sprintf("user_history:%s:partners", user2)
+
+	// Add user2 to user1's partners
+	mm.rdb.SAdd(mm.ctx, key1, user2)
+	mm.rdb.Expire(mm.ctx, key1, 24*time.Hour)
+
+	// Add user1 to user2's partners
+	mm.rdb.SAdd(mm.ctx, key2, user1)
+	mm.rdb.Expire(mm.ctx, key2, 24*time.Hour)
+
+	log.Printf("[Instance %s] Recorded match history between %s and %s", mm.instanceID, user1, user2)
 }
 
 // --- Remove User ---

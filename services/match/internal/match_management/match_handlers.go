@@ -356,3 +356,55 @@ func (mm *MatchManager) HandshakeHandler(w http.ResponseWriter, r *http.Request)
 
 	utils.WriteJSON(w, http.StatusOK, models.Resp{OK: true, Info: "handshake received"})
 }
+
+// --- Session Feedback Handler ---
+// Receives session metrics after a session ends and updates Elo ratings
+func (mm *MatchManager) SessionFeedbackHandler(w http.ResponseWriter, r *http.Request) {
+	utils.EnableCORS(w)
+	log.Printf("[Instance %s] SessionFeedbackHandler called", mm.instanceID)
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var metrics models.SessionMetrics
+	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
+		utils.WriteJSON(w, http.StatusBadRequest, models.Resp{OK: false, Info: "invalid json"})
+		return
+	}
+
+	// Validate required fields
+	if metrics.User1ID == "" || metrics.User2ID == "" {
+		utils.WriteJSON(w, http.StatusBadRequest, models.Resp{OK: false, Info: "user IDs required"})
+		return
+	}
+
+	if metrics.SessionDuration <= 0 {
+		utils.WriteJSON(w, http.StatusBadRequest, models.Resp{OK: false, Info: "invalid session duration"})
+		return
+	}
+
+	log.Printf("[Instance %s] Processing session feedback: User1=%s, User2=%s, Duration=%ds",
+		mm.instanceID, metrics.User1ID, metrics.User2ID, metrics.SessionDuration)
+
+	// Process metrics and update Elo ratings
+	eloUpdates, err := mm.eloManager.ProcessSessionMetrics(&metrics)
+	if err != nil {
+		log.Printf("[Instance %s] Failed to process session metrics: %v", mm.instanceID, err)
+		utils.WriteJSON(w, http.StatusInternalServerError, models.Resp{OK: false, Info: "failed to update Elo ratings"})
+		return
+	}
+
+	log.Printf("[Instance %s] Successfully updated Elo ratings for %d users", mm.instanceID, len(eloUpdates))
+
+	utils.WriteJSON(w, http.StatusOK, models.Resp{
+		OK:   true,
+		Info: eloUpdates,
+	})
+}
