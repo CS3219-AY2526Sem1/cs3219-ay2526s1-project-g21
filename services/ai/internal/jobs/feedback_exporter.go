@@ -32,7 +32,7 @@ type ExporterConfig struct {
 	BaseModel         string // Base model for fine-tuning (e.g., "gemini-1.5-flash")
 	LearningRate      float64
 	EpochCount        int
-	BatchSize         int
+	AdapterSize       string // "ADAPTER_SIZE_ONE", "ADAPTER_SIZE_FOUR", "ADAPTER_SIZE_EIGHT", "ADAPTER_SIZE_SIXTEEN"
 }
 
 // NewFeedbackExporterJob creates a new exporter job
@@ -174,10 +174,10 @@ func (fej *FeedbackExporterJob) RunFineTuning(trainingFilePath string, sampleCou
 
 	tuningConfig := &tuning.TuningConfig{
 		BaseModel:        fej.config.BaseModel,
-		TrainingFilePath: trainingFilePath,
+		TrainingFilePath: trainingFilePath, // NOTE: Must be GCS URI (gs://bucket/path/to/file.jsonl)
 		LearningRate:     fej.config.LearningRate,
 		EpochCount:       fej.config.EpochCount,
-		BatchSize:        fej.config.BatchSize,
+		AdapterSize:      fej.config.AdapterSize,
 	}
 
 	// Create tuning job

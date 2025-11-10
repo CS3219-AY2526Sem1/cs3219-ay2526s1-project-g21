@@ -1,112 +1,249 @@
 package tuning
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"os/exec"
+	"strings"
 	"time"
-
-	"google.golang.org/genai"
 
 	"peerprep/ai/internal/models"
 
 	"gorm.io/gorm"
 )
 
-// GeminiTuner handles fine-tuning operations with Gemini API
+// GeminiTuner handles fine-tuning operations with Vertex AI API
 type GeminiTuner struct {
-	client    *genai.Client
 	projectID string
+	region    string
 	db        *gorm.DB
 }
 
 // TuningConfig contains configuration for fine-tuning jobs
 type TuningConfig struct {
 	BaseModel        string
-	TrainingFilePath string
+	TrainingFilePath string // GCS URI like gs://bucket/path/to/training.jsonl
 	LearningRate     float64
 	EpochCount       int
-	BatchSize        int
+	AdapterSize      string // "ADAPTER_SIZE_ONE", "ADAPTER_SIZE_FOUR", "ADAPTER_SIZE_EIGHT", "ADAPTER_SIZE_SIXTEEN"
 }
 
-// NewGeminiTuner creates a new Gemini tuner
-func NewGeminiTuner(apiKey string, projectID string, db *gorm.DB) (*GeminiTuner, error) {
-	ctx := context.Background()
+// VertexAITuningRequest represents the request body for creating a tuning job
+type VertexAITuningRequest struct {
+	BaseModel              string                  `json:"baseModel"`
+	SupervisedTuningSpec   SupervisedTuningSpec    `json:"supervisedTuningSpec"`
+	TunedModelDisplayName  string                  `json:"tunedModelDisplayName,omitempty"`
+}
 
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
-	}
+type SupervisedTuningSpec struct {
+	TrainingDatasetURI string          `json:"trainingDatasetUri"`
+	HyperParameters    *HyperParameters `json:"hyperParameters,omitempty"`
+}
+
+type HyperParameters struct {
+	EpochCount              int     `json:"epochCount,omitempty"`
+	LearningRateMultiplier  float64 `json:"learningRateMultiplier,omitempty"`
+	AdapterSize             string  `json:"adapterSize,omitempty"`
+}
+
+// VertexAITuningResponse represents the response from creating a tuning job
+type VertexAITuningResponse struct {
+	Name                   string    `json:"name"`
+	BaseModel              string    `json:"baseModel"`
+	TunedModelDisplayName  string    `json:"tunedModelDisplayName"`
+	State                  string    `json:"state"`
+	CreateTime             time.Time `json:"createTime"`
+	TunedModel             string    `json:"tunedModel,omitempty"`
+}
+
+// NewGeminiTuner creates a new Gemini tuner using Vertex AI REST API
+func NewGeminiTuner(apiKey string, projectID string, db *gorm.DB) (*GeminiTuner, error) {
+	// For Vertex AI, we use gcloud auth instead of API key
+	// The region defaults to us-central1 but can be configured via env
+	region := "us-central1"
 
 	return &GeminiTuner{
-		client:    client,
 		projectID: projectID,
+		region:    region,
 		db:        db,
 	}, nil
 }
 
-// CreateTuningJob starts a new fine-tuning job with Gemini
-// NOTE: Gemini Fine-Tuning API is not yet available in the Go SDK
-// This is a placeholder for future implementation
+// getAccessToken gets OAuth2 access token using gcloud CLI
+func (gt *GeminiTuner) getAccessToken() (string, error) {
+	cmd := exec.Command("gcloud", "auth", "print-access-token")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get access token (ensure gcloud CLI is installed and authenticated): %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// CreateTuningJob starts a new fine-tuning job with Vertex AI
 func (gt *GeminiTuner) CreateTuningJob(ctx context.Context, config *TuningConfig) (*models.ModelVersion, error) {
-	log.Printf("Starting fine-tuning job: base_model=%s, training_file=%s", config.BaseModel, config.TrainingFilePath)
+	log.Printf("Starting Vertex AI fine-tuning job: base_model=%s, training_file=%s", config.BaseModel, config.TrainingFilePath)
 
-	// TODO: Implement when Gemini Go SDK adds fine-tuning support
-	// For now, return an error indicating the feature is not available
-	return nil, fmt.Errorf("gemini fine-tuning API is not yet available in the Go SDK - please use the REST API or Python SDK instead")
+	// Get access token
+	token, err := gt.getAccessToken()
+	if err != nil {
+		return nil, err
+	}
 
-	// When the API becomes available, the implementation will be:
-	// 1. Upload training data file to Gemini
-	// 2. Create tuning job with hyperparameters
-	// 3. Store model version in database
-	// 4. Return model version
+	// Prepare request body
+	requestBody := VertexAITuningRequest{
+		BaseModel: config.BaseModel,
+		SupervisedTuningSpec: SupervisedTuningSpec{
+			TrainingDatasetURI: config.TrainingFilePath, // Must be GCS URI
+			HyperParameters: &HyperParameters{
+				EpochCount:             config.EpochCount,
+				LearningRateMultiplier: config.LearningRate,
+				AdapterSize:            config.AdapterSize,
+			},
+		},
+		TunedModelDisplayName: fmt.Sprintf("peerprep-tuned-%d", time.Now().Unix()),
+	}
 
-	/*
-		// Upload training data file
-		file, err := os.Open(config.TrainingFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open training file: %w", err)
-		}
-		defer file.Close()
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
 
-		// Count training samples from file
-		trainingDataSize, err := countJSONLLines(file)
-		if err != nil {
-			trainingDataSize = 0
-		}
+	// Create tuning job via REST API
+	url := fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/tuningJobs",
+		gt.region, gt.projectID, gt.region)
 
-		// Create model version record
-		modelVersion := &models.ModelVersion{
-			VersionName:      fmt.Sprintf("%s-ft-%d", config.BaseModel, time.Now().Unix()),
-			BaseModel:        config.BaseModel,
-			TrainingJobID:    "placeholder",
-			TrainingDataSize: trainingDataSize,
-			IsActive:         false,
-			TrafficWeight:    0,
-		}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
 
-		if err := gt.db.Create(modelVersion).Error; err != nil {
-			return nil, fmt.Errorf("failed to store model version: %w", err)
-		}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
 
-		return modelVersion, nil
-	*/
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("tuning job creation failed (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var tuningResp VertexAITuningResponse
+	if err := json.Unmarshal(body, &tuningResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	log.Printf("Tuning job created: job_id=%s, state=%s", tuningResp.Name, tuningResp.State)
+
+	// Count training samples from file path
+	trainingDataSize := 0 // We can't count from GCS URI easily, leave as 0
+
+	// Create model version record
+	modelVersion := &models.ModelVersion{
+		VersionName:      tuningResp.TunedModelDisplayName,
+		BaseModel:        config.BaseModel,
+		TrainingJobID:    tuningResp.Name,
+		TrainingDataSize: trainingDataSize,
+		IsActive:         false,
+		TrafficWeight:    0,
+	}
+
+	if err := gt.db.Create(modelVersion).Error; err != nil {
+		return nil, fmt.Errorf("failed to store model version: %w", err)
+	}
+
+	return modelVersion, nil
 }
 
 // GetTuningJobStatus checks the status of a tuning job
-// NOTE: Placeholder until Gemini Fine-Tuning API is available
 func (gt *GeminiTuner) GetTuningJobStatus(ctx context.Context, jobID string) (string, error) {
-	return "", fmt.Errorf("gemini fine-tuning API is not yet available in the Go SDK")
+	token, err := gt.getAccessToken()
+	if err != nil {
+		return "", err
+	}
+
+	url := fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/%s", gt.region, jobID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get tuning job status (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var tuningResp VertexAITuningResponse
+	if err := json.Unmarshal(body, &tuningResp); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Map Vertex AI states to simple status strings
+	// Possible states: "JOB_STATE_PENDING", "JOB_STATE_RUNNING", "JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"
+	switch tuningResp.State {
+	case "JOB_STATE_PENDING", "JOB_STATE_RUNNING":
+		return "creating", nil
+	case "JOB_STATE_SUCCEEDED":
+		return "completed", nil
+	case "JOB_STATE_FAILED", "JOB_STATE_CANCELLED":
+		return "failed", nil
+	default:
+		return "unknown", nil
+	}
 }
 
 // WaitForCompletion waits for a tuning job to complete
-// NOTE: Placeholder until Gemini Fine-Tuning API is available
 func (gt *GeminiTuner) WaitForCompletion(ctx context.Context, jobID string, maxWait time.Duration) error {
-	return fmt.Errorf("gemini fine-tuning API is not yet available in the Go SDK")
+	log.Printf("Waiting for tuning job to complete: job_id=%s", jobID)
+
+	timeout := time.After(maxWait)
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("tuning job timed out after %v", maxWait)
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			status, err := gt.GetTuningJobStatus(ctx, jobID)
+			if err != nil {
+				return err
+			}
+
+			log.Printf("Tuning job status: %s", status)
+
+			if status == "completed" {
+				return nil
+			}
+			if status == "failed" {
+				return fmt.Errorf("tuning job failed")
+			}
+		}
+	}
 }
 
 // ActivateModel activates a fine-tuned model with specified traffic weight
@@ -121,9 +258,9 @@ func (gt *GeminiTuner) ActivateModel(modelVersionID uint, trafficWeight int) err
 	result := gt.db.Model(&models.ModelVersion{}).
 		Where("id = ?", modelVersionID).
 		Updates(map[string]interface{}{
-			"is_active":     true,
+			"is_active":      true,
 			"traffic_weight": trafficWeight,
-			"activated_at":  now,
+			"activated_at":   now,
 		})
 
 	if result.Error != nil {
@@ -172,26 +309,4 @@ func (gt *GeminiTuner) GetActiveModel() (*models.ModelVersion, error) {
 	}
 
 	return &modelVersion, nil
-}
-
-// countJSONLLines counts the number of lines in a JSONL file
-func countJSONLLines(reader io.Reader) (int, error) {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return 0, err
-	}
-
-	count := 0
-	for _, b := range data {
-		if b == '\n' {
-			count++
-		}
-	}
-
-	// Account for last line without newline
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		count++
-	}
-
-	return count, nil
 }

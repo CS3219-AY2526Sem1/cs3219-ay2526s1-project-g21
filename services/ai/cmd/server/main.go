@@ -154,7 +154,7 @@ func main() {
 			BaseModel:         getEnv("TUNING_BASE_MODEL", "gemini-1.5-flash"),
 			LearningRate:      getEnvFloat("TUNING_LEARNING_RATE", 0.001),
 			EpochCount:        getEnvInt("TUNING_EPOCH_COUNT", 5),
-			BatchSize:         getEnvInt("TUNING_BATCH_SIZE", 4),
+			AdapterSize:       getEnv("TUNING_ADAPTER_SIZE", "ADAPTER_SIZE_ONE"),
 		}
 
 		exporterJob = jobs.NewFeedbackExporterJob(feedbackManager, geminiTuner, exporterConfig)
