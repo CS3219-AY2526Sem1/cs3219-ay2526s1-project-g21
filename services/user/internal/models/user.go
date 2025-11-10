@@ -9,11 +9,16 @@ import (
 // User represents a registered user in the system.
 type User struct {
 	gorm.Model
-	Username     string  `gorm:"unique;not null" json:"username"`
-	Email        string  `gorm:"unique;not null" json:"email"`
-	PasswordHash string  `gorm:"not null" json:"-"`
-	Verified     bool    `gorm:"not null;default:false" json:"verified"`
-	NewEmail     *string `gorm:"uniqueIndex:new_email_idx" json:"-"`
+	Username         string  `gorm:"unique;not null" json:"username"`
+	Email            string  `gorm:"unique;not null" json:"email"`
+	PasswordHash     string  `gorm:"not null" json:"-"`
+	Verified         bool    `gorm:"not null;default:false" json:"verified"`
+	NewEmail         *string `gorm:"uniqueIndex:new_email_idx" json:"-"`
+
+	// Elo rating fields (hidden from users, used for matchmaking)
+	EloRating        float64 `gorm:"default:1500" json:"-"` // Hidden from JSON response
+	SessionsCompleted int     `gorm:"default:0" json:"-"`
+	LastEloUpdate    *time.Time `json:"-"`
 }
 
 // TokenPurpose indicates why a token exists
