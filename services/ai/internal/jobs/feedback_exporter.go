@@ -174,7 +174,7 @@ func (fej *FeedbackExporterJob) RunFineTuning(trainingFilePath string, sampleCou
 
 	tuningConfig := &tuning.TuningConfig{
 		BaseModel:        fej.config.BaseModel,
-		TrainingFilePath: trainingFilePath, // NOTE: Must be GCS URI (gs://bucket/path/to/file.jsonl)
+		TrainingFilePath: trainingFilePath,
 		LearningRate:     fej.config.LearningRate,
 		EpochCount:       fej.config.EpochCount,
 		AdapterSize:      fej.config.AdapterSize,

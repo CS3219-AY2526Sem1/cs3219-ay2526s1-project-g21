@@ -53,12 +53,18 @@ type HyperParameters struct {
 
 // VertexAITuningResponse represents the response from creating a tuning job
 type VertexAITuningResponse struct {
-	Name                   string    `json:"name"`
-	BaseModel              string    `json:"baseModel"`
-	TunedModelDisplayName  string    `json:"tunedModelDisplayName"`
-	State                  string    `json:"state"`
-	CreateTime             time.Time `json:"createTime"`
-	TunedModel             string    `json:"tunedModel,omitempty"`
+	Name                   string          `json:"name"`
+	BaseModel              string          `json:"baseModel"`
+	TunedModelDisplayName  string          `json:"tunedModelDisplayName"`
+	State                  string          `json:"state"`
+	CreateTime             time.Time       `json:"createTime"`
+	TunedModel             *TunedModelInfo `json:"tunedModel,omitempty"`
+}
+
+// TunedModelInfo contains information about the deployed tuned model
+type TunedModelInfo struct {
+	Model    string `json:"model,omitempty"`    // e.g., "tunedModels/3365709546226974720"
+	Endpoint string `json:"endpoint,omitempty"` // Full endpoint path
 }
 
 // NewGeminiTuner creates a new Gemini tuner using Vertex AI REST API
@@ -214,7 +220,7 @@ func (gt *GeminiTuner) GetTuningJobStatus(ctx context.Context, jobID string) (st
 	}
 }
 
-// WaitForCompletion waits for a tuning job to complete
+// WaitForCompletion waits for a tuning job to complete and updates the model with endpoint
 func (gt *GeminiTuner) WaitForCompletion(ctx context.Context, jobID string, maxWait time.Duration) error {
 	log.Printf("Waiting for tuning job to complete: job_id=%s", jobID)
 
@@ -237,6 +243,10 @@ func (gt *GeminiTuner) WaitForCompletion(ctx context.Context, jobID string, maxW
 			log.Printf("Tuning job status: %s", status)
 
 			if status == "completed" {
+				// Fetch full job details to get tuned model endpoint
+				if err := gt.UpdateModelEndpoint(ctx, jobID); err != nil {
+					log.Printf("Warning: Could not update model endpoint: %v", err)
+				}
 				return nil
 			}
 			if status == "failed" {
@@ -244,6 +254,59 @@ func (gt *GeminiTuner) WaitForCompletion(ctx context.Context, jobID string, maxW
 			}
 		}
 	}
+}
+
+// UpdateModelEndpoint fetches the completed tuning job and updates the model with the endpoint
+func (gt *GeminiTuner) UpdateModelEndpoint(ctx context.Context, jobID string) error {
+	token, err := gt.getAccessToken()
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/%s", gt.region, jobID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to get tuning job details (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var tuningResp VertexAITuningResponse
+	if err := json.Unmarshal(body, &tuningResp); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Extract model reference from tunedModel.model
+	if tuningResp.TunedModel != nil && tuningResp.TunedModel.Model != "" {
+		modelRef := tuningResp.TunedModel.Model // e.g., "tunedModels/3365709546226974720"
+
+		// Update the model_versions record with the correct model reference
+		result := gt.db.Model(&models.ModelVersion{}).
+			Where("training_job_id = ?", jobID).
+			Update("version_name", modelRef)
+
+		if result.Error != nil {
+			return fmt.Errorf("failed to update model endpoint: %w", result.Error)
+		}
+
+		log.Printf("Updated model version with endpoint: %s", modelRef)
+	}
+
+	return nil
 }
 
 // ActivateModel activates a fine-tuned model with specified traffic weight

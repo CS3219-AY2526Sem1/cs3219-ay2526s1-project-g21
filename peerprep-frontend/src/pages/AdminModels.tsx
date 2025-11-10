@@ -90,7 +90,7 @@ export default function AdminModels() {
             <span className="text-sm text-blue-600 ml-2">Base Model</span>
           </div>
           {activeModels.map(model => (
-            <div key={model.id}>
+            <div key={model.ID}>
               <span className="text-2xl font-bold text-green-700">{model.traffic_weight}%</span>
               <span className="text-sm text-green-600 ml-2">{model.version_name}</span>
             </div>
@@ -107,11 +107,11 @@ export default function AdminModels() {
           <div className="space-y-4">
             {activeModels.map(model => (
               <ModelCard
-                key={model.id}
+                key={model.ID}
                 model={model}
                 onUpdateTraffic={handleUpdateTraffic}
                 onDeactivate={handleDeactivate}
-                isUpdating={updatingModel === model.id}
+                isUpdating={updatingModel === model.ID}
               />
             ))}
           </div>
@@ -125,11 +125,11 @@ export default function AdminModels() {
           <div className="space-y-4">
             {inactiveModels.map(model => (
               <ModelCard
-                key={model.id}
+                key={model.ID}
                 model={model}
                 onUpdateTraffic={handleUpdateTraffic}
                 onDeactivate={handleDeactivate}
-                isUpdating={updatingModel === model.id}
+                isUpdating={updatingModel === model.ID}
               />
             ))}
           </div>
@@ -157,7 +157,7 @@ function ModelCard({ model, onUpdateTraffic, onDeactivate, isUpdating }: ModelCa
     e.preventDefault();
     const weight = parseInt(trafficInput, 10);
     if (!isNaN(weight)) {
-      onUpdateTraffic(model.id, weight);
+      onUpdateTraffic(model.ID, weight);
     }
   };
 
@@ -228,7 +228,7 @@ function ModelCard({ model, onUpdateTraffic, onDeactivate, isUpdating }: ModelCa
           </button>
           <button
             type="button"
-            onClick={() => onDeactivate(model.id)}
+            onClick={() => onDeactivate(model.ID)}
             disabled={isUpdating}
             className="px-4 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
           >
