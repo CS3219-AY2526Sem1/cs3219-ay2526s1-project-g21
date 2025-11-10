@@ -158,12 +158,14 @@ func (em *EloManager) ProcessSessionMetrics(metrics *models.SessionMetrics) ([]*
 		return nil, fmt.Errorf("failed to get user2 Elo: %w", err)
 	}
 
-	// Calculate engagement scores
-	user1Engagement := metrics.User1Metrics.CalculateEngagementScore(metrics.SessionDuration)
-	user2Engagement := metrics.User2Metrics.CalculateEngagementScore(metrics.SessionDuration)
+	// Calculate engagement scores with difficulty adjustment
+	user1Engagement := metrics.User1Metrics.CalculateEngagementScoreWithDifficulty(metrics.SessionDuration, metrics.Difficulty)
+	user2Engagement := metrics.User2Metrics.CalculateEngagementScoreWithDifficulty(metrics.SessionDuration, metrics.Difficulty)
 
-	log.Printf("[Elo] User1 %s engagement: %.2f (Elo: %.0f)", metrics.User1ID, user1Engagement, user1Info.EloRating)
-	log.Printf("[Elo] User2 %s engagement: %.2f (Elo: %.0f)", metrics.User2ID, user2Engagement, user2Info.EloRating)
+	log.Printf("[Elo] User1 %s engagement: %.2f (Elo: %.0f, Difficulty: %s)",
+		metrics.User1ID, user1Engagement, user1Info.EloRating, metrics.Difficulty)
+	log.Printf("[Elo] User2 %s engagement: %.2f (Elo: %.0f, Difficulty: %s)",
+		metrics.User2ID, user2Engagement, user2Info.EloRating, metrics.Difficulty)
 
 	// Calculate new Elo ratings
 	newElo1 := CalculateNewElo(

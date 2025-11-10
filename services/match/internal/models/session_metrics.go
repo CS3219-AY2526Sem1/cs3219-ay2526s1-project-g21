@@ -9,6 +9,9 @@ type SessionMetrics struct {
 	User1ID       string    `json:"user1Id"`
 	User2ID       string    `json:"user2Id"`
 
+	// Question difficulty for Elo calculation
+	Difficulty string `json:"difficulty"` // "easy", "medium", "hard"
+
 	// Engagement metrics
 	SessionDuration int `json:"sessionDuration"` // seconds
 
@@ -84,6 +87,35 @@ func (m *UserSessionMetrics) CalculateEngagementScore(sessionDuration int) float
 	}
 
 	return score
+}
+
+// GetDifficultyMultiplier returns a multiplier based on question difficulty
+// Harder questions should result in higher Elo gains
+func GetDifficultyMultiplier(difficulty string) float64 {
+	switch difficulty {
+	case "easy":
+		return 0.8 // 80% of base score
+	case "medium":
+		return 1.0 // 100% of base score (no change)
+	case "hard":
+		return 1.3 // 130% of base score (30% bonus)
+	default:
+		return 1.0 // Default to medium if unknown
+	}
+}
+
+// CalculateEngagementScoreWithDifficulty calculates engagement score with difficulty adjustment
+func (m *UserSessionMetrics) CalculateEngagementScoreWithDifficulty(sessionDuration int, difficulty string) float64 {
+	baseScore := m.CalculateEngagementScore(sessionDuration)
+	multiplier := GetDifficultyMultiplier(difficulty)
+
+	// Apply multiplier and ensure we don't exceed 100
+	adjustedScore := baseScore * multiplier
+	if adjustedScore > 100.0 {
+		adjustedScore = 100.0
+	}
+
+	return adjustedScore
 }
 
 // EloUpdate represents a user's Elo rating change
