@@ -74,7 +74,6 @@ export const useSessionMetrics = (userId: string, isVoiceConnected: boolean) => 
 
   return {
     trackCodeChange,
-    trackMessage,
     getMetrics,
     getSessionDuration,
     resetMetrics,

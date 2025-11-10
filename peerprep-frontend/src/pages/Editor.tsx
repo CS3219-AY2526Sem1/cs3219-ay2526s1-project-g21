@@ -5,7 +5,7 @@ import MonacoEditor, { type OnMount } from "@monaco-editor/react";;
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import VoiceChat, { type VoiceChatHandle } from "@/components/VoiceChat";
+import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
 import { getRoomStatus, rerollQuestion, submitSessionFeedback } from "@/api/match";
@@ -91,6 +91,7 @@ export default function Editor() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isRerolling, setIsRerolling] = useState<boolean>(false);
   const [rerollsRemaining, setRerollsRemaining] = useState<number>(0);
+  const [voiceConnected, setVoiceConnected] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const docVersionRef = useRef(docVersion);
@@ -98,13 +99,12 @@ export default function Editor() {
   const monacoRef = useRef<MonacoType | null>(null);
   const suppressChangeRef = useRef(false);
   const codeRef = useRef(code);
-  const voiceChatRef = useRef<VoiceChatHandle | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
   // Initialize session metrics tracking
   const metrics = useSessionMetrics(
     user?.id.toString() || "",
-    voiceChatRef.current?.isConnected || false
+    voiceConnected
   );
 
   const getCode = useCallback(() => code, [code]);
@@ -827,11 +827,11 @@ export default function Editor() {
           {/* Voice Chat */}
           {user && roomId && (
             <VoiceChat
-              ref={voiceChatRef}
               roomId={roomId}
               userId={user.id.toString()}
               username={user.username}
               token={sessionStorage.getItem(`room_token_${roomId}`) || ''}
+              onConnectionChange={setVoiceConnected}
             />
           )}
 
