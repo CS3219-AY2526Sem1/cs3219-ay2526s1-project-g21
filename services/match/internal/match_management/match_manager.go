@@ -363,39 +363,59 @@ func (mm *MatchManager) tryMatchStage(category, difficulty string, stage int) {
 // tryMatch attempts to find a match in the given user list.
 // If allowRecentMatch = false, it skips pairs with recent matches.
 func (mm *MatchManager) tryMatch(users []string, stage int, allowRecentMatch bool) bool {
+	type userInfo struct {
+		category   string
+		difficulty string
+		elo        float64
+	}
+
+	// Preload user info once to avoid repeated Redis calls
+	userDataMap := make(map[string]userInfo, len(users))
+
+	for _, u := range users {
+		data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u)).Result()
+		eloData, _ := mm.eloManager.GetUserElo(u)
+
+		userDataMap[u] = userInfo{
+			category:   data["category"],
+			difficulty: data["difficulty"],
+			elo:        eloData.EloRating,
+		}
+	}
+
+	// Compare users
 	for i := 0; i < len(users)-1; i++ {
 		u1 := users[i]
-		user1Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u1)).Result()
-		user1Elo, _ := mm.eloManager.GetUserElo(u1)
+		u1Info := userDataMap[u1]
 
 		for j := i + 1; j < len(users); j++ {
 			u2 := users[j]
-			user2Data, _ := mm.rdb.HGetAll(mm.ctx, fmt.Sprintf("user:%s", u2)).Result()
-			user2Elo, _ := mm.eloManager.GetUserElo(u2)
+			u2Info := userDataMap[u2]
 
-			// Elo compatibility check
-			if !elo.CheckEloCompatibility(user1Elo.EloRating, user2Elo.EloRating, stage) {
+			// Check Elo compatibility
+			if !elo.CheckEloCompatibility(u1Info.elo, u2Info.elo, stage) {
 				continue
 			}
 
 			// Respect recent match rule if required
-			if !allowRecentMatch && mm.hasRecentMatch(u1, u2) {
+			recent := mm.hasRecentMatch(u1, u2)
+			if !allowRecentMatch && recent {
 				continue
 			}
 
 			// Log re-match if allowed
-			if allowRecentMatch && mm.hasRecentMatch(u1, u2) {
+			if allowRecentMatch && recent {
 				log.Printf("[Instance %s] Allowing re-match (fallback): %s and %s",
 					mm.instanceID, u1, u2)
 			}
 
 			log.Printf("[Instance %s] Found compatible match at stage %d: %s (Elo: %.0f) and %s (Elo: %.0f)",
-				mm.instanceID, stage, u1, user1Elo.EloRating, u2, user2Elo.EloRating)
+				mm.instanceID, stage, u1, u1Info.elo, u2, u2Info.elo)
 
 			mm.createPendingMatch(
 				u1, u2,
-				user1Data["category"], user1Data["difficulty"],
-				user2Data["category"], user2Data["difficulty"],
+				u1Info.category, u1Info.difficulty,
+				u2Info.category, u2Info.difficulty,
 				stage,
 			)
 			return true

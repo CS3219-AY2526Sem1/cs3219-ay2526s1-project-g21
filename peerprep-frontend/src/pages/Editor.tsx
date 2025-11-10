@@ -599,10 +599,11 @@ export default function Editor() {
 
         // Determine user1 and user2 IDs (use room info for consistency)
         const userId = user.id.toString();
-        const partnerId = roomInfo.user1 === userId ? roomInfo.user2 : roomInfo.user1;
 
         // Each user only submits their own metrics
         // Backend expects both users to submit separately
+        const initMetrics = { voiceUsed: false, voiceDuration: 0, codeChanges: 0 }
+
         await submitSessionFeedback({
           sessionId: sessionIdRef.current,
           matchId: matchId,
@@ -611,8 +612,8 @@ export default function Editor() {
           difficulty: question?.difficulty?.toLowerCase() || "medium",
           sessionDuration: sessionDuration,
           // Fill in this user's metrics, leave partner's empty (backend will aggregate)
-          user1Metrics: userId === roomInfo.user1 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0 },
-          user2Metrics: userId === roomInfo.user2 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0 },
+          user1Metrics: userId === roomInfo.user1 ? userMetrics : initMetrics,
+          user2Metrics: userId === roomInfo.user2 ? userMetrics : initMetrics,
         });
 
         console.log("Session feedback submitted successfully");

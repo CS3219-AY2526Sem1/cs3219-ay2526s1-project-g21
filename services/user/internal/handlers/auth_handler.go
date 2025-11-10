@@ -200,27 +200,27 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Block login if not verified; lazy cleanup on expiry
-	if !user.Verified {
-		// Check token expiry
-		var t *models.Token
-		if h.TokenRepo != nil {
-			if tok, e := h.TokenRepo.GetByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification); e == nil {
-				t = tok
-			}
-		}
-		// If no token or expired, delete user and token
-		if t == nil || time.Now().After(t.ExpiresAt) {
-			if t != nil {
-				_ = h.TokenRepo.DeleteByID(t.ID)
-			}
-			_ = h.UserRepo.DeleteUser(strconv.FormatUint(uint64(user.ID), 10))
-			utils.JSONError(w, http.StatusNotFound, "Account not found")
-			return
-		}
-		utils.JSONError(w, http.StatusForbidden, "Please verify your email before logging in")
-		return
-	}
+	// // Block login if not verified; lazy cleanup on expiry
+	// if !user.Verified {
+	// 	// Check token expiry
+	// 	var t *models.Token
+	// 	if h.TokenRepo != nil {
+	// 		if tok, e := h.TokenRepo.GetByUserAndPurpose(user.ID, models.TokenPurposeAccountVerification); e == nil {
+	// 			t = tok
+	// 		}
+	// 	}
+	// 	// If no token or expired, delete user and token
+	// 	if t == nil || time.Now().After(t.ExpiresAt) {
+	// 		if t != nil {
+	// 			_ = h.TokenRepo.DeleteByID(t.ID)
+	// 		}
+	// 		_ = h.UserRepo.DeleteUser(strconv.FormatUint(uint64(user.ID), 10))
+	// 		utils.JSONError(w, http.StatusNotFound, "Account not found")
+	// 		return
+	// 	}
+	// 	utils.JSONError(w, http.StatusForbidden, "Please verify your email before logging in")
+	// 	return
+	// }
 
 	claims := jwt.MapClaims{
 		"sub":      user.ID,
