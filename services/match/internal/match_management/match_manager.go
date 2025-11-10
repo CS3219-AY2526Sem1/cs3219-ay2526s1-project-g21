@@ -348,21 +348,14 @@ func (mm *MatchManager) tryMatchStage(category, difficulty string, stage int) {
 			continue
 		}
 
-		for _, queueKey := range queueKeys {
-			users, _ := mm.rdb.ZRange(mm.ctx, queueKey, 0, 9).Result()
-			if len(users) < 2 {
-				continue
-			}
+		// 1st pass: strict, avoid re-matches
+		if mm.tryMatch(users, stage, false) {
+			return
+		}
 
-			// 1st pass: strict, avoid re-matches
-			if mm.tryMatch(users, stage, false) {
-				return
-			}
-
-			// 2nd pass: allow re-matches
-			if mm.tryMatch(users, stage, true) {
-				return
-			}
+		// 2nd pass: allow re-matches
+		if mm.tryMatch(users, stage, true) {
+			return
 		}
 	}
 }

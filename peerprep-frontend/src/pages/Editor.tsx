@@ -611,8 +611,8 @@ export default function Editor() {
           difficulty: question?.difficulty?.toLowerCase() || "medium",
           sessionDuration: sessionDuration,
           // Fill in this user's metrics, leave partner's empty (backend will aggregate)
-          user1Metrics: userId === roomInfo.user1 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0, messagesExchanged: 0 },
-          user2Metrics: userId === roomInfo.user2 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0, messagesExchanged: 0 },
+          user1Metrics: userId === roomInfo.user1 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0 },
+          user2Metrics: userId === roomInfo.user2 ? userMetrics : { voiceUsed: false, voiceDuration: 0, codeChanges: 0 },
         });
 
         console.log("Session feedback submitted successfully");

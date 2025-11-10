@@ -113,7 +113,6 @@ export interface SessionMetrics {
     voiceUsed: boolean;
     voiceDuration: number;
     codeChanges: number;
-    messagesExchanged: number;
 }
 
 export interface SessionFeedbackPayload {

@@ -24,10 +24,9 @@ type SessionMetrics struct {
 
 // UserSessionMetrics tracks individual user engagement in a session
 type UserSessionMetrics struct {
-	VoiceUsed         bool `json:"voiceUsed"`
-	VoiceDuration     int  `json:"voiceDuration"`     // seconds
-	CodeChanges       int  `json:"codeChanges"`       // number of edits
-	MessagesExchanged int  `json:"messagesExchanged"` // chat messages sent
+	VoiceUsed     bool `json:"voiceUsed"`
+	VoiceDuration int  `json:"voiceDuration"` // seconds
+	CodeChanges   int  `json:"codeChanges"`   // number of edits
 }
 
 // CalculateEngagementScore converts session metrics to a 0-100 engagement score
@@ -73,17 +72,6 @@ func (m *UserSessionMetrics) CalculateEngagementScore(sessionDuration int) float
 		score += 20.0
 	} else if sessionDuration >= 120 {
 		score += 10.0
-	}
-
-	// Messages exchanged (0-10 points)
-	if m.MessagesExchanged >= 20 {
-		score += 10.0
-	} else if m.MessagesExchanged >= 10 {
-		score += 7.0
-	} else if m.MessagesExchanged >= 5 {
-		score += 5.0
-	} else if m.MessagesExchanged > 0 {
-		score += 3.0
 	}
 
 	return score

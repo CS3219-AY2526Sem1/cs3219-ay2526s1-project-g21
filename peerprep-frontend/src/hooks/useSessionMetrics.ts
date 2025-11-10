@@ -4,7 +4,6 @@ export interface SessionMetrics {
   voiceUsed: boolean;
   voiceDuration: number; // seconds
   codeChanges: number;
-  messagesExchanged: number;
 }
 
 export interface SessionMetricsData {
@@ -20,7 +19,6 @@ export interface SessionMetricsData {
 
 export const useSessionMetrics = (userId: string, isVoiceConnected: boolean) => {
   const [codeChanges, setCodeChanges] = useState(0);
-  const [messagesExchanged, setMessagesExchanged] = useState(0);
   const sessionStartRef = useRef<number>(Date.now());
   const voiceConnectedAtRef = useRef<number | null>(null);
   const totalVoiceDurationRef = useRef<number>(0);
@@ -45,11 +43,6 @@ export const useSessionMetrics = (userId: string, isVoiceConnected: boolean) => 
     setCodeChanges(prev => prev + 1);
   };
 
-  // Increment messages counter
-  const trackMessage = () => {
-    setMessagesExchanged(prev => prev + 1);
-  };
-
   // Get current metrics for this user
   const getMetrics = (): SessionMetrics => {
     // If voice is currently connected, add the current session duration
@@ -62,7 +55,6 @@ export const useSessionMetrics = (userId: string, isVoiceConnected: boolean) => 
       voiceUsed: hasUsedVoiceRef.current,
       voiceDuration,
       codeChanges,
-      messagesExchanged,
     };
   };
 
@@ -74,7 +66,6 @@ export const useSessionMetrics = (userId: string, isVoiceConnected: boolean) => 
   // Reset metrics (useful for testing or if session restarts)
   const resetMetrics = () => {
     setCodeChanges(0);
-    setMessagesExchanged(0);
     sessionStartRef.current = Date.now();
     voiceConnectedAtRef.current = null;
     totalVoiceDurationRef.current = 0;
