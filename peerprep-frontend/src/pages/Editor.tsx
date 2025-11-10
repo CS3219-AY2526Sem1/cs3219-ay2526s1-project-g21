@@ -8,10 +8,11 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import VoiceChat from "@/components/VoiceChat";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
-import { getRoomStatus, rerollQuestion } from "@/api/match";
+import { getRoomStatus, rerollQuestion, submitSessionFeedback } from "@/api/match";
 import { RoomInfo, Question } from "@/types/question";
 import AiAssistantDropdown from "@/components/AiAssistantDropdown";
 import { Language } from "@/api/ai";
+import { useSessionMetrics } from "@/hooks/useSessionMetrics";
 import type { editor as MonacoEditorNS } from "monaco-editor";
 
 type MonacoType = typeof import("monaco-editor");
@@ -90,6 +91,7 @@ export default function Editor() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isRerolling, setIsRerolling] = useState<boolean>(false);
   const [rerollsRemaining, setRerollsRemaining] = useState<number>(0);
+  const [voiceConnected, setVoiceConnected] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const docVersionRef = useRef(docVersion);
@@ -97,6 +99,14 @@ export default function Editor() {
   const monacoRef = useRef<MonacoType | null>(null);
   const suppressChangeRef = useRef(false);
   const codeRef = useRef(code);
+  const sessionIdRef = useRef<string | null>(null);
+
+  // Initialize session metrics tracking
+  const metrics = useSessionMetrics(
+    user?.id.toString() || "",
+    voiceConnected
+  );
+
   const getCode = useCallback(() => code, [code]);
   const getQuestion = useCallback(() => {
     return {
@@ -187,8 +197,11 @@ export default function Editor() {
           },
         })
       );
+
+      // Track code change for metrics
+      metrics.trackCodeChange();
     },
-    []
+    [metrics]
   );
 
   const handleEditorMount = useCallback<OnMount>((editor, monaco) => {
@@ -370,6 +383,11 @@ export default function Editor() {
             setLanguage(frame.data.language);
           }
           applyServerDoc(frame.data.doc);
+
+          // Store session ID for metrics
+          if (frame.data.sessionId) {
+            sessionIdRef.current = frame.data.sessionId;
+          }
           break;
         }
         case "doc":
@@ -571,6 +589,40 @@ export default function Editor() {
   };
 
   const handleExit = async () => {
+    // Submit session feedback before exiting
+    // Note: Each user submits their own metrics independently
+    // The backend will aggregate when both users have submitted
+    if (matchId && roomInfo && sessionIdRef.current && user) {
+      try {
+        const userMetrics = metrics.getMetrics();
+        const sessionDuration = metrics.getSessionDuration();
+
+        // Determine user1 and user2 IDs (use room info for consistency)
+        const userId = user.id.toString();
+
+        // Each user only submits their own metrics
+        // Backend expects both users to submit separately
+        const initMetrics = { voiceUsed: false, voiceDuration: 0, codeChanges: 0 }
+
+        await submitSessionFeedback({
+          sessionId: sessionIdRef.current,
+          matchId: matchId,
+          user1Id: roomInfo.user1,
+          user2Id: roomInfo.user2,
+          difficulty: question?.difficulty?.toLowerCase() || "medium",
+          sessionDuration: sessionDuration,
+          // Fill in this user's metrics, leave partner's empty (backend will aggregate)
+          user1Metrics: userId === roomInfo.user1 ? userMetrics : initMetrics,
+          user2Metrics: userId === roomInfo.user2 ? userMetrics : initMetrics,
+        });
+
+        console.log("Session feedback submitted successfully");
+      } catch (error) {
+        console.error("Failed to submit session feedback:", error);
+        // Continue with exit even if metrics submission fails
+      }
+    }
+
     if (matchId && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({ type: "end_session" }))
@@ -779,6 +831,7 @@ export default function Editor() {
               userId={user.id.toString()}
               username={user.username}
               token={sessionStorage.getItem(`room_token_${roomId}`) || ''}
+              onConnectionChange={setVoiceConnected}
             />
           )}
 
