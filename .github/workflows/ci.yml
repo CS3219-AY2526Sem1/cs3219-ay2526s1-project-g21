@@ -57,7 +57,8 @@ jobs:
       - name: Rename badge with service name
         run: |
           SERVICE_NAME=$(echo "${{ matrix.service }}" | tr '/' '-')
-          mv ${{ matrix.service }}/coverage.svg ${{ matrix.service }}/coverage-${SERVICE_NAME}.svg
+          # Move badge from root to service directory, then rename
+          mv coverage.svg ${{ matrix.service }}/coverage-${SERVICE_NAME}.svg
 
       - name: Upload coverage badge as artifact
         uses: actions/upload-artifact@v4
@@ -129,7 +130,4 @@ jobs:
           git add coverage-badges
           if ! git diff --staged --quiet; then
             git commit -m "Update coverage badges [skip ci]"
-            git push origin gh-pages
-          else
-            echo "No changes to commit"
-          fi
+            git push orig
