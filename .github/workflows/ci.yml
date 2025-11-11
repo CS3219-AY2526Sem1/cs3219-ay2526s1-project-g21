@@ -48,11 +48,10 @@ jobs:
       - name: Generate test coverage badge (${{ matrix.service }})
         uses: vladopajic/go-test-coverage@v2.18.0
         with:
-          profile: coverage.out
+          profile: ${{ matrix.service }}/coverage.out
           source-dir: ${{ matrix.service }}
           threshold-total: 0
           badge-file-name: coverage.svg
-          run-tests: false
           debug: true
 
       - name: Upload coverage badge as artifact
