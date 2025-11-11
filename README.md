@@ -4,15 +4,15 @@ This project is a full-stack collaborative coding platform inspired by the exper
 
 ### Service Coverage
 
-| Service  | Coverage                                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Collab   | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/collab.svg)   |
-| Match    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/match.svg)    |
-| Question | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/question.svg) |
-| User     | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/user.svg)     |
-| Voice    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/voice.svg)    |
-| Sandbox  | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/sandbox.svg)  |
-| AI       | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/ai.svg)       |
+| Service  | Coverage                                                                                                                                             |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collab   | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-collab.svg)   |
+| Match    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-match.svg)    |
+| Question | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-question.svg) |
+| User     | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-user.svg)     |
+| Voice    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-voice.svg)    |
+| Sandbox  | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-sandbox.svg)  |
+| AI       | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/coverage-services-ai.svg)       |
 
 ### Key Features
 

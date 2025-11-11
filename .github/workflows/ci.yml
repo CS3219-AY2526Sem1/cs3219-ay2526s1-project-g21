@@ -51,15 +51,14 @@ jobs:
           profile: ${{ matrix.service }}/coverage.out
           source-dir: ${{ matrix.service }}
           threshold-total: 0
-          badge-file-name: coverage.svg
+          badge-file-name: coverage-${{ matrix.service }}.svg
           debug: true
 
       - name: Upload coverage badge as artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-badge-${{ github.run_id }}-${{ strategy.job-index }}
-          path: "${{ matrix.service }}/coverage.svg"
-
+          path: "${{ matrix.service }}/coverage-${{ matrix.service }}.svg"
   docker-build:
     runs-on: ubuntu-latest
     needs: build-and-test
@@ -82,27 +81,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: gh-pages
           fetch-depth: 0
-        continue-on-error: true
 
       - name: Create gh-pages branch if it doesn't exist
         run: |
-          if ! git rev-parse --verify gh-pages >/dev/null 2>&1; then
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+          if ! git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            echo "Creating gh-pages branch..."
             git checkout --orphan gh-pages
-            git rm -rf .
+            git rm -rf . || true
             mkdir -p coverage-badges
             echo "# Coverage Badges" > README.md
-            git add README.md coverage-badges
-            git config user.name "github-actions"
-            git config user.email "github-actions@users.noreply.github.com"
+            git add README.md
             git commit -m "Initialize gh-pages branch"
             git push origin gh-pages
+          else
+            echo "gh-pages branch already exists"
+            git checkout gh-pages
           fi
-
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
 
       - uses: actions/download-artifact@v4
         with:
@@ -110,17 +108,22 @@ jobs:
           pattern: coverage-badge-*
           merge-multiple: true
 
-      - name: Push badges to gh-pages
+      - name: Update coverage badges
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
 
           mkdir -p coverage-badges
 
+          # Copy all SVG files from the downloaded artifacts
           if [ -d "badges" ]; then
             find badges -name '*.svg' -exec cp {} coverage-badges/ \;
           fi
 
           git add coverage-badges
-          git diff --staged --quiet || git commit -m "Update coverage badges [skip ci]"
-          git push origin gh-pages
+          if ! git diff --staged --quiet; then
+            git commit -m "Update coverage badges [skip ci]"
+            git push origin gh-pages
+          else
+            echo "No changes to commit"
+          fi
