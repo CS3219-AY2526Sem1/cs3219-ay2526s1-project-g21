@@ -26,6 +26,9 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
+            ai:
+              - "services/ai/**"
+              - "copilot/ai/**"
             api-gateway:
               - "services/api-gateway/**"
               - "copilot/api-gateway/**"
@@ -54,6 +57,7 @@ jobs:
       - name: Build deployment matrix
         id: set-matrix
         env:
+          AI_CHANGED: ${{ steps.changes.outputs.ai }}
           API_GATEWAY_CHANGED: ${{ steps.changes.outputs.api-gateway }}
           COLL_CHANGED: ${{ steps.changes.outputs.collab }}
           MATCH_CHANGED: ${{ steps.changes.outputs.match }}
@@ -71,6 +75,7 @@ jobs:
           services = []
           mapping = {
               "api-gateway": os.environ.get("API_GATEWAY_CHANGED", "false"),
+              "ai": os.environ.get("AI_CHANGED", "false"),
               "collab": os.environ.get("COLL_CHANGED", "false"),
               "match": os.environ.get("MATCH_CHANGED", "false"),
               "question": os.environ.get("QUESTION_CHANGED", "false"),
@@ -106,6 +111,8 @@ jobs:
     env:
       REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
       REDIS_URL: ${{ secrets.REDIS_URL }}
+      REDIS_MATCH_ADDR: ${{ secrets.REDIS_MATCH_ADDR }}
+      REDIS_PUBSUB_ADDR: ${{ secrets.REDIS_PUBSUB_ADDR }}
 
       POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -127,6 +134,23 @@ jobs:
 
       QUESTION_SERVICE_URL: ${{ secrets.QUESTION_SERVICE_URL }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      GEMINI_PROJECT_ID: ${{ secrets.GEMINI_PROJECT_ID }}
+      FEEDBACK_CACHE_TTL: ${{ secrets.FEEDBACK_CACHE_TTL }}
+      FEEDBACK_EXPORT_ENABLED: ${{ secrets.FEEDBACK_EXPORT_ENABLED }}
+      FEEDBACK_EXPORT_SCHEDULE: ${{ secrets.FEEDBACK_EXPORT_SCHEDULE }}
+      FEEDBACK_EXPORT_DIR: ${{ secrets.FEEDBACK_EXPORT_DIR }}
+      FEEDBACK_AUTO_TUNE_ENABLED: ${{ secrets.FEEDBACK_AUTO_TUNE_ENABLED }}
+      FEEDBACK_MIN_SAMPLES_FOR_TUNE: ${{ secrets.FEEDBACK_MIN_SAMPLES_FOR_TUNE }}
+      TUNING_BASE_MODEL: ${{ secrets.TUNING_BASE_MODEL }}
+      TUNING_LEARNING_RATE: ${{ secrets.TUNING_LEARNING_RATE }}
+      TUNING_EPOCH_COUNT: ${{ secrets.TUNING_EPOCH_COUNT }}
+      TUNING_ADAPTER_SIZE: ${{ secrets.TUNING_ADAPTER_SIZE }}
+      TUNING_GCS_BUCKET: ${{ secrets.TUNING_GCS_BUCKET }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -155,7 +179,8 @@ jobs:
             ["/collab/REDIS_ADDR"]="${REDIS_ADDR}"
             ["/collab/SANDBOX_URL"]="${SANDBOX_URL}"
             
-            ["/match/REDIS_ADDR"]="${REDIS_ADDR}"
+            ["/match/REDIS_MATCH_ADDR"]="${REDIS_MATCH_ADDR}"
+            ["/match/REDIS_PUBSUB_ADDR"]="${REDIS_PUBSUB_ADDR}"
 
             ["/user/REDIS_URL"]="${REDIS_URL}"
             ["/user/POSTGRES_HOST"]="${POSTGRES_HOST}"
@@ -173,6 +198,22 @@ jobs:
             ["/question/MONGO_URI"]="${MONGO_URI}"
             
             ["/voice/REDIS_ADDR"]="${REDIS_ADDR}"
+
+            ["/ai/AI_PROVIDER"]="${AI_PROVIDER}"
+            ["/ai/GEMINI_API_KEY"]="${GEMINI_API_KEY}"
+            ["/ai/GEMINI_MODEL"]="${GEMINI_MODEL}"
+            ["/ai/GEMINI_PROJECT_ID"]="${GEMINI_PROJECT_ID}"
+            ["/ai/FEEDBACK_CACHE_TTL"]="${FEEDBACK_CACHE_TTL}"
+            ["/ai/FEEDBACK_EXPORT_ENABLED"]="${FEEDBACK_EXPORT_ENABLED}"
+            ["/ai/FEEDBACK_EXPORT_SCHEDULE"]="${FEEDBACK_EXPORT_SCHEDULE}"
+            ["/ai/FEEDBACK_EXPORT_DIR"]="${FEEDBACK_EXPORT_DIR}"
+            ["/ai/FEEDBACK_AUTO_TUNE_ENABLED"]="${FEEDBACK_AUTO_TUNE_ENABLED}"
+            ["/ai/FEEDBACK_MIN_SAMPLES_FOR_TUNE"]="${FEEDBACK_MIN_SAMPLES_FOR_TUNE}"
+            ["/ai/TUNING_BASE_MODEL"]="${TUNING_BASE_MODEL}"
+            ["/ai/TUNING_LEARNING_RATE"]="${TUNING_LEARNING_RATE}"
+            ["/ai/TUNING_EPOCH_COUNT"]="${TUNING_EPOCH_COUNT}"
+            ["/ai/TUNING_ADAPTER_SIZE"]="${TUNING_ADAPTER_SIZE}"
+            ["/ai/TUNING_GCS_BUCKET"]="${TUNING_GCS_BUCKET}"
           )
 
           for key in "${!PARAMS[@]}"; do

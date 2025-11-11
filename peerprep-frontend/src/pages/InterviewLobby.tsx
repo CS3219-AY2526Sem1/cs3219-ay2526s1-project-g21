@@ -35,6 +35,9 @@ export default function InterviewLobby() {
   const [inQueue, setInQueue] = useState(false);
   const [matchFound, setMatchFound] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const acceptTimeLimit = 20; // seconds
+  const [countdown, setCountdown] = useState(acceptTimeLimit);
+  const [hasAccepted, setHasAccepted] = useState(false);
 
   const criteria2MessageTimer = useRef<NodeJS.Timeout>();
   const criteria3MessageTimer = useRef<NodeJS.Timeout>();
@@ -56,14 +59,28 @@ export default function InterviewLobby() {
     cancelQueue(user?.id);
   })
 
-  const difficulties: readonly Difficulty[] = ["Easy", "Medium", "Hard"];
+  const difficulties: readonly Difficulty[] = [{
+    name: "Easy",
+    value: "Easy"
+  }, {
+    name: "Medium",
+    value: "Medium"
+  }, {
+    name: "Hard",
+    value: "Hard"
+  }];
 
   const categories: readonly Category[] = [
-    "Array",
-    "Graphs",
-    "Dynamic Programming",
-    "Greedy",
-    "Linked List",
+    { name: "Arrays and Strings", value: "Arrays_and_Strings" },
+    { name: "Linked Structures", value: "Linked_Structures" },
+    { name: "Hashing and Sets", value: "Hashing_and_Sets" },
+    { name: "Sorting and Selection", value: "Sorting_and_Selection" },
+    { name: "Graphs", value: "Graphs" },
+    { name: "Trees and Tries", value: "Trees_and_Tries" },
+    { name: "Heaps and Priority Structures", value: "Heaps_and_Priority_Structures" },
+    { name: "Algorithm Design Paradigms", value: "Algorithm_Design_Paradigms" },
+    { name: "Math and Number Theory", value: "Math_and_Number_Theory" },
+    { name: "System Design", value: "System_Design" },
   ];
 
   const [form, setForm] = useState<{ category: Category; difficulty: Difficulty }>({
@@ -110,6 +127,7 @@ export default function InterviewLobby() {
         });
         nav(`/room/${matchId}`);
       } else if (roomInfo.status === "error") {
+        console.log(roomInfo);
         toast.error("Failed to set up room. Please try again.", {
           position: "bottom-center",
           duration: 5000,
@@ -126,7 +144,7 @@ export default function InterviewLobby() {
   };
 
   const startSearching = () => {
-    joinQueue(user?.id, form.category, form.difficulty)
+    joinQueue(user?.id, form.category.value, form.difficulty.value)
     setInQueue(true);
     criteria2MessageTimer.current = setTimeout(() => {
       if (!roomId) {
@@ -163,6 +181,7 @@ export default function InterviewLobby() {
   const handshake = () => {
     acceptMatch(user?.id, roomId)
     setLoadingText(criteria1LoadingText)
+    setHasAccepted(true)
   }
 
   const [interviewHistory, setInterviewHistory] = useState<InterviewHistoryItem[]>([]);
@@ -293,6 +312,7 @@ export default function InterviewLobby() {
             if (userToken) {
               await waitForRoomReady(matchId, userToken);
               setMatchFound(false);
+              setHasAccepted(false);
             }
             break;
 
@@ -301,12 +321,16 @@ export default function InterviewLobby() {
             setRoomId(data.matchId);
             setInQueue(false);
             setMatchFound(true);
+            setCountdown(acceptTimeLimit);
+            setHasAccepted(false);
             break;
 
           case "requeued":
             setInQueue(true);
             setMatchFound(false);
             setLoadingText(criteria1LoadingText);
+            setCountdown(acceptTimeLimit);
+            setHasAccepted(false);
             toast.error("Your partner didn't join in time :( Putting you back into the matchmaking queue", {
               position: "bottom-center",
               duration: 5000,
@@ -318,6 +342,8 @@ export default function InterviewLobby() {
             setInQueue(false);
             setMatchFound(false);
             setLoadingText(criteria1LoadingText);
+            setCountdown(acceptTimeLimit);
+            setHasAccepted(false);
             break;
         }
       } catch (err) {
@@ -332,6 +358,27 @@ export default function InterviewLobby() {
       cancelQueue(user?.id);
     };
   }, [token, user?.id]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!matchFound) {
+      return;
+    }
+
+    // Reset countdown when match is found
+    setCountdown(acceptTimeLimit);
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [matchFound]);
 
 
   return (
@@ -463,14 +510,25 @@ export default function InterviewLobby() {
       {matchFound && (
         <div className="top-0 left-0 absolute w-dvw h-dvh bg-[rgba(0,0,0,0.5)] flex items-center justify-center">
           <div className="bg-white flex flex-col items-center w-[600px] py-6 gap-4 rounded-md">
-            Match Found!
-            <button
-              onClick={handshake}
-              className="rounded-md bg-[#2F6FED] px-7 py-2 text-lg font-medium text-white hover:brightness-95"
-              disabled={!user}
-            >
-              Join Interview!
-            </button>
+            <h2 className="text-2xl font-semibold text-black">Match Found!</h2>
+            {hasAccepted ? (
+              <p className="text-lg text-gray-700">
+                Waiting for partner to accept in <span className="font-bold text-[#2F6FED]">{countdown}</span> seconds
+              </p>
+            ) : (
+              <p className="text-lg text-gray-700">
+                Time remaining: <span className="font-bold text-[#2F6FED]">{countdown}</span> seconds
+              </p>
+            )}
+            {!hasAccepted && (
+              <button
+                onClick={handshake}
+                className="rounded-md bg-[#2F6FED] px-7 py-2 text-lg font-medium text-white hover:brightness-95"
+                disabled={!user}
+              >
+                Join Interview!
+              </button>
+            )}
           </div>
         </div >
       )

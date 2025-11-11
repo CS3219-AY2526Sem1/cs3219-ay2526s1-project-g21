@@ -16,27 +16,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// setupTestRedis creates a miniredis instance and a redis client for testing
-func setupTestRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
+// setupTestRedis creates a miniredis instance and redis clients for testing
+func setupTestRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client, *redis.Client) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatalf("Failed to start miniredis: %v", err)
 	}
 	t.Cleanup(mr.Close)
 
-	client := redis.NewClient(&redis.Options{
+	// Client for matchmaking coordination
+	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 	})
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { rdb.Close() })
 
-	return mr, client
+	// Client for pub/sub (can use same miniredis instance for testing)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	t.Cleanup(func() { pubSubClient.Close() })
+
+	return mr, rdb, pubSubClient
 }
 
 func TestNewMatchManager(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
+	_, rdb, pubSubClient := setupTestRedis(t)
 
-	mm := NewMatchManager(secret, rdb)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	assert.NotNil(t, mm)
 	assert.Equal(t, secret, mm.jwtSecret)
@@ -49,8 +56,8 @@ func TestNewMatchManager(t *testing.T) {
 
 func TestRemoveUser(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user123"
 	category := "arrays"
@@ -77,8 +84,8 @@ func TestRemoveUser(t *testing.T) {
 
 func TestRemoveUser_RemovesFromAllQueues(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user123"
 	category := "arrays"
@@ -110,8 +117,8 @@ func TestRemoveUser_RemovesFromAllQueues(t *testing.T) {
 
 func TestSendToUser(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user123"
 	data := map[string]interface{}{
@@ -129,8 +136,8 @@ func TestSendToUser(t *testing.T) {
 
 func TestSendToUser_WithConnection(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	// Note: Testing sendToUser with actual WebSocket connection requires
 	// more complex setup. This test verifies the function doesn't panic
@@ -149,8 +156,8 @@ func TestSendToUser_WithConnection(t *testing.T) {
 
 func TestHandleSessionEndedEvent(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -195,8 +202,8 @@ func TestHandleSessionEndedEvent(t *testing.T) {
 
 func TestHandleSessionEndedEvent_InvalidJSON(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	// Should not panic on invalid JSON
 	mm.handleSessionEndedEvent("invalid json")
@@ -207,8 +214,8 @@ func TestHandleSessionEndedEvent_InvalidJSON(t *testing.T) {
 
 func TestCreatePendingMatch(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	u1, u2 := "user1", "user2"
 	cat1, diff1 := "arrays", "easy"
@@ -239,8 +246,8 @@ func TestCreatePendingMatch(t *testing.T) {
 
 func TestCreatePendingMatch_DifferentStages(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	u1, u2 := "user1", "user2"
 
@@ -304,8 +311,8 @@ func TestCreatePendingMatch_DifferentStages(t *testing.T) {
 
 func TestTryMatchStage(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	category := "arrays"
 	difficulty := "easy"
@@ -331,8 +338,8 @@ func TestTryMatchStage(t *testing.T) {
 
 func TestTryMatchStage_EmptyQueue(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	category := "arrays"
 	difficulty := "easy"
@@ -346,8 +353,8 @@ func TestTryMatchStage_EmptyQueue(t *testing.T) {
 
 func TestTryMatchStage_NoUsers(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	mm.tryMatchStage("arrays", "easy", 1)
 
@@ -357,8 +364,8 @@ func TestTryMatchStage_NoUsers(t *testing.T) {
 
 func TestTryMatchStage_SingleUser(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	now := float64(time.Now().Unix())
@@ -374,8 +381,8 @@ func TestTryMatchStage_SingleUser(t *testing.T) {
 
 func TestTryMatchStage_Stage2(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	category := "arrays"
 	difficulty := "easy"
@@ -397,8 +404,8 @@ func TestTryMatchStage_Stage2(t *testing.T) {
 
 func TestTryMatchStage_Stage3(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	u1, u2 := "user1", "user2"
 	now := float64(time.Now().Unix())
@@ -417,8 +424,8 @@ func TestTryMatchStage_Stage3(t *testing.T) {
 
 func TestStartMatchmakingLoop_StageProgression(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	category := "arrays"
@@ -462,8 +469,8 @@ func TestStartMatchmakingLoop_StageProgression(t *testing.T) {
 
 func TestStartPendingMatchExpirationLoop_ExpiredMatch(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -519,8 +526,8 @@ func TestStartPendingMatchExpirationLoop_ExpiredMatch(t *testing.T) {
 
 func TestGetRoomForUser(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	matchId := uuid.New().String()
@@ -536,8 +543,8 @@ func TestGetRoomForUser(t *testing.T) {
 
 func TestGetRoomForUser_NotFound(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	// Get room for non-existent user
 	_, err := mm.GetRoomForUser("nonexistent")
@@ -546,8 +553,8 @@ func TestGetRoomForUser_NotFound(t *testing.T) {
 
 func TestGetRoomInfo(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	room := &models.RoomInfo{
@@ -576,8 +583,8 @@ func TestGetRoomInfo(t *testing.T) {
 
 func TestGetRoomInfo_NotFound(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	// Get room info for non-existent room
 	_, err := mm.GetRoomInfo("nonexistent")
@@ -586,8 +593,8 @@ func TestGetRoomInfo_NotFound(t *testing.T) {
 
 func TestHandleMatchAccept_BothAccepted(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -642,8 +649,8 @@ func TestHandleMatchAccept_BothAccepted(t *testing.T) {
 
 func TestRequeueUser(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	category := "arrays"
@@ -669,8 +676,8 @@ func TestRequeueUser(t *testing.T) {
 
 func TestRegisterConnection(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	// Note: We can't easily test WebSocket connections in unit tests,
 	// but we can verify the function exists and doesn't panic
@@ -682,8 +689,8 @@ func TestRegisterConnection(t *testing.T) {
 
 func TestUnregisterConnection(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 

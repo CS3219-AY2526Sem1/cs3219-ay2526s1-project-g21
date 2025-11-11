@@ -21,8 +21,8 @@ import (
 
 func TestJoinHandler_Success(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := models.JoinReq{
 		UserID:     "user123",
@@ -53,8 +53,8 @@ func TestJoinHandler_Success(t *testing.T) {
 
 func TestJoinHandler_MissingUserId(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := models.JoinReq{
 		Category:   "arrays",
@@ -73,8 +73,8 @@ func TestJoinHandler_MissingUserId(t *testing.T) {
 
 func TestJoinHandler_InvalidJSON(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/join", bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
@@ -90,8 +90,8 @@ func TestJoinHandler_InvalidJSON(t *testing.T) {
 
 func TestJoinHandler_WrongMethod(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/join", nil)
 	w := httptest.NewRecorder()
@@ -103,8 +103,8 @@ func TestJoinHandler_WrongMethod(t *testing.T) {
 
 func TestJoinHandler_Options(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/v1/match/join", nil)
 	w := httptest.NewRecorder()
@@ -116,8 +116,8 @@ func TestJoinHandler_Options(t *testing.T) {
 
 func TestJoinHandler_AlreadyInRoom(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user123"
 	matchId := uuid.New().String()
@@ -147,8 +147,8 @@ func TestJoinHandler_AlreadyInRoom(t *testing.T) {
 
 func TestCancelHandler_Success(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user123"
 	category := "arrays"
@@ -190,8 +190,8 @@ func TestCancelHandler_Success(t *testing.T) {
 
 func TestCancelHandler_NotInQueue(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := map[string]string{
 		"userId": "nonexistent",
@@ -212,8 +212,8 @@ func TestCancelHandler_NotInQueue(t *testing.T) {
 
 func TestCancelHandler_InvalidJSON(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/cancel", bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
@@ -225,8 +225,8 @@ func TestCancelHandler_InvalidJSON(t *testing.T) {
 
 func TestCancelHandler_WrongMethod(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/cancel", nil)
 	w := httptest.NewRecorder()
@@ -238,8 +238,8 @@ func TestCancelHandler_WrongMethod(t *testing.T) {
 
 func TestCheckHandler_NotInRoom(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/check?userId=user123", nil)
 	w := httptest.NewRecorder()
@@ -255,8 +255,8 @@ func TestCheckHandler_NotInRoom(t *testing.T) {
 
 func TestCheckHandler_MissingUserId(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/check", nil)
 	w := httptest.NewRecorder()
@@ -272,8 +272,8 @@ func TestCheckHandler_MissingUserId(t *testing.T) {
 
 func TestCheckHandler_InRoom_User1(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	otherUser := "user2"
@@ -315,8 +315,8 @@ func TestCheckHandler_InRoom_User1(t *testing.T) {
 
 func TestCheckHandler_InRoom_User2(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user2"
 	otherUser := "user1"
@@ -358,8 +358,8 @@ func TestCheckHandler_InRoom_User2(t *testing.T) {
 
 func TestCheckHandler_WrongMethod(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/check", nil)
 	w := httptest.NewRecorder()
@@ -373,8 +373,8 @@ func TestCheckHandler_WrongMethod(t *testing.T) {
 
 func TestCheckHandler_RoomWithMissingToken(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	otherUser := "user2"
@@ -413,8 +413,8 @@ func TestCheckHandler_RoomWithMissingToken(t *testing.T) {
 
 func TestDoneHandler_Success(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	otherUser := "user2"
@@ -460,8 +460,8 @@ func TestDoneHandler_Success(t *testing.T) {
 
 func TestDoneHandler_NotInRoom(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := map[string]string{
 		"userId": "nonexistent",
@@ -482,8 +482,8 @@ func TestDoneHandler_NotInRoom(t *testing.T) {
 
 func TestDoneHandler_InvalidJSON(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/done", bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
@@ -495,8 +495,8 @@ func TestDoneHandler_InvalidJSON(t *testing.T) {
 
 func TestDoneHandler_WrongMethod(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/done", nil)
 	w := httptest.NewRecorder()
@@ -508,8 +508,8 @@ func TestDoneHandler_WrongMethod(t *testing.T) {
 
 func TestDoneHandler_RoomNotFound(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId := "user1"
 	matchId := uuid.New().String()
@@ -537,8 +537,8 @@ func TestDoneHandler_RoomNotFound(t *testing.T) {
 
 func TestDoneHandler_BothUsersLeave(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	userId1 := "user1"
 	userId2 := "user2"
@@ -592,8 +592,8 @@ func TestDoneHandler_BothUsersLeave(t *testing.T) {
 
 func TestHandshakeHandler_Accept_MatchConfirmed(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -664,8 +664,8 @@ func TestHandshakeHandler_Accept_MatchConfirmed(t *testing.T) {
 
 func TestHandshakeHandler_Reject(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -725,8 +725,8 @@ func TestHandshakeHandler_Reject(t *testing.T) {
 
 func TestHandshakeHandler_MatchNotFound(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := models.HandshakeReq{
 		UserID:  "user1",
@@ -749,8 +749,8 @@ func TestHandshakeHandler_MatchNotFound(t *testing.T) {
 
 func TestHandshakeHandler_NotPartOfMatch(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	matchId := uuid.New().String()
 	user1 := "user1"
@@ -798,8 +798,8 @@ func TestHandshakeHandler_NotPartOfMatch(t *testing.T) {
 
 func TestHandshakeHandler_InvalidJSON(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/match/handshake", bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
@@ -811,8 +811,8 @@ func TestHandshakeHandler_InvalidJSON(t *testing.T) {
 
 func TestHandshakeHandler_WrongMethod(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/handshake", nil)
 	w := httptest.NewRecorder()
@@ -824,8 +824,8 @@ func TestHandshakeHandler_WrongMethod(t *testing.T) {
 
 func TestJoinHandler_RedisError(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	reqBody := models.JoinReq{
 		UserID:     "user123",
@@ -845,8 +845,8 @@ func TestJoinHandler_RedisError(t *testing.T) {
 
 func TestWsHandler_MissingUserId(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/ws", nil)
 	w := httptest.NewRecorder()
@@ -859,8 +859,8 @@ func TestWsHandler_MissingUserId(t *testing.T) {
 
 func TestWsHandler_WithUserId(t *testing.T) {
 	secret := []byte("test-secret")
-	_, rdb := setupTestRedis(t)
-	mm := NewMatchManager(secret, rdb)
+	_, rdb, pubSubClient := setupTestRedis(t)
+	mm := NewMatchManager(secret, rdb, pubSubClient)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/match/ws?userId=user123", nil)
 	w := httptest.NewRecorder()
