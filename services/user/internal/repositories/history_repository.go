@@ -16,8 +16,8 @@ func (r *HistoryRepository) Create(history *models.InterviewHistory) error {
 	var existing models.InterviewHistory
 
 	err := r.DB.
-		Where("match_id = ? AND (user1_id = ? OR user2_id = ?)",
-			history.MatchID, history.User1ID, history.User2ID).
+		Where("match_id = ? AND ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))",
+			history.MatchID, history.User1ID, history.User2ID, history.User2ID, history.User1ID).
 		First(&existing).Error
 
 	if err == nil {
@@ -34,14 +34,15 @@ func (r *HistoryRepository) Create(history *models.InterviewHistory) error {
 func (r *HistoryRepository) GetByUserID(userID string) ([]models.InterviewHistory, error) {
 	histories := []models.InterviewHistory{}
 
-	// Use DISTINCT ON to pick the latest record per match_id
-	err := r.DB.Raw(`
-		SELECT DISTINCT ON (match_id) *
-		FROM interview_histories
-		WHERE user1_id = ? OR user2_id = ?
-		ORDER BY match_id, ended_at DESC
-	`, userID, userID).Scan(&histories).Error
+	// Use a portable subquery to pick the latest record per match_id
+	subQuery := r.DB.Model(&models.InterviewHistory{}).
+		Select("MAX(id) as id").
+		Where("user1_id = ? OR user2_id = ?", userID, userID).
+		Group("match_id")
 
+	err := r.DB.Where("id IN (?)", subQuery).
+		Order("ended_at DESC").
+		Find(&histories).Error
 	return histories, err
 }
 
