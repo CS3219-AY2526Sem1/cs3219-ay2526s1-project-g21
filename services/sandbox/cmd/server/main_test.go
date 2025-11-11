@@ -218,7 +218,6 @@ func TestMainFunction(t *testing.T) {
 		t.Fatalf("expected handler to be registered")
 	}
 
-	// Basic sanity: handler responds using runHandler logic
 	req := httptest.NewRequest(http.MethodGet, "/run", nil)
 	rec := httptest.NewRecorder()
 	served.ServeHTTP(rec, req)
