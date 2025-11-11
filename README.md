@@ -2,7 +2,17 @@
 
 This project is a full-stack collaborative coding platform inspired by the experience of solving problems on LeetCode, but extended with real-time teamwork and AI-powered assistance. It provides an environment where multiple users can simultaneously work on programming challenges, discuss ideas through an integrated chat system, run their code in a secure sandbox, and get generative AI support for hints, debugging, and explanations.
 
-![Coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage.svg)
+### Service Coverage
+
+| Service  | Coverage                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collab   | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/collab.svg)   |
+| Match    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/match.svg)    |
+| Question | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/question.svg) |
+| User     | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/user.svg)     |
+| Voice    | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/voice.svg)    |
+| Sandbox  | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/sandbox.svg)  |
+| AI       | ![coverage](https://raw.githubusercontent.com/CS3219-AY2526Sem1/cs3219-ay2526s1-project-g21/gh-pages/coverage-badges/services/ai.svg)       |
 
 ### Key Features
 

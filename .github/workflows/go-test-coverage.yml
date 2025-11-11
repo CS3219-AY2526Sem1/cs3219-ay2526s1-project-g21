@@ -1,0 +1,5 @@
+profile: coverage.out
+source-dir: .
+threshold-total: 0 # allow any coverage (no failure)
+badge-file-name: coverage.svg
+breakdown-file-name: coverage.txt

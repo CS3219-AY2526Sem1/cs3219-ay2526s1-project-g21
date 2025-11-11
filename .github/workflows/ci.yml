@@ -32,20 +32,23 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Type check and lint ${{ matrix.service }}
+      - name: Lint ${{ matrix.service }}
         uses: golangci/golangci-lint-action@v5
         with:
           version: v1.64.8
           working-directory: ${{ matrix.service }}
-          args: --timeout=5m --out-format=colored-line-number
 
-      - name: go-test-coverage ${{ matrix.service }}
+      - name: Generate test coverage & badge (${{ matrix.service }})
         uses: vladopajic/go-test-coverage@v2.18.0
         with:
-          profile: "coverage.out"
-          workdir: ${{ matrix.service }}
-          json: true
-          min-coverage: 0
+          config: .github/go-test-coverage.yml
+          source-dir: ${{ matrix.service }}
+
+      - name: Upload coverage badge as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge-${{ matrix.service }}
+          path: ".github/badges/${{ matrix.service }}.svg"
 
   docker-build:
     runs-on: ubuntu-latest
@@ -60,30 +63,27 @@ jobs:
             docker build -t peerprep/$name:ci "$d"
           done
 
-  coverage-badge:
+  publish-coverage-badges:
     runs-on: ubuntu-latest
     needs: build-and-test
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Generate global coverage badge
-        uses: vladopajic/go-test-coverage@v2.18.0
         with:
-          # Run coverage across ALL services
-          profile: coverage.out
-          coveralls: false
-          json: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      - name: Upload badge to GitHub Pages branch
+      - uses: actions/download-artifact@v4
+        with:
+          path: badges
+
+      - name: Push badges to gh-pages
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          mkdir -p badges
-          cp ./.github/badges/coverage.svg badges/coverage.svg
-          git fetch
           git checkout gh-pages || git checkout -b gh-pages
-          cp badges/coverage.svg coverage.svg
-          git add coverage.svg
-          git commit -m "Update coverage badge" || echo "No changes"
+          mkdir -p coverage-badges
+          cp badges/**/coverage.svg coverage-badges/
+          git add coverage-badges
+          git commit -m "Update coverage badges" || true
           git push origin gh-pages
