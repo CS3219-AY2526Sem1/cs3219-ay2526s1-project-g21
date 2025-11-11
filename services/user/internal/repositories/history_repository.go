@@ -16,8 +16,8 @@ func (r *HistoryRepository) Create(history *models.InterviewHistory) error {
 	var existing models.InterviewHistory
 
 	err := r.DB.
-		Where("match_id = ? AND (user1_id = ? OR user2_id = ?)",
-			history.MatchID, history.User1ID, history.User2ID).
+		Where("match_id = ? AND ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))",
+			history.MatchID, history.User1ID, history.User2ID, history.User2ID, history.User1ID).
 		First(&existing).Error
 
 	if err == nil {
