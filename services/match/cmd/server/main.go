@@ -29,15 +29,27 @@ func main() {
 	}
 	jwtSecret := []byte(secret)
 
-	redisAddr := os.Getenv("REDIS_ADDR")
+	redisAddr := os.Getenv("REDIS_MATCH_ADDR")
 	if redisAddr == "" {
 		redisAddr = defaultRedisAddr
 	}
 
+	// Redis client for matchmaking coordination between instances
 	rdb := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
-	mm := match_management.NewMatchManager(jwtSecret, rdb)
+
+	// Redis client for pub/sub with other services
+	pubSubAddr := os.Getenv("REDIS_PUBSUB_ADDR")
+	if pubSubAddr == "" {
+		pubSubAddr = redisAddr // Default to same as matchmaking Redis if not specified
+	}
+
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: pubSubAddr,
+	})
+
+	mm := match_management.NewMatchManager(jwtSecret, rdb, pubSubClient)
 
 	// Start background processes
 	go mm.StartMatchmakingLoop()

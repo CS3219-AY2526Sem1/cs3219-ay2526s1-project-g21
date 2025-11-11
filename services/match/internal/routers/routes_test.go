@@ -17,7 +17,10 @@ func TestMatchRoutes(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379", // This won't connect in test, but that's okay for route testing
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379", // This won't connect in test, but that's okay for route testing
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -89,7 +92,10 @@ func TestMatchRoutes_Options(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -144,7 +150,10 @@ func TestMatchRoutes_RouteStructure(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -177,7 +186,10 @@ func TestMatchRoutes_MethodRouting(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -255,7 +267,10 @@ func TestMatchRoutes_CORSPreflight(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -287,7 +302,10 @@ func TestMatchRoutes_InvalidPaths(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)
@@ -319,7 +337,10 @@ func TestMatchRoutes_PathPrefix(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	mm := matchManager.NewMatchManager(secret, rdb)
+	pubSubClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	mm := matchManager.NewMatchManager(secret, rdb, pubSubClient)
 
 	r := chi.NewRouter()
 	MatchRoutes(r, mm)

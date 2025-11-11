@@ -106,6 +106,8 @@ jobs:
     env:
       REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
       REDIS_URL: ${{ secrets.REDIS_URL }}
+      REDIS_MATCH_ADDR: ${{ secrets.REDIS_MATCH_ADDR }}
+      REDIS_PUBSUB_ADDR: ${{ secrets.REDIS_PUBSUB_ADDR }}
 
       POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -155,7 +157,8 @@ jobs:
             ["/collab/REDIS_ADDR"]="${REDIS_ADDR}"
             ["/collab/SANDBOX_URL"]="${SANDBOX_URL}"
             
-            ["/match/REDIS_ADDR"]="${REDIS_ADDR}"
+            ["/match/REDIS_MATCH_ADDR"]="${REDIS_MATCH_ADDR}"
+            ["/match/REDIS_PUBSUB_ADDR"]="${REDIS_PUBSUB_ADDR}"
 
             ["/user/REDIS_URL"]="${REDIS_URL}"
             ["/user/POSTGRES_HOST"]="${POSTGRES_HOST}"
