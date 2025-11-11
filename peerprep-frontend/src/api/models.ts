@@ -19,15 +19,18 @@ function aiUrl(endpoint: string): string {
 }
 
 export interface ModelVersion {
-  id: number;
+  ID: number;
+  CreatedAt: string;
+  UpdatedAt: string;
+  DeletedAt?: string | null;
   version_name: string;
   base_model: string;
   training_job_id: string;
   training_data_size: number;
   is_active: boolean;
   traffic_weight: number;
-  created_at: string;
-  activated_at?: string;
+  activated_at?: string | null;
+  deactivated_at?: string | null;
 }
 
 export interface FeedbackStats {

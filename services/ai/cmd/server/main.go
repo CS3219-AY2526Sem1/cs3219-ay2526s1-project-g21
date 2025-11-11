@@ -141,16 +141,14 @@ func main() {
 			}
 		}
 
-		// Initialize Gemini tuner (if auto-tuning enabled)
-		if getEnv("FEEDBACK_AUTO_TUNE_ENABLED", "false") == "true" {
-			geminiTuner, err = tuning.NewGeminiTuner(
-				os.Getenv("GEMINI_API_KEY"),
-				getEnv("GEMINI_PROJECT_ID", ""),
-				db,
-			)
-			if err != nil {
-				logger.Warn("Failed to initialize Gemini tuner", zap.Error(err))
-			}
+		// Initialize Gemini tuner (for both auto-tuning and manual model management)
+		geminiTuner, err = tuning.NewGeminiTuner(
+			os.Getenv("GEMINI_API_KEY"),
+			getEnv("GEMINI_PROJECT_ID", ""),
+			db,
+		)
+		if err != nil {
+			logger.Warn("Failed to initialize Gemini tuner", zap.Error(err))
 		}
 
 		// Initialize feedback exporter job

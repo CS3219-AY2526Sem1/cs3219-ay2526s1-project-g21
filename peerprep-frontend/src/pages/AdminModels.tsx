@@ -189,7 +189,7 @@ function ModelCard({ model, onUpdateTraffic, onDeactivate, isUpdating }: ModelCa
         <div>
           <span className="text-gray-600">Created:</span>
           <span className="ml-2 font-medium">
-            {new Date(model.created_at).toLocaleDateString()}
+            {new Date(model.CreatedAt).toLocaleDateString()}
           </span>
         </div>
         <div>
