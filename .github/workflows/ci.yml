@@ -28,6 +28,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
@@ -38,17 +39,23 @@ jobs:
           version: v1.64.8
           working-directory: ${{ matrix.service }}
 
-      - name: Generate test coverage & badge (${{ matrix.service }})
+      - name: Run go tests for ${{ matrix.service }}
+        run: |
+          cd ${{ matrix.service }}
+          go test ./... -coverprofile=coverage.out
+
+      - name: Generate test coverage badge (${{ matrix.service }})
         uses: vladopajic/go-test-coverage@v2.18.0
         with:
           config: .github/workflows/go-test-coverage.yml
           source-dir: ${{ matrix.service }}
+          debug: true
 
       - name: Upload coverage badge as artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-badge-${{ matrix.service }}
-          path: ".github/badges/${{ matrix.service }}.svg"
+          path: "${{ matrix.service }}/coverage.svg"
 
   docker-build:
     runs-on: ubuntu-latest
