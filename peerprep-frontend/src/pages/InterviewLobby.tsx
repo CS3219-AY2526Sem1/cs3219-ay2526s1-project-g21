@@ -321,7 +321,7 @@ export default function InterviewLobby() {
             setRoomId(data.matchId);
             setInQueue(false);
             setMatchFound(true);
-            setCountdown(20);
+            setCountdown(acceptTimeLimit);
             setHasAccepted(false);
             break;
 
@@ -329,7 +329,7 @@ export default function InterviewLobby() {
             setInQueue(true);
             setMatchFound(false);
             setLoadingText(criteria1LoadingText);
-            setCountdown(20);
+            setCountdown(acceptTimeLimit);
             setHasAccepted(false);
             toast.error("Your partner didn't join in time :( Putting you back into the matchmaking queue", {
               position: "bottom-center",
@@ -342,7 +342,7 @@ export default function InterviewLobby() {
             setInQueue(false);
             setMatchFound(false);
             setLoadingText(criteria1LoadingText);
-            setCountdown(20);
+            setCountdown(acceptTimeLimit);
             setHasAccepted(false);
             break;
         }
@@ -364,6 +364,9 @@ export default function InterviewLobby() {
     if (!matchFound) {
       return;
     }
+
+    // Reset countdown when match is found
+    setCountdown(acceptTimeLimit);
 
     const timer = setInterval(() => {
       setCountdown((prev) => {

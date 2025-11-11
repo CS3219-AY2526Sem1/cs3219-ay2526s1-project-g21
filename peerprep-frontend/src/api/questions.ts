@@ -64,7 +64,7 @@ export async function getRandomQuestion(filters?: RandomQuestionFilters): Promis
   if (filters) {
     const params = new URLSearchParams();
 
-    if (filters.difficulty) {
+    if (filters.difficulty?.value) {
       params.append("difficulty", filters.difficulty.value);
     }
 
