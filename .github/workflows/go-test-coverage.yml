@@ -1,3 +1,4 @@
+run-tests: true
 profile: coverage.out
 source-dir: .
 threshold-total: 0 # allow any coverage (no failure)
