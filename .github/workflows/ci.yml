@@ -1,8 +1,11 @@
 name: ci
+permissions:
+  contents: write
 on:
   push:
     branches: ["master"]
   pull_request:
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -26,21 +29,36 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Type check and lint ${{ matrix.service }}
+      - name: Lint ${{ matrix.service }}
         uses: golangci/golangci-lint-action@v5
         with:
           version: v1.64.8
           working-directory: ${{ matrix.service }}
-          args: --timeout=5m --out-format=colored-line-number
 
-      - name: Test ${{ matrix.service }}
+      - name: Run go tests for ${{ matrix.service }}
         run: |
-          echo "==> go test ${{ matrix.service }}"
-          (cd "${{ matrix.service }}" && go test ./...)
+          cd ${{ matrix.service }}
+          go test ./... -coverprofile=coverage.out
+
+      - name: Generate test coverage badge (${{ matrix.service }})
+        uses: vladopajic/go-test-coverage@v2.18.0
+        with:
+          profile: ${{ matrix.service }}/coverage.out
+          source-dir: ${{ matrix.service }}
+          threshold-total: 0
+          badge-file-name: coverage.svg
+          debug: true
+
+      - name: Upload coverage badge as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge-${{ github.run_id }}-${{ strategy.job-index }}
+          path: "${{ matrix.service }}/coverage.svg"
 
   docker-build:
     runs-on: ubuntu-latest
@@ -54,3 +72,55 @@ jobs:
             name=$(basename "$d")
             docker build -t peerprep/$name:ci "$d"
           done
+
+  publish-coverage-badges:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+        continue-on-error: true
+
+      - name: Create gh-pages branch if it doesn't exist
+        run: |
+          if ! git rev-parse --verify gh-pages >/dev/null 2>&1; then
+            git checkout --orphan gh-pages
+            git rm -rf .
+            mkdir -p coverage-badges
+            echo "# Coverage Badges" > README.md
+            git add README.md coverage-badges
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git commit -m "Initialize gh-pages branch"
+            git push origin gh-pages
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: badges
+          pattern: coverage-badge-*
+          merge-multiple: true
+
+      - name: Push badges to gh-pages
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+          mkdir -p coverage-badges
+
+          if [ -d "badges" ]; then
+            find badges -name '*.svg' -exec cp {} coverage-badges/ \;
+          fi
+
+          git add coverage-badges
+          git diff --staged --quiet || git commit -m "Update coverage badges [skip ci]"
+          git push origin gh-pages
