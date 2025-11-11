@@ -1,6 +1,6 @@
-import type { Difficulty } from "@/types/question";
+import type { Question } from "@/types/question";
 
-export const getDifficultyColor = (difficulty: Difficulty): string => {
+export const getDifficultyColor = (difficulty: Question["difficulty"]): string => {
   switch (difficulty) {
     case "Easy":
       return "text-green-600";

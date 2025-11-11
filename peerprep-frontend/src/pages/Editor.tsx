@@ -287,9 +287,9 @@ export default function Editor() {
 
   // Map the editor's language (string) to AI Assistant's accepted union type
   const aiLanguage: 'python' | 'java' | 'cpp' =
-  language === 'python' || language === 'java' || language === 'cpp'
-    ? (language as Language)
-    : 'python';
+    language === 'python' || language === 'java' || language === 'cpp'
+      ? (language as Language)
+      : 'python';
 
 
   useEffect(() => {
@@ -710,11 +710,10 @@ export default function Editor() {
                 </div>
                 <div className="flex items-center gap-2">
                   {question?.difficulty && (
-                    <span className={`text-xs rounded-full px-2 py-1 font-medium ${
-                      question.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
+                    <span className={`text-xs rounded-full px-2 py-1 font-medium ${question.difficulty === 'Easy' ? 'bg-green-100 text-green-700' :
                       question.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
+                        'bg-red-100 text-red-700'
+                      }`}>
                       {question.difficulty}
                     </span>
                   )}
@@ -732,7 +731,7 @@ export default function Editor() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {question.topic_tags.map((t) => (
                     <span key={t} className="text-xs rounded-md bg-blue-50 px-2 py-1 text-blue-700 font-medium">
-                      {t}
+                      {t.replace(/_/g, " ")}
                     </span>
                   ))}
                 </div>
@@ -836,11 +835,11 @@ export default function Editor() {
           )}
 
           {/* AI Assistant*/}
-            <AiAssistantDropdown
-              getCode={getCode}  
-              language={aiLanguage}
-              getQuestion={getQuestion}
-            />
+          <AiAssistantDropdown
+            getCode={getCode}
+            language={aiLanguage}
+            getQuestion={getQuestion}
+          />
         </div>
 
         {/* Code Editor */}

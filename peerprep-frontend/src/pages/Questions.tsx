@@ -14,7 +14,7 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
-      <td className="px-6 py-4 text-sm text-gray-600">{question.topic_tags?.join(", ") || "No topics"}</td>
+      <td className="px-6 py-4 text-sm text-gray-600">{question.topic_tags?.map(x => x.replace(/_/g, " ")).join(", ") || "No topics"}</td>
       <td className={`px-6 py-4 text-sm font-medium ${getDifficultyColor(question.difficulty)}`}>
         {question.difficulty}
       </td>
@@ -136,7 +136,7 @@ export default function Questions() {
             Showing {getStartItem()} to {getEndItem()} of {totalItems} rows
           </div>
           <div className="flex items-center justify-center gap-2 sm:justify-end">
-            <button 
+            <button
               onClick={() => setCurrentPage(prev => prev - 1)}
               disabled={!hasPrev || loading}
               className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -146,7 +146,7 @@ export default function Questions() {
             <span className="px-3 py-2 text-sm text-gray-700">
               Page {currentPage} of {totalPages}
             </span>
-            <button 
+            <button
               onClick={() => setCurrentPage(prev => prev + 1)}
               disabled={!hasNext || loading}
               className="rounded-md border border-[#D1D5DB] px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
