@@ -41,7 +41,15 @@ jobs:
       - name: Run go tests for ${{ matrix.service }}
         run: |
           cd ${{ matrix.service }}
-          go test ./... -coverprofile=coverage.out
+          go test ./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Code Coverage Summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: ${{ matrix.service }}/coverage.out
+          badge: true
+          format: markdown
+          output: both
 
       - name: Generate test coverage badge (${{ matrix.service }})
         uses: vladopajic/go-test-coverage@v2.18.0
