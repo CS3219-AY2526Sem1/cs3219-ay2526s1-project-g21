@@ -42,7 +42,7 @@ jobs:
       - name: Run go tests for ${{ matrix.service }}
         run: |
           cd ${{ matrix.service }}
-          go test ./... -coverprofile=coverage.out
+          go test ./... -coverprofile=../../coverage.out
 
       - name: Generate test coverage badge (${{ matrix.service }})
         uses: vladopajic/go-test-coverage@v2.18.0
