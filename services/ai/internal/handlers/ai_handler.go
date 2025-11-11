@@ -3,10 +3,12 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"peerprep/ai/internal/feedback"
 	"peerprep/ai/internal/llm"
 	"peerprep/ai/internal/middleware"
 	"peerprep/ai/internal/models"
@@ -15,16 +17,38 @@ import (
 )
 
 type AIHandler struct {
-	provider      llm.Provider
-	promptManager prompts.PromptProvider
-	logger        *zap.Logger
+	provider        llm.Provider
+	promptManager   prompts.PromptProvider
+	logger          *zap.Logger
+	feedbackManager *feedback.FeedbackManager // Optional, can be nil
 }
 
 func NewAIHandler(provider llm.Provider, promptManager prompts.PromptProvider, logger *zap.Logger) *AIHandler {
 	return &AIHandler{
-		provider:      provider,
-		promptManager: promptManager,
-		logger:        logger,
+		provider:        provider,
+		promptManager:   promptManager,
+		logger:          logger,
+		feedbackManager: nil, // Set later via SetFeedbackManager if needed
+	}
+}
+
+// SetFeedbackManager sets the feedback manager for storing request contexts
+func (h *AIHandler) SetFeedbackManager(fm *feedback.FeedbackManager) {
+	h.feedbackManager = fm
+}
+
+// storeRequestContext stores request context for feedback collection (if enabled)
+func (h *AIHandler) storeRequestContext(requestID, requestType, prompt, response, modelVersion string) {
+	if h.feedbackManager != nil {
+		ctx := &models.RequestContext{
+			RequestID:    requestID,
+			RequestType:  requestType,
+			Prompt:       prompt,
+			Response:     response,
+			ModelVersion: modelVersion,
+			Timestamp:    time.Now(),
+		}
+		h.feedbackManager.StoreRequestContext(ctx)
 	}
 }
 
@@ -78,6 +102,9 @@ func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
 		zap.String("request_id", req.RequestID),
 		zap.String("provider", h.provider.GetProviderName()),
 		zap.Int("processing_time_ms", response.Metadata.ProcessingTime))
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "explain", prompt, response.Content, response.Metadata.ModelVersion)
 
 	utils.JSON(w, http.StatusOK, response)
 }
@@ -147,6 +174,9 @@ func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
 		Metadata:  result.Metadata,
 	}
 
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "hint", prompt, result.Content, result.Metadata.ModelVersion)
+
 	utils.JSON(w, http.StatusOK, resp)
 }
 
@@ -199,6 +229,10 @@ func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
 		RequestID: req.RequestID,
 		Metadata:  out.Metadata,
 	}
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "tests", prompt, out.Content, out.Metadata.ModelVersion)
+
 	utils.JSON(w, http.StatusOK, resp)
 }
 
@@ -245,6 +279,9 @@ func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	cleaned := utils.StripFences(result.Content)
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "refactor_tips", prompt, result.Content, result.Metadata.ModelVersion)
 
 	utils.JSON(w, http.StatusOK, models.RefactorTipsTextResponse{
 		TipsText:  cleaned,

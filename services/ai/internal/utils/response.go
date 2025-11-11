@@ -10,3 +10,8 @@ func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(data)
 }
+
+// WriteJSON is an alias for JSON for compatibility
+func WriteJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	JSON(w, statusCode, data)
+}

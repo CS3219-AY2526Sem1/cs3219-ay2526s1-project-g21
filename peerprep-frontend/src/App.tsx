@@ -13,6 +13,7 @@ import Editor from "@/pages/Editor";
 import PageNotFound from "@/pages/PageNotFound";
 import VerifyAccount from "@/pages/VerifyAccount";
 import ConfirmEmail from "@/pages/ConfirmEmail";
+import AdminModels from "@/pages/AdminModels";
 import { useAuth } from "@/context/AuthContext";
 import { getMe } from "@/api/auth";
 import { Toaster } from 'react-hot-toast'
@@ -61,6 +62,8 @@ export default function App() {
           <Route path="/interview" element={<Protected><InterviewLobby /></Protected>} />
           <Route path="/questions" element={<Protected><Questions /></Protected>} />
           <Route path="/room/:roomId" element={<Protected><Editor /></Protected>} />
+
+          <Route path="/admin" element={<AdminModels />} />
 
           <Route path="*" element={<PageNotFound />} />
         </Routes>

@@ -201,3 +201,16 @@ export async function generateRefactorTips(payload: RefactorRequest): Promise<Re
   }
   return json as RefactorResponse;
 }
+
+export async function submitAIFeedback(requestId: string, isPositive: boolean): Promise<void> {
+  const res = await fetch(aiUrl(`feedback/${requestId}`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_positive: isPositive }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message ?? 'Failed to submit feedback');
+  }
+}

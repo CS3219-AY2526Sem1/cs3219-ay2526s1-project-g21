@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, ThumbsUp, ThumbsDown } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useExplain } from "@/hooks/useAi";
 import type { DetailLevel, Language } from "@/api/ai";
-import { getHint, generateTests, generateRefactorTips } from "@/api/ai";
+import { getHint, generateTests, generateRefactorTips, submitAIFeedback } from "@/api/ai";
 
 type Mode = "Explain" | "Hint" | "Tests" | "Refactor" | "Summary";
 
@@ -33,8 +33,10 @@ const ACTION_LABEL: Record<Mode, string> = {
 export default function AIAssistant({ getCode, language, getQuestion, className }: Props) {
   const [detail, setDetail] = useState<DetailLevel>("intermediate");
   const [activeMode, setActiveMode] = useState<Mode>("Explain");
-  const { run, loading, text, error, setText, setError } = useExplain();
+  const { run, loading, text, error, requestId, setText, setError } = useExplain();
   const [hintLevel, setHintLevel] = useState<DetailLevel>("beginner");
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<"positive" | "negative" | null>(null);
 
 
   const modes: Mode[] = ["Explain", "Hint", "Tests", "Refactor"];
@@ -44,6 +46,8 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
   const onPrimaryAction = async () => {
     setError("");
     setText("");
+    setFeedbackGiven(null);
+    setCurrentRequestId(null);
     try {
         if (activeMode === "Explain") {
         await run({ code: getCode(), language, detail });
@@ -60,6 +64,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
             question: q,
         });
         setText(resp.hint);
+        setCurrentRequestId(resp.request_id);
         return;
         }
 
@@ -77,6 +82,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
             question: q,
           });
           setText(resp.tests_code);
+          setCurrentRequestId(resp.request_id);
           return;
         }
 
@@ -90,6 +96,7 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
               question: q,
             });
             setText(resp.tips_text || "No significant refactor tips found.");
+            setCurrentRequestId(resp.request_id);
           } catch (e: any) {
             setError(e?.message ?? "Failed to generate refactor tips");
           }
@@ -103,6 +110,22 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
         setError(e?.message ?? "Failed to run AI action");
     }
     };
+
+  // Track requestId from useExplain hook
+  if (requestId && requestId !== currentRequestId) {
+    setCurrentRequestId(requestId);
+  }
+
+  // Feedback handlers
+  const handleFeedback = async (isPositive: boolean) => {
+    if (!currentRequestId) return;
+    try {
+      await submitAIFeedback(currentRequestId, isPositive);
+      setFeedbackGiven(isPositive ? "positive" : "negative");
+    } catch (e: any) {
+      console.error("Failed to submit feedback:", e);
+    }
+  };
 
 
   return (
@@ -227,8 +250,9 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
         {loading && <div className="animate-pulse">Thinking…</div>}
         {!loading && error && <div className="text-red-600">{error}</div>}
         {!loading && !error && text && (
-          <div className="prose prose-sm max-w-none text-xs">
-            <ReactMarkdown
+          <>
+            <div className="prose prose-sm max-w-none text-xs">
+              <ReactMarkdown
               components={{
               code({ node, inline, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || '');
@@ -268,7 +292,39 @@ export default function AIAssistant({ getCode, language, getQuestion, className 
             >
               {text}
             </ReactMarkdown>
-          </div>
+            </div>
+
+            {/* Feedback buttons */}
+            {currentRequestId && (
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
+                <span className="text-xs text-gray-600">Was this helpful?</span>
+                <button
+                  onClick={() => handleFeedback(true)}
+                  disabled={feedbackGiven !== null}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
+                    feedbackGiven === "positive"
+                      ? "bg-green-100 text-green-700"
+                      : "hover:bg-gray-100 text-gray-600"
+                  } disabled:opacity-60`}
+                >
+                  <ThumbsUp className="w-3 h-3" />
+                  {feedbackGiven === "positive" && "Thanks!"}
+                </button>
+                <button
+                  onClick={() => handleFeedback(false)}
+                  disabled={feedbackGiven !== null}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
+                    feedbackGiven === "negative"
+                      ? "bg-red-100 text-red-700"
+                      : "hover:bg-gray-100 text-gray-600"
+                  } disabled:opacity-60`}
+                >
+                  <ThumbsDown className="w-3 h-3" />
+                  {feedbackGiven === "negative" && "Thanks!"}
+                </button>
+              </div>
+            )}
+          </>
         )}
         {!loading && !error && !text && (
           <div className="text-gray-400">Select a mode, then click the button above.</div>
