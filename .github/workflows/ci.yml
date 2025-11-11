@@ -90,16 +90,18 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
 
-          if git show-ref --verify --quiet refs/heads/gh-pages; then
-            git checkout gh-pages
-          else
-            git checkout --orphan gh-pages
-            git rm -rf .
-          fi
+          # Create a temporary folder to hold badges commit
+          mkdir gh-pages-temp
+          cp -r badges/* gh-pages-temp/
+
+          cd gh-pages-temp
+          git init
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git checkout -b gh-pages
 
           mkdir -p coverage-badges
-          find badges -name '*.svg' -exec cp {} coverage-badges/ \;
+          find . -name '*.svg' -exec cp {} coverage-badges/ \;
 
           git add coverage-badges
-          git commit -m "Update coverage badges" || echo "No changes to commit"
+          git commit -m "Update coverage badges"
           git push origin gh-pages --force
