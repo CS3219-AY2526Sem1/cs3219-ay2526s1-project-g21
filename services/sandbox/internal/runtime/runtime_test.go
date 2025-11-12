@@ -1059,3 +1059,42 @@ func singleStream(stream byte, payload string) []byte {
 	binary.BigEndian.PutUint32(header[4:], uint32(len(data)))
 	return append(header, data...)
 }
+
+func TestWarmImagesPullsDefaults(t *testing.T) {
+	orig := newDockerClient
+	defer func() { newDockerClient = orig }()
+
+	var clients []*fakeDockerClient
+	newDockerClient = func() (dockerClient, error) {
+		c := &fakeDockerClient{
+			t:               t,
+			imageInspectErr: errdefs.NotFound(errors.New("missing")),
+		}
+		clients = append(clients, c)
+		return c, nil
+	}
+
+	if err := WarmImages(context.Background()); err != nil {
+		t.Fatalf("warm images error: %v", err)
+	}
+	if len(clients) != 3 {
+		t.Fatalf("expected three warmup clients, got %d", len(clients))
+	}
+	for i, c := range clients {
+		if !c.imagePulled {
+			t.Fatalf("expected client %d to pull image", i)
+		}
+	}
+}
+
+func TestWarmImagesPropagatesErrors(t *testing.T) {
+	orig := newDockerClient
+	defer func() { newDockerClient = orig }()
+
+	newDockerClient = func() (dockerClient, error) {
+		return nil, ErrDockerUnavailable
+	}
+	if err := WarmImages(context.Background()); !errors.Is(err, ErrDockerUnavailable) {
+		t.Fatalf("expected docker unavailable error, got %v", err)
+	}
+}

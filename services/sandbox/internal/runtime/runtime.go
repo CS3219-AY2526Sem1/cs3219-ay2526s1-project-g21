@@ -411,3 +411,33 @@ func mapSandboxError(err error) string {
 	}
 	return "sandbox_error"
 }
+
+func WarmImages(ctx context.Context, langs ...Language) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if len(langs) == 0 {
+		langs = []Language{LangPython, LangJava, LangCPP}
+	}
+	for _, lang := range langs {
+		if err := warmImage(ctx, lang); err != nil {
+			return fmt.Errorf("warm %s: %w", lang, err)
+		}
+	}
+	return nil
+}
+
+func warmImage(ctx context.Context, lang Language) error {
+	_, image, _, _, err := langSpec(lang)
+	if err != nil {
+		return err
+	}
+	sbx, err := NewSandbox(image, Limits{})
+	if err != nil {
+		return err
+	}
+	if closer, ok := sbx.cli.(interface{ Close() error }); ok {
+		defer closer.Close()
+	}
+	return sbx.ensureImage(ctx)
+}

@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -225,16 +228,42 @@ func (rm *RoomManager) processMatchEvent(event models.RoomInfo) {
 
 // Fetch a random question from the question service
 func (rm *RoomManager) fetchQuestion(category string, difficulty string) (*models.Question, error) {
-	url := fmt.Sprintf("%s/api/v1/questions/random?difficulty=%s&topic=%s",
-		rm.questionURL, difficulty, category)
+	return rm.fetchQuestionWithFallback(category, difficulty, true)
+}
 
-	resp, err := http.Get(url)
+func (rm *RoomManager) fetchQuestionWithFallback(category, difficulty string, allowFallback bool) (*models.Question, error) {
+	base := strings.TrimRight(rm.questionURL, "/")
+	queryURL := fmt.Sprintf("%s/api/v1/questions/random", base)
+
+	params := url.Values{}
+	if difficulty != "" {
+		params.Set("difficulty", difficulty)
+	}
+	if category != "" {
+		params.Set("topic", category)
+	}
+	if encoded := params.Encode(); encoded != "" {
+		queryURL = queryURL + "?" + encoded
+	}
+
+	resp, err := http.Get(queryURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call question service: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound && allowFallback && category != "" {
+		log.Printf("[RoomManager %s] No question for category=%s difficulty=%s, retrying without category filter",
+			rm.instanceID, category, difficulty)
+		return rm.fetchQuestionWithFallback("", difficulty, false)
+	}
+
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		snippet := strings.TrimSpace(string(body))
+		if snippet != "" {
+			return nil, fmt.Errorf("question service returned status %d: %s", resp.StatusCode, snippet)
+		}
 		return nil, fmt.Errorf("question service returned status %d", resp.StatusCode)
 	}
 

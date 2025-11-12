@@ -272,6 +272,36 @@ func TestFetchQuestion(t *testing.T) {
 	}
 }
 
+func TestFetchQuestionFallsBackToDifficultyOnly(t *testing.T) {
+	var calls atomic.Int32
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		topic := r.URL.Query().Get("topic")
+		if call == 1 {
+			if topic == "" {
+				t.Fatalf("expected topic on first request, got empty")
+			}
+			http.Error(w, "no eligible question", http.StatusNotFound)
+			return
+		}
+		if topic != "" {
+			t.Fatalf("expected fallback request without topic filter, got %q", topic)
+		}
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 99})
+	})
+
+	q, err := manager.fetchQuestion("graphs", "easy")
+	if err != nil {
+		t.Fatalf("expected fallback to succeed, got error %v", err)
+	}
+	if q.ID != 99 {
+		t.Fatalf("unexpected question returned: %+v", q)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected two calls (initial + fallback), got %d", calls.Load())
+	}
+}
+
 func TestFetchQuestionNetworkError(t *testing.T) {
 	manager := NewRoomManager("localhost:0", "http://127.0.0.1:0")
 	defer manager.Cleanup()
