@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ExternalLink, Flag } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { Question } from "@/types/question";
 import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
@@ -24,25 +24,15 @@ const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) =>
         Unsolved
       </td>
       <td className="px-6 py-4 text-sm">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onOpenModal(question)}
-            className="p-1 hover:bg-gray-100 rounded"
-            aria-label="Open question"
-            title="Open question"
-            type="button"
-          >
-            <ExternalLink className="w-4 h-4 text-gray-600" />
-          </button>
-          <button
-            className="p-1 hover:bg-gray-100 rounded"
-            aria-label="Report question"
-            title="Report question"
-            type="button"
-          >
-            <Flag className="w-4 h-4 text-gray-600" />
-          </button>
-        </div>
+        <button
+          onClick={() => onOpenModal(question)}
+          className="p-1 hover:bg-gray-100 rounded"
+          aria-label="Open question"
+          title="Open question"
+          type="button"
+        >
+          <ExternalLink className="w-4 h-4 text-gray-600" />
+        </button>
       </td>
     </tr>
   );
