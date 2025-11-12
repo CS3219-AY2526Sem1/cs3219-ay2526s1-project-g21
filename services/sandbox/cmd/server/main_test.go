@@ -180,10 +180,12 @@ func TestRunHandlerEncodeFailure(t *testing.T) {
 
 func TestMainFunction(t *testing.T) {
 	origExec := executeFn
+	origWarm := warmImagesFn
 	origListen := listenAndServe
 	origFatal := logFatalf
 	defer func() {
 		executeFn = origExec
+		warmImagesFn = origWarm
 		listenAndServe = origListen
 		logFatalf = origFatal
 		os.Unsetenv("SANDBOX_HTTP_ADDR")
@@ -196,6 +198,12 @@ func TestMainFunction(t *testing.T) {
 	var addrs []string
 	var served http.Handler
 	var fatalMessages []string
+	var warmCalls int
+
+	warmImagesFn = func(context.Context, ...runtime.Language) error {
+		warmCalls++
+		return nil
+	}
 
 	listenAndServe = func(addr string, handler http.Handler) error {
 		addrs = append(addrs, addr)
@@ -242,6 +250,9 @@ func TestMainFunction(t *testing.T) {
 
 	if len(fatalMessages) == 0 || fatalMessages[len(fatalMessages)-1] != "sandbox server failed: boom" {
 		t.Fatalf("expected fatal message, got %v", fatalMessages)
+	}
+	if warmCalls < 3 {
+		t.Fatalf("expected warm images to be invoked for each main call, got %d", warmCalls)
 	}
 }
 
