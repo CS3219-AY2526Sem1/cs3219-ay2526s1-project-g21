@@ -70,6 +70,7 @@ services:
     environment:
       - PORT=8080
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # Locally, replace with GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account-key.json and add secret json to root dir.
     volumes:
       - ../secrets:/secrets:ro
     ports: ["8086:8080"]
