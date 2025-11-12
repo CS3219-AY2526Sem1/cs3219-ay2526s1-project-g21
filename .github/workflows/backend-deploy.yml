@@ -29,9 +29,6 @@ jobs:
             ai:
               - "services/ai/**"
               - "copilot/ai/**"
-            api-gateway:
-              - "services/api-gateway/**"
-              - "copilot/api-gateway/**"
             collab:
               - "services/collab/**"
               - "copilot/collab/**"
@@ -58,7 +55,6 @@ jobs:
         id: set-matrix
         env:
           AI_CHANGED: ${{ steps.changes.outputs.ai }}
-          API_GATEWAY_CHANGED: ${{ steps.changes.outputs.api-gateway }}
           COLL_CHANGED: ${{ steps.changes.outputs.collab }}
           MATCH_CHANGED: ${{ steps.changes.outputs.match }}
           QUESTION_CHANGED: ${{ steps.changes.outputs.question }}
@@ -74,7 +70,6 @@ jobs:
 
           services = []
           mapping = {
-              "api-gateway": os.environ.get("API_GATEWAY_CHANGED", "false"),
               "ai": os.environ.get("AI_CHANGED", "false"),
               "collab": os.environ.get("COLL_CHANGED", "false"),
               "match": os.environ.get("MATCH_CHANGED", "false"),
