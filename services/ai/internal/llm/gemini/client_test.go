@@ -34,8 +34,9 @@ func newStubClient(t *testing.T, handler http.HandlerFunc) (*Client, func()) {
 	}
 
 	client := &Client{
-		client: genaiClient,
-		config: &Config{APIKey: "test", Model: "test-model"},
+		apiKeyClient: genaiClient,
+		vertexClient: nil,
+		config:       &Config{APIKey: "test", Model: "test-model"},
 	}
 
 	return client, server.Close

@@ -2,10 +2,12 @@ package gemini
 
 import (
 	"context"
+	"log"
 	"math/rand"
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2/google"
 	"google.golang.org/genai"
 	"gorm.io/gorm"
 
@@ -16,15 +18,17 @@ import (
 // Client represents a Gemini LLM client
 
 type Client struct {
-	client *genai.Client
-	config *Config
-	db     *gorm.DB // For querying active fine-tuned models
+	apiKeyClient *genai.Client // For base models with API key
+	vertexClient *genai.Client // For Vertex AI endpoints with OAuth2
+	config       *Config
+	db           *gorm.DB // For querying active fine-tuned models
 }
 
 func NewClient(config *Config) (*Client, error) {
 	ctx := context.Background()
 
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+	// Create API key client for base models
+	apiKeyClient, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  config.APIKey,
 		Backend: genai.BackendGeminiAPI,
 	})
@@ -32,15 +36,41 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, &llm.ProviderError{
 			Provider: "gemini",
 			Code:     llm.ErrCodeAPIKey,
-			Message:  "Failed to create Gemini client",
+			Message:  "Failed to create Gemini API client",
 			Err:      err,
 		}
 	}
 
+	// Try to create Vertex AI client with OAuth2 for fine-tuned endpoints
+	var vertexClient *genai.Client
+	_, err = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err == nil && config.Project != "" {
+		// OAuth2 credentials available and project configured
+		log.Printf("[Init] OAuth2 credentials found, creating Vertex AI client for project %s in %s...", config.Project, config.Location)
+		vertexClient, err = genai.NewClient(ctx, &genai.ClientConfig{
+			Backend:  genai.BackendVertexAI,
+			Project:  config.Project,
+			Location: config.Location,
+		})
+		if err != nil {
+			log.Printf("[Init] Failed to create Vertex AI client: %v", err)
+		} else {
+			log.Printf("[Init] Vertex AI client created successfully")
+		}
+	} else {
+		if err != nil {
+			log.Printf("[Init] No OAuth2 credentials available: %v", err)
+		} else {
+			log.Printf("[Init] Project not configured, skipping Vertex AI client")
+		}
+	}
+	// If OAuth2 fails, vertexClient will be nil and we'll skip fine-tuned models
+
 	return &Client{
-		client: client,
-		config: config,
-		db:     nil, // Set later via SetDatabase if needed
+		apiKeyClient: apiKeyClient,
+		vertexClient: vertexClient,
+		config:       config,
+		db:           nil, // Set later via SetDatabase if needed
 	}, nil
 }
 
@@ -109,7 +139,29 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, requestID s
 	// Select model based on traffic weights (A/B testing)
 	selectedModel, modelVersion := c.selectModel(ctx)
 
-	result, err := c.client.Models.GenerateContent(
+	// Determine which client to use
+	var client *genai.Client
+	isVertexEndpoint := strings.HasPrefix(selectedModel, "projects/")
+
+	if isVertexEndpoint {
+		// Use Vertex AI client for fine-tuned endpoints
+		if c.vertexClient == nil {
+			// No OAuth2 credentials, fall back to base model
+			log.Printf("[Model Selection] Vertex AI endpoint selected but no OAuth2 credentials available. Falling back to base model: %s (Request: %s)", c.config.Model, requestID)
+			selectedModel = c.config.Model
+			modelVersion = ""
+			client = c.apiKeyClient
+		} else {
+			log.Printf("[Model Selection] Using Vertex AI fine-tuned endpoint: %s (Request: %s)", selectedModel, requestID)
+			client = c.vertexClient
+		}
+	} else {
+		// Use API key client for base models
+		log.Printf("[Model Selection] Using base model with API key: %s (Request: %s)", selectedModel, requestID)
+		client = c.apiKeyClient
+	}
+
+	result, err := client.Models.GenerateContent(
 		ctx,
 		selectedModel,
 		genai.Text(prompt),

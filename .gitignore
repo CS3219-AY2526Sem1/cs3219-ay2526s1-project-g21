@@ -22,6 +22,9 @@ vendor/
 # Environment files
 .env
 
+
+secrets/
+
 /services/ai/**/*.png
 /services/ai/**/*.pdf
 /services/ai/*.png
