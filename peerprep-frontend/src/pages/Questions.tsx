@@ -119,7 +119,7 @@ export default function Questions() {
         setError(null);
         const data = await getQuestions(currentPage, itemsPerPage, debouncedSearch);
         setQuestions(data.items);
-        setTotalPages(data.totalPages);
+        setTotalPages(data.totalPages > 0 ? data.totalPages : 1);
         setTotalItems(data.total);
         setHasNext(data.hasNext);
         setHasPrev(data.hasPrev);
