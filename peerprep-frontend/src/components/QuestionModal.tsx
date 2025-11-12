@@ -67,15 +67,15 @@ export function QuestionModal({ question, onClose }: QuestionModalProps) {
             <div className="prose prose-sm max-w-none text-xs">
               <ReactMarkdown
                 components={{
-                  code({ node, inline, className, children, ...props }) {
+                  code({ className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || "");
-                    return !inline && match ? (
+                    const isInline = !match;
+                    return !isInline ? (
                       <SyntaxHighlighter
-                        style={oneDark}
+                        style={oneDark as any}
                         language={match[1]}
                         PreTag="div"
                         customStyle={{ fontSize: '0.75rem' }}
-                        {...props}
                       >
                         {String(children).replace(/\n$/, "")}
                       </SyntaxHighlighter>
