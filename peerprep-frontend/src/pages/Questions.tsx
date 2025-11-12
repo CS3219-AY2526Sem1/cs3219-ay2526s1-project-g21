@@ -3,14 +3,16 @@ import { ExternalLink, Flag } from "lucide-react";
 import type { Question } from "@/types/question";
 import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
+import { QuestionModal } from "@/components/QuestionModal";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
 
 interface QuestionsTableRowProps {
   question: Question;
+  onOpenModal: (question: Question) => void;
 }
 
-const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
+const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
@@ -24,6 +26,7 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
       <td className="px-6 py-4 text-sm">
         <div className="flex items-center gap-2">
           <button
+            onClick={() => onOpenModal(question)}
             className="p-1 hover:bg-gray-100 rounded"
             aria-label="Open question"
             title="Open question"
@@ -55,6 +58,7 @@ export default function Questions() {
   const [totalItems, setTotalItems] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
 
   const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
@@ -125,7 +129,11 @@ export default function Questions() {
             </thead>
             <tbody className="divide-y divide-[#E5E7EB]">
               {questions.map((question) => (
-                <QuestionsTableRow key={question.id} question={question} />
+                <QuestionsTableRow
+                  key={question.id}
+                  question={question}
+                  onOpenModal={setSelectedQuestion}
+                />
               ))}
             </tbody>
           </table>
@@ -156,6 +164,11 @@ export default function Questions() {
           </div>
         </div>
       </div>
+
+      <QuestionModal
+        question={selectedQuestion}
+        onClose={() => setSelectedQuestion(null)}
+      />
     </section>
   );
 }
