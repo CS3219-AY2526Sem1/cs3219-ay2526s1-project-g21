@@ -86,7 +86,12 @@ export default function Account() {
                           setNewUsername("");
                           toast.success("Username updated");
                         } catch (e: any) {
-                          toast.error(e?.message || "Failed to change username");
+                          let errMessage = "Failed to change username";
+                          if (e.message) {
+                            const errMessageJson = JSON.parse(e.message);
+                            errMessage = errMessageJson.error;
+                          }
+                          toast.error(errMessage);
                         } finally {
                           setSubmitting(false);
                         }
@@ -131,7 +136,12 @@ export default function Account() {
                           setNewEmail("");
                           toast.success("Confirmation sent to new email. Check your inbox.");
                         } catch (e: any) {
-                          toast.error(e?.message || "Failed to initiate email change");
+                          let errMessage = "Failed to initiate email change";
+                          if (e.message) {
+                            const errMessageJson = JSON.parse(e.message);
+                            errMessage = errMessageJson.error;
+                          }
+                          toast.error(errMessage);
                         } finally {
                           setSubmitting(false);
                         }
@@ -184,7 +194,12 @@ export default function Account() {
                             setConfirmPassword("");
                             toast.success("Password changed");
                           } catch (e: any) {
-                            toast.error(e?.message || "Failed to change password");
+                            let errMessage = "Failed to change password";
+                            if (e.message) {
+                              const errMessageJson = JSON.parse(e.message);
+                              errMessage = errMessageJson.error;
+                            }
+                            toast.error(errMessage);
                           } finally {
                             setSubmitting(false);
                           }
