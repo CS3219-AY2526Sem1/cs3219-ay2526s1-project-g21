@@ -15,6 +15,7 @@ jobs:
       run:
         working-directory: peerprep-frontend
     env:
+      VITE_AI_BASE_URL: ${{ secrets.VITE_AI_BASE_URL }}
       VITE_USER_API_BASE: ${{ secrets.VITE_USER_API_BASE }}
       VITE_QUESTION_API_BASE: ${{ secrets.VITE_QUESTION_API_BASE }}
       VITE_MATCH_API_BASE: ${{ secrets.VITE_MATCH_API_BASE }}
@@ -41,6 +42,7 @@ jobs:
       - name: Generate production env file
         run: |
           cat <<'EOF' > .env.production
+          VITE_AI_BASE_URL=${VITE_AI_BASE_URL}
           VITE_USER_API_BASE=${VITE_USER_API_BASE}
           VITE_QUESTION_API_BASE=${VITE_QUESTION_API_BASE}
           VITE_MATCH_API_BASE=${VITE_MATCH_API_BASE}

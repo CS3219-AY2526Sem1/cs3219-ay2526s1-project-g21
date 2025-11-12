@@ -2,6 +2,7 @@ package managers
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 	"voice/internal/models"
@@ -224,6 +225,47 @@ func TestRoomManager_GetRoomStatus_FromRedis(t *testing.T) {
 
 	if !exists {
 		t.Error("Room status should be cached after fetching from Redis")
+	}
+}
+
+func TestRoomManager_GetRoomStatus_FromRedisStringValue(t *testing.T) {
+	mr, client := setupTestRedis(t)
+	defer mr.Close()
+
+	rm := NewRoomManager(mr.Addr())
+
+	matchID := "match-string"
+	ctx := context.Background()
+
+	roomInfo := &models.RoomInfo{
+		MatchId:    matchID,
+		User1:      "user1",
+		User2:      "user2",
+		Category:   "graphs",
+		Difficulty: "hard",
+		Status:     "active",
+		Token1:     "token1",
+		Token2:     "token2",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+
+	roomJSON, err := json.Marshal(roomInfo)
+	if err != nil {
+		t.Fatalf("failed to marshal room info: %v", err)
+	}
+
+	roomKey := "room:" + matchID
+	if err := client.Set(ctx, roomKey, roomJSON, 0).Err(); err != nil {
+		t.Fatalf("failed to set room info as string: %v", err)
+	}
+
+	retrieved, err := rm.GetRoomStatus(matchID)
+	if err != nil {
+		t.Fatalf("failed to get room status from string value: %v", err)
+	}
+
+	if retrieved.Token1 != roomInfo.Token1 || retrieved.Token2 != roomInfo.Token2 {
+		t.Errorf("expected tokens to match, got %s and %s", retrieved.Token1, retrieved.Token2)
 	}
 }
 
