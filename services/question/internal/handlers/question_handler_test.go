@@ -16,7 +16,7 @@ import (
 
 type fakeRepo struct {
 	getAllFn               func() ([]models.Question, error)
-	getAllWithPaginationFn func(int, int) ([]models.Question, int, error)
+	getAllWithPaginationFn func(int, int, string) ([]models.Question, int, error)
 	createFn               func(*models.Question) (*models.Question, error)
 	getByIDFn              func(int) (*models.Question, error)
 	updateFn               func(int, *models.Question) (*models.Question, error)
@@ -30,9 +30,9 @@ func (f *fakeRepo) GetAll() ([]models.Question, error) {
 	}
 	return []models.Question{}, nil
 }
-func (f *fakeRepo) GetAllWithPagination(page, limit int) ([]models.Question, int, error) {
+func (f *fakeRepo) GetAllWithPagination(page, limit int, search string) ([]models.Question, int, error) {
 	if f.getAllWithPaginationFn != nil {
-		return f.getAllWithPaginationFn(page, limit)
+		return f.getAllWithPaginationFn(page, limit, search)
 	}
 	return []models.Question{}, 0, repositories.ErrNotImplemented
 }
