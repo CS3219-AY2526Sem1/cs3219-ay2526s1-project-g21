@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { ExternalLink, Flag } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { Question } from "@/types/question";
 import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
+import { QuestionModal } from "@/components/QuestionModal";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
 
 interface QuestionsTableRowProps {
   question: Question;
+  onOpenModal: (question: Question) => void;
 }
 
-const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
+const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
@@ -22,24 +24,15 @@ const QuestionsTableRow = ({ question }: QuestionsTableRowProps) => {
         Unsolved
       </td>
       <td className="px-6 py-4 text-sm">
-        <div className="flex items-center gap-2">
-          <button
-            className="p-1 hover:bg-gray-100 rounded"
-            aria-label="Open question"
-            title="Open question"
-            type="button"
-          >
-            <ExternalLink className="w-4 h-4 text-gray-600" />
-          </button>
-          <button
-            className="p-1 hover:bg-gray-100 rounded"
-            aria-label="Report question"
-            title="Report question"
-            type="button"
-          >
-            <Flag className="w-4 h-4 text-gray-600" />
-          </button>
-        </div>
+        <button
+          onClick={() => onOpenModal(question)}
+          className="p-1 hover:bg-gray-100 rounded"
+          aria-label="Open question"
+          title="Open question"
+          type="button"
+        >
+          <ExternalLink className="w-4 h-4 text-gray-600" />
+        </button>
       </td>
     </tr>
   );
@@ -55,6 +48,7 @@ export default function Questions() {
   const [totalItems, setTotalItems] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
 
   const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
@@ -99,16 +93,11 @@ export default function Questions() {
     <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold text-black">All Questions</h1>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
-          <button className="inline-flex w-full items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:brightness-95 sm:w-auto">
-            Filter Questions
-          </button>
-          <input
-            type="text"
-            placeholder="Search Questions"
-            className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Search Questions"
+          className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
+        />
       </div>
 
       <div className="bg-white border border-[#E5E7EB] rounded-lg overflow-hidden">
@@ -125,7 +114,11 @@ export default function Questions() {
             </thead>
             <tbody className="divide-y divide-[#E5E7EB]">
               {questions.map((question) => (
-                <QuestionsTableRow key={question.id} question={question} />
+                <QuestionsTableRow
+                  key={question.id}
+                  question={question}
+                  onOpenModal={setSelectedQuestion}
+                />
               ))}
             </tbody>
           </table>
@@ -156,6 +149,11 @@ export default function Questions() {
           </div>
         </div>
       </div>
+
+      <QuestionModal
+        question={selectedQuestion}
+        onClose={() => setSelectedQuestion(null)}
+      />
     </section>
   );
 }
