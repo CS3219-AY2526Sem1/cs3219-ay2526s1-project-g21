@@ -56,7 +56,6 @@ export default function Questions() {
   const [hasPrev, setHasPrev] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [solvedQuestionIds, setSolvedQuestionIds] = useState<Set<number>>(new Set());
-  const [historyLoading, setHistoryLoading] = useState(true);
 
   const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
@@ -81,12 +80,10 @@ export default function Questions() {
   useEffect(() => {
     const loadHistory = async () => {
       if (!user?.id) {
-        setHistoryLoading(false);
         return;
       }
 
       try {
-        setHistoryLoading(true);
         const history = await getUserHistory(String(user.id));
 
         // Extract unique question IDs into a Set for O(1) lookup
@@ -98,8 +95,6 @@ export default function Questions() {
       } catch (err) {
         console.error('Failed to load history:', err);
         // Don't show error to user, just default to all unsolved
-      } finally {
-        setHistoryLoading(false);
       }
     };
 
