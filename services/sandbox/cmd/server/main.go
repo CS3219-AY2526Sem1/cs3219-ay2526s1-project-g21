@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -13,9 +14,12 @@ import (
 
 var (
 	executeFn      = runtime.Execute
+	warmImagesFn   = runtime.WarmImages
 	listenAndServe = http.ListenAndServe
 	logFatalf      = log.Fatalf
 )
+
+const imageWarmupTimeout = 2 * time.Minute
 
 type runRequest struct {
 	Language string        `json:"language"`
@@ -38,6 +42,8 @@ func main() {
 	if v := os.Getenv("SANDBOX_HTTP_ADDR"); v != "" {
 		addr = v
 	}
+
+	warmSandboxImages()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", runHandler)
@@ -88,4 +94,17 @@ func runHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		log.Printf("failed to encode response: %v", err)
 	}
+}
+
+func warmSandboxImages() {
+	ctx, cancel := context.WithTimeout(context.Background(), imageWarmupTimeout)
+	defer cancel()
+
+	start := time.Now()
+	log.Printf("warming sandbox images")
+	if err := warmImagesFn(ctx); err != nil {
+		log.Printf("sandbox warmup failed: %v", err)
+		return
+	}
+	log.Printf("sandbox images ready in %s", time.Since(start).Round(time.Second))
 }
