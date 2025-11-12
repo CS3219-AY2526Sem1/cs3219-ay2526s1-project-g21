@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	MatchHandshakeTimeout = 15
+	MatchHandshakeTimeout = 20
 	STAGE1_TIMEOUT        = 100
 	STAGE2_TIMEOUT        = 200
 	STAGE3_TIMEOUT        = 300
@@ -47,14 +47,25 @@ type MatchManager struct {
 	eloManager *elo.EloManager
 }
 
-func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
-	// Create separate Redis clients for pub/sub
-	subClient := redis.NewClient(&redis.Options{
-		Addr: rdb.Options().Addr,
-		DB:   rdb.Options().DB,
+func NewMatchManager(secret []byte, rdb *redis.Client, pubSubClient *redis.Client) *MatchManager {
+	// Create separate Redis clients for pub/sub from the pubSubClient
+	pubClient := redis.NewClient(&redis.Options{
+		Addr: pubSubClient.Options().Addr,
+		DB:   pubSubClient.Options().DB,
 	})
 
-	// Test connection
+	subClient := redis.NewClient(&redis.Options{
+		Addr: pubSubClient.Options().Addr,
+		DB:   pubSubClient.Options().DB,
+	})
+
+	// Test connections
+	if err := pubClient.Ping(context.Background()).Err(); err != nil {
+		log.Printf("WARNING: pubClient ping failed: %v", err)
+	} else {
+		log.Printf("pubClient connected successfully")
+	}
+
 	if err := subClient.Ping(context.Background()).Err(); err != nil {
 		log.Printf("WARNING: subClient ping failed: %v", err)
 	} else {
@@ -64,7 +75,7 @@ func NewMatchManager(secret []byte, rdb *redis.Client) *MatchManager {
 	mm := &MatchManager{
 		ctx:       context.Background(),
 		rdb:       rdb,
-		pubClient: rdb,
+		pubClient: pubClient,
 		subClient: subClient,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },

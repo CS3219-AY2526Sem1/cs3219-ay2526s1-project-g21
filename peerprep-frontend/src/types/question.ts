@@ -21,9 +21,52 @@ export interface Question {
   deprecated_reason?: string;
 }
 
-export type Difficulty = Question["difficulty"];
+export type Difficulty = {
+  name: "Easy" | "Medium" | "Hard";
+  value: "Easy" | "Medium" | "Hard";
+};
 export type QuestionStatus = Question["status"];
-export type Category = "Array" | "Graphs" | "Dynamic Programming" | "Greedy" | "Linked List";
+export type Category =
+  {
+    name: "Arrays and Strings",
+    value: "Arrays_and_Strings"
+  }
+  | {
+    name: "Linked Structures",
+    value: "Linked_Structures"
+  } |
+  {
+    name: "Hashing and Sets",
+    value: "Hashing_and_Sets"
+  } |
+  {
+    name: "Sorting and Selection",
+    value: "Sorting_and_Selection"
+  } |
+  {
+    name: "Graphs",
+    value: "Graphs"
+  } |
+  {
+    name: "Trees and Tries",
+    value: "Trees_and_Tries"
+  } |
+  {
+    name: "Heaps and Priority Structures",
+    value: "Heaps_and_Priority_Structures"
+  } |
+  {
+    name: "Algorithm Design Paradigms",
+    value: "Algorithm_Design_Paradigms"
+  } |
+  {
+    name: "Math and Number Theory",
+    value: "Math_and_Number_Theory"
+  } |
+  {
+    name: "System Design",
+    value: "System_Design"
+  };
 
 export interface RandomQuestionFilters {
   difficulty?: Difficulty;

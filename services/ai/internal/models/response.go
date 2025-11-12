@@ -13,6 +13,7 @@ type GenerationMetadata struct {
 	DetailLevel    string `json:"detail_level"`
 	Provider       string `json:"provider,omitempty"`
 	Model          string `json:"model,omitempty"`
+	ModelVersion   string `json:"model_version,omitempty"` // For feedback tracking
 }
 
 // uniform error responses
@@ -50,4 +51,10 @@ type RefactorTipsTextResponse struct {
 	TipsText  string             `json:"tips_text"`
 	RequestID string             `json:"request_id"`
 	Metadata  GenerationMetadata `json:"metadata"`
+}
+
+// Resp is a generic API response wrapper
+type Resp struct {
+	OK   bool        `json:"ok"`
+	Info interface{} `json:"info,omitempty"`
 }

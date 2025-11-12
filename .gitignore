@@ -13,6 +13,7 @@ dist/
 **/node_modules
 **/build
 **/dist
+*.tsbuildinfo
 
 # Go
 vendor/
@@ -20,6 +21,9 @@ vendor/
 
 # Environment files
 .env
+
+
+secrets/
 
 /services/ai/**/*.png
 /services/ai/**/*.pdf

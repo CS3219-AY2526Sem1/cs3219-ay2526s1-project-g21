@@ -46,7 +46,6 @@ export default function Account() {
         <aside className="col-span-12 md:col-span-3">
           <nav className="space-y-3 text-[15px]">
             <div className="font-medium text-black">Account Settings</div>
-            <div className="text-slate-500">Recent Activity</div>
           </nav>
         </aside>
 

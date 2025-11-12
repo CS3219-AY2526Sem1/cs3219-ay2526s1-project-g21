@@ -5,11 +5,13 @@ export function useExplain() {
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [requestId, setRequestId] = useState<string | null>(null);
 
   const run = useCallback(async (args: { code: string; language: Language; detail: DetailLevel; }) => {
     setLoading(true);
-    setError('');   
+    setError('');
     setText('');
+    setRequestId(null);
     try {
       const resp = await explainCode({
         code: args.code,
@@ -17,6 +19,7 @@ export function useExplain() {
         detail_level: args.detail,
       });
       setText(resp.content);
+      setRequestId(resp.request_id);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to generate explanation');
     } finally {
@@ -24,5 +27,5 @@ export function useExplain() {
     }
   }, []);
 
-  return { run, loading, text, error, setText, setError };
+  return { run, loading, text, error, requestId, setText, setError };
 }

@@ -31,7 +31,8 @@ network:
 #  LOG_LEVEL: info
 secrets: # Pass secrets from AWS Systems Manager (SSM) Parameter Store.
   #  GITHUB_TOKEN: GITHUB_TOKEN  # The key is the name of the environment variable, the value is the name of the SSM parameter.
-  REDIS_ADDR: /match/REDIS_ADDR
+  REDIS_MATCH_ADDR: /match/REDIS_MATCH_ADDR
+  REDIS_PUBSUB_ADDR: /match/REDIS_PUBSUB_ADDR
 # You can override any of the values defined above by environment.
 #environments:
 #  test:

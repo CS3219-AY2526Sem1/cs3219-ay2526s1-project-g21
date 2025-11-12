@@ -10,6 +10,7 @@ import (
 	"peerprep/user/internal/models"
 	"peerprep/user/internal/repositories"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,6 +34,7 @@ type HistorySubscriber struct {
 	rdb            *redis.Client
 	historyHandler *handlers.HistoryHandler
 	userRepo       *repositories.UserRepository
+	instanceID     string
 }
 
 func NewHistorySubscriber(redisAddr string, historyHandler *handlers.HistoryHandler, userRepo *repositories.UserRepository) *HistorySubscriber {
@@ -44,6 +46,7 @@ func NewHistorySubscriber(redisAddr string, historyHandler *handlers.HistoryHand
 		rdb:            rdb,
 		historyHandler: historyHandler,
 		userRepo:       userRepo,
+		instanceID:     uuid.New().String()[:8], // Short instance ID for logging
 	}
 }
 
@@ -135,5 +138,5 @@ func (hs *HistorySubscriber) handleSessionEndedEvent(payload string) {
 		return
 	}
 
-	log.Printf("Successfully saved interview history for match %s", event.MatchID)
+	log.Printf("[instance %s] Successfully saved interview history for match %s", hs.instanceID, event.MatchID)
 }
