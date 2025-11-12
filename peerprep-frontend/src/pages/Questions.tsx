@@ -4,15 +4,19 @@ import type { Question } from "@/types/question";
 import { getDifficultyColor } from "@/utils/questionUtils";
 import { getQuestions } from "@/services/questionService";
 import { QuestionModal } from "@/components/QuestionModal";
+import { getUserHistory } from "@/api/history";
+import { getMe } from "@/api/auth";
+import { useAuth } from "@/context/AuthContext";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
 
 interface QuestionsTableRowProps {
   question: Question;
   onOpenModal: (question: Question) => void;
+  isSolved: boolean;
 }
 
-const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) => {
+const QuestionsTableRow = ({ question, onOpenModal, isSolved }: QuestionsTableRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-6 py-4 text-sm text-gray-900">{question.title}</td>
@@ -20,8 +24,8 @@ const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) =>
       <td className={`px-6 py-4 text-sm font-medium ${getDifficultyColor(question.difficulty)}`}>
         {question.difficulty}
       </td>
-      <td className="px-6 py-4 text-sm font-medium text-gray-500">
-        Unsolved
+      <td className={`px-6 py-4 text-sm font-medium ${isSolved ? 'text-green-600' : 'text-gray-500'}`}>
+        {isSolved ? 'Attempted' : 'Unsolved'}
       </td>
       <td className="px-6 py-4 text-sm">
         <button
@@ -39,6 +43,8 @@ const QuestionsTableRow = ({ question, onOpenModal }: QuestionsTableRowProps) =>
 };
 
 export default function Questions() {
+  const { token } = useAuth();
+  const [user, setUser] = useState<{ id: number; username: string; email: string } | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +55,51 @@ export default function Questions() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [solvedQuestionIds, setSolvedQuestionIds] = useState<Set<number>>(new Set());
 
   const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
+
+  // Fetch user info
+  useEffect(() => {
+    const loadUser = async () => {
+      if (!token) return;
+
+      try {
+        const userData = await getMe(token);
+        setUser(userData);
+      } catch (err) {
+        console.error('Failed to load user:', err);
+      }
+    };
+
+    loadUser();
+  }, [token]);
+
+  // Fetch user's interview history to determine solved questions
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!user?.id) {
+        return;
+      }
+
+      try {
+        const history = await getUserHistory(String(user.id));
+
+        // Extract unique question IDs into a Set for O(1) lookup
+        const solvedIds = new Set<number>(
+          history.map(item => item.questionId)
+        );
+
+        setSolvedQuestionIds(solvedIds);
+      } catch (err) {
+        console.error('Failed to load history:', err);
+        // Don't show error to user, just default to all unsolved
+      }
+    };
+
+    loadHistory();
+  }, [user?.id]);
 
   useEffect(() => {
     const loadQuestions = async () => {
@@ -118,6 +166,7 @@ export default function Questions() {
                   key={question.id}
                   question={question}
                   onOpenModal={setSelectedQuestion}
+                  isSolved={solvedQuestionIds.has(question.id)}
                 />
               ))}
             </tbody>
