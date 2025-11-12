@@ -69,6 +69,10 @@ services:
     env_file: ../.env
     environment:
       - PORT=8080
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+    volumes:
+      # Only mount for local development
+      - ../secrets:/secrets:ro
     ports: ["8086:8080"]
 
   sandbox:

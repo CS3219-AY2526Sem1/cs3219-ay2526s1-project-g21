@@ -44,11 +44,25 @@ func NewClient(config *Config) (*Client, error) {
 	// Try to create Vertex AI client with OAuth2 for fine-tuned endpoints
 	var vertexClient *genai.Client
 	_, err = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
-	if err == nil {
-		// OAuth2 credentials available
-		vertexClient, _ = genai.NewClient(ctx, &genai.ClientConfig{
-			Backend: genai.BackendVertexAI,
+	if err == nil && config.Project != "" {
+		// OAuth2 credentials available and project configured
+		log.Printf("[Init] OAuth2 credentials found, creating Vertex AI client for project %s in %s...", config.Project, config.Location)
+		vertexClient, err = genai.NewClient(ctx, &genai.ClientConfig{
+			Backend:  genai.BackendVertexAI,
+			Project:  config.Project,
+			Location: config.Location,
 		})
+		if err != nil {
+			log.Printf("[Init] Failed to create Vertex AI client: %v", err)
+		} else {
+			log.Printf("[Init] Vertex AI client created successfully")
+		}
+	} else {
+		if err != nil {
+			log.Printf("[Init] No OAuth2 credentials available: %v", err)
+		} else {
+			log.Printf("[Init] Project not configured, skipping Vertex AI client")
+		}
 	}
 	// If OAuth2 fails, vertexClient will be nil and we'll skip fine-tuned models
 

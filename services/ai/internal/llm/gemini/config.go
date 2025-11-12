@@ -7,8 +7,10 @@ import (
 
 // holds Gemini-specific configuration
 type Config struct {
-	APIKey string
-	Model  string
+	APIKey   string
+	Model    string
+	Project  string
+	Location string
 }
 
 func NewConfig() (*Config, error) {
@@ -22,8 +24,16 @@ func NewConfig() (*Config, error) {
 		model = "gemini-2.5-flash" // default model
 	}
 
+	project := os.Getenv("GEMINI_PROJECT_ID")
+	location := os.Getenv("GEMINI_LOCATION")
+	if location == "" {
+		location = "us-central1" // default location
+	}
+
 	return &Config{
-		APIKey: apiKey,
-		Model:  model,
+		APIKey:   apiKey,
+		Model:    model,
+		Project:  project,
+		Location: location,
 	}, nil
 }
