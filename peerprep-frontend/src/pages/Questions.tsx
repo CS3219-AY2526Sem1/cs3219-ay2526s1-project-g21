@@ -59,14 +59,11 @@ export default function Questions() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      // Reset to page 1 when search changes
-      if (searchQuery !== debouncedSearch) {
-        setCurrentPage(1);
-      }
+      setCurrentPage(1);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, debouncedSearch]);
+  }, [searchQuery]);
 
   useEffect(() => {
     const loadQuestions = async () => {
