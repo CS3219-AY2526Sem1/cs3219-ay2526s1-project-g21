@@ -93,16 +93,11 @@ export default function Questions() {
     <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-semibold text-black">All Questions</h1>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
-          <button className="inline-flex w-full items-center justify-center rounded-md bg-[#2F6FED] px-4 py-2 text-sm font-medium text-white hover:brightness-95 sm:w-auto">
-            Filter Questions
-          </button>
-          <input
-            type="text"
-            placeholder="Search Questions"
-            className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Search Questions"
+          className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
+        />
       </div>
 
       <div className="bg-white border border-[#E5E7EB] rounded-lg overflow-hidden">
