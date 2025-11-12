@@ -31,19 +31,19 @@ network:
 #  LOG_LEVEL: info
 secrets: # Pass secrets from AWS Systems Manager (SSM) Parameter Store.
   #  GITHUB_TOKEN: GITHUB_TOKEN  # The key is the name of the environment variable, the value is the name of the SSM parameter.
-  POSTGRES_HOST: user/POSTGRES_HOST
-  POSTGRES_USER: user/POSTGRES_USER
-  POSTGRES_PASSWORD: user/POSTGRES_PASSWORD
-  POSTGRES_DB: user/POSTGRES_DB
-  POSTGRES_SSLMODE: user/POSTGRES_SSLMODE
+  POSTGRES_HOST: /user/POSTGRES_HOST
+  POSTGRES_USER: /user/POSTGRES_USER
+  POSTGRES_PASSWORD: /user/POSTGRES_PASSWORD
+  POSTGRES_DB: /user/POSTGRES_DB
+  POSTGRES_SSLMODE: /user/POSTGRES_SSLMODE
 
-  USER_SERVICE_BASE_URL: user/USER_SERVICE_BASE_URL
+  USER_SERVICE_BASE_URL: /user/USER_SERVICE_BASE_URL
 
-  SMTP_HOST: user/SMTP_HOST
-  SMTP_PORT: user/SMTP_PORT
-  SMTP_USER: user/SMTP_USER
-  SMTP_PASS: user/SMTP_PASS
-  SMTP_FROM: user/SMTP_FROM
+  SMTP_HOST: /user/SMTP_HOST
+  SMTP_PORT: /user/SMTP_PORT
+  SMTP_USER: /user/SMTP_USER
+  SMTP_PASS: /user/SMTP_PASS
+  SMTP_FROM: /user/SMTP_FROM
 # You can override any of the values defined above by environment.
 #environments:
 #  test:
