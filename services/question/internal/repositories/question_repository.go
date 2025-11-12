@@ -108,15 +108,27 @@ func (r *QuestionRepository) GetAll() ([]models.Question, error) {
 }
 
 // Get questions with pagination
-func (r *QuestionRepository) GetAllWithPagination(page, limit int) ([]models.Question, int, error) {
+func (r *QuestionRepository) GetAllWithPagination(page, limit int, search string) ([]models.Question, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// find skip value
 	skip := (page - 1) * limit
 
-	// total count
-	total, err := r.col.CountDocuments(ctx, bson.M{})
+	// build filter with optional search
+	filter := bson.M{}
+	if search != "" {
+		// case-insensitive regex search on title and topic_tags
+		filter = bson.M{
+			"$or": []bson.M{
+				{"title": bson.M{"$regex": search, "$options": "i"}},
+				{"topic_tags": bson.M{"$regex": search, "$options": "i"}},
+			},
+		}
+	}
+
+	// total count with filter
+	total, err := r.col.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -126,8 +138,8 @@ func (r *QuestionRepository) GetAllWithPagination(page, limit int) ([]models.Que
 	findOptions.SetSkip(int64(skip))
 	findOptions.SetLimit(int64(limit))
 
-	// query execution
-	cur, err := r.col.Find(ctx, bson.M{}, findOptions)
+	// query execution with filter
+	cur, err := r.col.Find(ctx, filter, findOptions)
 	if err != nil {
 		return nil, 0, err
 	}

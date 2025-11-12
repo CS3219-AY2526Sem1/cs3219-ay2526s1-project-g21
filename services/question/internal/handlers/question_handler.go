@@ -15,7 +15,7 @@ import (
 
 type QuestionRepo interface {
 	GetAll() ([]models.Question, error)
-	GetAllWithPagination(page, limit int) ([]models.Question, int, error)
+	GetAllWithPagination(page, limit int, search string) ([]models.Question, int, error)
 	Create(*models.Question) (*models.Question, error)
 	GetByID(int) (*models.Question, error)
 	Update(int, *models.Question) (*models.Question, error)
@@ -37,6 +37,7 @@ func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, 
 	// pagination parameters
 	pageStr := request.URL.Query().Get("page")
 	limitStr := request.URL.Query().Get("limit")
+	search := request.URL.Query().Get("search")
 
 	// If no pagination parameters, return all questions
 	if pageStr == "" && limitStr == "" {
@@ -93,13 +94,29 @@ func (handler *QuestionHandler) GetQuestionsHandler(writer http.ResponseWriter, 
 		}
 	}
 
-	// questions with pagination
-	questions, total, err := handler.repo.GetAllWithPagination(page, limit)
+	// questions with pagination and search
+	questions, total, err := handler.repo.GetAllWithPagination(page, limit, search)
 	if err != nil {
 		utils.JSON(writer, http.StatusInternalServerError, models.ErrorResponse{
 			Code:    "internal_error",
 			Message: "Failed to fetch questions",
 		})
+		return
+	}
+
+	// check if no questions found
+	if total == 0 {
+		if search != "" {
+			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+				Code:    "no_results",
+				Message: "No questions found matching your search criteria",
+			})
+		} else {
+			utils.JSON(writer, http.StatusNotFound, models.ErrorResponse{
+				Code:    "no_questions",
+				Message: "No questions available",
+			})
+		}
 		return
 	}
 
