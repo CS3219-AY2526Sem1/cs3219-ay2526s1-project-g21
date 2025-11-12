@@ -14,8 +14,6 @@ jobs:
             go-version: "1.22"
           - service: services/match
             go-version: "1.22"
-          - service: services/question
-            go-version: "1.22"
           - service: services/user
             go-version: "1.22"
           - service: services/voice
