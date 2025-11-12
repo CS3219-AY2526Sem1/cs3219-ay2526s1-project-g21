@@ -145,7 +145,7 @@ const mockQuestions: Question[] = [
   // }
 ];
 
-export const getQuestions = async (page?: number, limit?: number): Promise<{
+export const getQuestions = async (page?: number, limit?: number, search?: string): Promise<{
   items: Question[];
   total: number;
   page: number;
@@ -155,7 +155,7 @@ export const getQuestions = async (page?: number, limit?: number): Promise<{
   hasPrev: boolean;
 }> => {
   try {
-    const response = await getAllQuestions(page, limit);
+    const response = await getAllQuestions(page, limit, search);
     return response;
   } catch (error) {
     console.error("Failed to fetch questions from API:", error);
