@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 	"voice/internal/models"
@@ -201,8 +202,21 @@ func (rm *RoomManager) fetchRoomStatusFromRedis(matchId string) (*models.RoomInf
 	roomKey := "room:" + matchId
 
 	result := rm.rdb.HGetAll(ctx, roomKey)
-	if result.Err() != nil {
-		return nil, fmt.Errorf("failed to get room from Redis: %w", result.Err())
+	if err := result.Err(); err != nil {
+		if strings.Contains(err.Error(), "WRONGTYPE") {
+			roomJSON, getErr := rm.rdb.Get(ctx, roomKey).Result()
+			if getErr != nil {
+				return nil, fmt.Errorf("failed to get room from Redis (string fallback): %w", getErr)
+			}
+
+			var roomInfo models.RoomInfo
+			if unmarshalErr := json.Unmarshal([]byte(roomJSON), &roomInfo); unmarshalErr != nil {
+				return nil, fmt.Errorf("failed to decode room JSON from Redis: %w", unmarshalErr)
+			}
+
+			return &roomInfo, nil
+		}
+		return nil, fmt.Errorf("failed to get room from Redis: %w", err)
 	}
 
 	roomMap := result.Val()
