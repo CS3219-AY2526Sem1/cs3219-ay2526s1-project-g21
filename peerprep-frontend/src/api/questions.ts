@@ -80,7 +80,7 @@ export async function getRandomQuestion(filters?: RandomQuestionFilters): Promis
   return questionApiFetch<Question>(path);
 }
 
-export async function getAllQuestions(page?: number, limit?: number): Promise<{
+export async function getAllQuestions(page?: number, limit?: number, search?: string): Promise<{
   total: number;
   items: Question[];
   page: number;
@@ -91,7 +91,7 @@ export async function getAllQuestions(page?: number, limit?: number): Promise<{
 }> {
   let path = "/";
 
-  if (page !== undefined || limit !== undefined) {
+  if (page !== undefined || limit !== undefined || search !== undefined) {
     const params = new URLSearchParams();
 
     if (page !== undefined) {
@@ -100,6 +100,10 @@ export async function getAllQuestions(page?: number, limit?: number): Promise<{
 
     if (limit !== undefined) {
       params.append("limit", limit.toString());
+    }
+
+    if (search !== undefined && search !== "") {
+      params.append("search", search);
     }
 
     path += "?" + params.toString();

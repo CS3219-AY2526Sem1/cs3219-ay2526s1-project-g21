@@ -49,29 +49,56 @@ export default function Questions() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const getStartItem = () => totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const getEndItem = () => Math.min(currentPage * itemsPerPage, totalItems);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      // Reset to page 1 when search changes
+      if (searchQuery !== debouncedSearch) {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, debouncedSearch]);
 
   useEffect(() => {
     const loadQuestions = async () => {
       try {
         setLoading(true);
-        const data = await getQuestions(currentPage, itemsPerPage);
+        setError(null);
+        const data = await getQuestions(currentPage, itemsPerPage, debouncedSearch);
         setQuestions(data.items);
         setTotalPages(data.totalPages);
         setTotalItems(data.total);
         setHasNext(data.hasNext);
         setHasPrev(data.hasPrev);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load questions');
+        // Handle no results differently from actual errors
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load questions';
+        if (errorMessage.includes('No questions found') || errorMessage.includes('no_results')) {
+          setQuestions([]);
+          setTotalPages(0);
+          setTotalItems(0);
+          setHasNext(false);
+          setHasPrev(false);
+          setError(debouncedSearch ? 'No questions found matching your search criteria' : 'No questions available');
+        } else {
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadQuestions();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, debouncedSearch]);
 
   if (loading) {
     return (
@@ -81,7 +108,9 @@ export default function Questions() {
     );
   }
 
-  if (error) {
+  const isNoResultsError = error && (error.includes('No questions found') || error.includes('No questions available'));
+
+  if (error && !isNoResultsError) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="text-center text-red-600">Error: {error}</div>
@@ -96,6 +125,8 @@ export default function Questions() {
         <input
           type="text"
           placeholder="Search Questions"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2F6FED] sm:w-64"
         />
       </div>
@@ -113,13 +144,26 @@ export default function Questions() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E7EB]">
-              {questions.map((question) => (
-                <QuestionsTableRow
-                  key={question.id}
-                  question={question}
-                  onOpenModal={setSelectedQuestion}
-                />
-              ))}
+              {questions.length === 0 && isNoResultsError ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-lg font-medium">{error}</p>
+                      {debouncedSearch && (
+                        <p className="text-sm">Try adjusting your search terms</p>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                questions.map((question) => (
+                  <QuestionsTableRow
+                    key={question.id}
+                    question={question}
+                    onOpenModal={setSelectedQuestion}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
