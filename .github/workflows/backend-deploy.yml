@@ -1,0 +1,230 @@
+name: backend-deploy
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "services/**"
+      - "copilot/**"
+      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect service changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ai:
+              - "services/ai/**"
+              - "copilot/ai/**"
+            collab:
+              - "services/collab/**"
+              - "copilot/collab/**"
+            match:
+              - "services/match/**"
+              - "copilot/match/**"
+            question:
+              - "services/question/**"
+              - "copilot/question/**"
+            user:
+              - "services/user/**"
+              - "copilot/user/**"
+            voice:
+              - "services/voice/**"
+              - "copilot/voice/**"
+            grafana:
+              - "monitoring/grafana/**"
+              - "copilot/grafana/**"
+            prometheus:
+              - "monitoring/prometheus/**"
+              - "copilot/prometheus/**"
+
+      - name: Build deployment matrix
+        id: set-matrix
+        env:
+          AI_CHANGED: ${{ steps.changes.outputs.ai }}
+          COLL_CHANGED: ${{ steps.changes.outputs.collab }}
+          MATCH_CHANGED: ${{ steps.changes.outputs.match }}
+          QUESTION_CHANGED: ${{ steps.changes.outputs.question }}
+          USER_CHANGED: ${{ steps.changes.outputs.user }}
+          VOICE_CHANGED: ${{ steps.changes.outputs.voice }}
+          GRAFANA_CHANGED: ${{ steps.changes.outputs.grafana }}
+          PROMETHEUS_CHANGED: ${{ steps.changes.outputs.prometheus }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          services = []
+          mapping = {
+              "ai": os.environ.get("AI_CHANGED", "false"),
+              "collab": os.environ.get("COLL_CHANGED", "false"),
+              "match": os.environ.get("MATCH_CHANGED", "false"),
+              "question": os.environ.get("QUESTION_CHANGED", "false"),
+              "user": os.environ.get("USER_CHANGED", "false"),
+              "voice": os.environ.get("VOICE_CHANGED", "false"),
+              "grafana": os.environ.get("GRAFANA_CHANGED", "false"),
+              "prometheus": os.environ.get("PROMETHEUS_CHANGED", "false"),
+          }
+
+          if os.environ.get("EVENT_NAME") == "workflow_dispatch":
+              services = list(mapping.keys())
+          else:
+              for name, changed in mapping.items():
+                  if changed == "true":
+                      services.append(name)
+
+          matrix = {"service": services}
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"matrix={json.dumps(matrix)}\n")
+          PY
+
+      - name: No services changed
+        if: steps.set-matrix.outputs.matrix == '{"service":[]}'
+        run: echo "No backend service changes detected; skipping deployment."
+
+  build-and-deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.matrix != '{"service":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      max-parallel: 1
+    env:
+      REDIS_ADDR: ${{ secrets.REDIS_ADDR }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      REDIS_MATCH_ADDR: ${{ secrets.REDIS_MATCH_ADDR }}
+      REDIS_PUBSUB_ADDR: ${{ secrets.REDIS_PUBSUB_ADDR }}
+
+      POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+      POSTGRES_SSLMODE: ${{ secrets.POSTGRES_SSLMODE }}
+
+      USER_SERVICE_BASE_URL: ${{ secrets.USER_SERVICE_BASE_URL }}
+
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      SMTP_FROM: ${{ secrets.SMTP_FROM }}
+
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+
+      SANDBOX_URL: ${{ secrets.SANDBOX_URL }}
+
+      QUESTION_SERVICE_URL: ${{ secrets.QUESTION_SERVICE_URL }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+      GEMINI_PROJECT_ID: ${{ secrets.GEMINI_PROJECT_ID }}
+      FEEDBACK_CACHE_TTL: ${{ secrets.FEEDBACK_CACHE_TTL }}
+      FEEDBACK_EXPORT_ENABLED: ${{ secrets.FEEDBACK_EXPORT_ENABLED }}
+      FEEDBACK_EXPORT_SCHEDULE: ${{ secrets.FEEDBACK_EXPORT_SCHEDULE }}
+      FEEDBACK_EXPORT_DIR: ${{ secrets.FEEDBACK_EXPORT_DIR }}
+      FEEDBACK_AUTO_TUNE_ENABLED: ${{ secrets.FEEDBACK_AUTO_TUNE_ENABLED }}
+      FEEDBACK_MIN_SAMPLES_FOR_TUNE: ${{ secrets.FEEDBACK_MIN_SAMPLES_FOR_TUNE }}
+      TUNING_BASE_MODEL: ${{ secrets.TUNING_BASE_MODEL }}
+      TUNING_LEARNING_RATE: ${{ secrets.TUNING_LEARNING_RATE }}
+      TUNING_EPOCH_COUNT: ${{ secrets.TUNING_EPOCH_COUNT }}
+      TUNING_ADAPTER_SIZE: ${{ secrets.TUNING_ADAPTER_SIZE }}
+      TUNING_GCS_BUCKET: ${{ secrets.TUNING_GCS_BUCKET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install AWS Copilot CLI
+        run: |
+          set -euo pipefail
+          curl -Lo /tmp/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          chmod +x /tmp/copilot
+          sudo mv /tmp/copilot /usr/local/bin/copilot
+          copilot --version
+
+      - name: Set up Amazon Secrets
+        run: |
+          set -euo pipefail
+
+          declare -A PARAMS=(
+            ["/collab/QUESTION_SERVICE_URL"]="${QUESTION_SERVICE_URL}"
+            ["/collab/REDIS_ADDR"]="${REDIS_ADDR}"
+            ["/collab/SANDBOX_URL"]="${SANDBOX_URL}"
+            
+            ["/match/REDIS_MATCH_ADDR"]="${REDIS_MATCH_ADDR}"
+            ["/match/REDIS_PUBSUB_ADDR"]="${REDIS_PUBSUB_ADDR}"
+
+            ["/user/REDIS_URL"]="${REDIS_URL}"
+            ["/user/POSTGRES_HOST"]="${POSTGRES_HOST}"
+            ["/user/POSTGRES_USER"]="${POSTGRES_USER}"
+            ["/user/POSTGRES_PASSWORD"]="${POSTGRES_PASSWORD}"
+            ["/user/POSTGRES_DB"]="${POSTGRES_DB}"
+            ["/user/POSTGRES_SSLMODE"]="${POSTGRES_SSLMODE}"
+            ["/user/USER_SERVICE_BASE_URL"]="${USER_SERVICE_BASE_URL}"
+            ["/user/SMTP_HOST"]="${SMTP_HOST}"
+            ["/user/SMTP_PORT"]="${SMTP_PORT}"
+            ["/user/SMTP_USER"]="${SMTP_USER}"
+            ["/user/SMTP_PASS"]="${SMTP_PASS}"
+            ["/user/SMTP_FROM"]="${SMTP_FROM}"
+            
+            ["/question/MONGO_URI"]="${MONGO_URI}"
+            
+            ["/voice/REDIS_ADDR"]="${REDIS_ADDR}"
+
+            ["/ai/AI_PROVIDER"]="${AI_PROVIDER}"
+            ["/ai/GEMINI_API_KEY"]="${GEMINI_API_KEY}"
+            ["/ai/GEMINI_MODEL"]="${GEMINI_MODEL}"
+            ["/ai/GEMINI_PROJECT_ID"]="${GEMINI_PROJECT_ID}"
+            ["/ai/FEEDBACK_CACHE_TTL"]="${FEEDBACK_CACHE_TTL}"
+            ["/ai/FEEDBACK_EXPORT_ENABLED"]="${FEEDBACK_EXPORT_ENABLED}"
+            ["/ai/FEEDBACK_EXPORT_SCHEDULE"]="${FEEDBACK_EXPORT_SCHEDULE}"
+            ["/ai/FEEDBACK_EXPORT_DIR"]="${FEEDBACK_EXPORT_DIR}"
+            ["/ai/FEEDBACK_AUTO_TUNE_ENABLED"]="${FEEDBACK_AUTO_TUNE_ENABLED}"
+            ["/ai/FEEDBACK_MIN_SAMPLES_FOR_TUNE"]="${FEEDBACK_MIN_SAMPLES_FOR_TUNE}"
+            ["/ai/TUNING_BASE_MODEL"]="${TUNING_BASE_MODEL}"
+            ["/ai/TUNING_LEARNING_RATE"]="${TUNING_LEARNING_RATE}"
+            ["/ai/TUNING_EPOCH_COUNT"]="${TUNING_EPOCH_COUNT}"
+            ["/ai/TUNING_ADAPTER_SIZE"]="${TUNING_ADAPTER_SIZE}"
+            ["/ai/TUNING_GCS_BUCKET"]="${TUNING_GCS_BUCKET}"
+          )
+
+          for key in "${!PARAMS[@]}"; do
+            value="${PARAMS[$key]}"
+            if [[ -n "$value" ]]; then
+              echo "Setting parameter: $key"
+              aws ssm put-parameter \
+                --name "$key" \
+                --value "$value" \
+                --type "SecureString" \
+                --overwrite || exit 1
+            fi
+          done
+
+      - name: Deploy ${{ matrix.service }}
+        working-directory: ./copilot
+        run: |
+          set -euo pipefail
+          copilot svc deploy --name "${{ matrix.service }}" --env "dev"

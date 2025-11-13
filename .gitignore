@@ -1,0 +1,34 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+
+# Frontend
+**/node_modules
+**/build
+**/dist
+*.tsbuildinfo
+
+# Go
+vendor/
+**/*.local
+
+# Environment files
+.env
+
+
+secrets/
+
+/services/ai/**/*.png
+/services/ai/**/*.pdf
+/services/ai/*.png
+/services/ai/*.pdf
+
+# helper file for testing purposes
+gemini_hit_rate_limit.py

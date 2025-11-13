@@ -1,0 +1,153 @@
+services:
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+  postgres:
+    image: postgres:15
+    env_file: ../.env
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  user:
+    build: ../services/user
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+      - POSTGRES_HOST=postgres
+      - JWT_PUBLIC_KEY=dev
+    depends_on: [mongo, postgres]
+    ports: ["8081:8080"]
+
+  question:
+    build: ../services/question
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [mongo, postgres]
+    ports: ["8082:8080"]
+
+  match:
+    build: ../services/match
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [redis, mongo, postgres]
+    ports: ["8083:8080"]
+
+  collab:
+    build: ../services/collab
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - MONGO_URI=mongodb://mongo:27017
+      - QUESTION_SERVICE_URL=http://question:8080
+      - SANDBOX_URL=http://sandbox:8090
+    depends_on: [mongo, postgres, sandbox]
+    ports: ["8084:8080"]
+
+  voice:
+    build: ../services/voice
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongo:27017
+    depends_on: [redis, mongo, postgres]
+    ports: ["8085:8080"]
+
+  ai:
+    build: ../services/ai
+    env_file: ../.env
+    environment:
+      - PORT=8080
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # Locally, replace with GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account-key.json and add secret json to root dir.
+    volumes:
+      - ../secrets:/secrets:ro
+    ports: ["8086:8080"]
+
+  sandbox:
+    build: ../services/sandbox
+    environment:
+      - SANDBOX_HTTP_ADDR=:8090
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports: ["8090:8090"]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - user
+      - question
+      - match
+      - collab
+      - voice
+      - sandbox
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    ports: ["3000:3000"]
+
+  mongo-seed:
+      image: mongo:7
+      depends_on:
+        - mongo
+      volumes:
+        - ./seeds:/seeds:ro
+      command: >
+        bash -lc "
+          mongosh 'mongodb://mongo:27017/peerprep' /seeds/questions.seed.js
+        "
+      restart: "no" 
+
+  postgres-seed:
+    image: postgres:15
+    env_file: ../.env
+    depends_on:
+      - postgres
+    volumes:
+      - ./seeds:/seeds:ro
+    command: >
+      bash -lc "
+        until pg_isready -h ${POSTGRES_HOST:-postgres} -U ${POSTGRES_USER:-postgres}; do
+          echo 'waiting for postgres...';
+          sleep 1;
+        done &&
+        psql postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-postgres} -f /seeds/users.seed.sql
+      "
+    restart: "no"
+
+
+volumes:
+  mongo-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

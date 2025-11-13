@@ -1,0 +1,291 @@
+package handlers
+
+import (
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+
+	"peerprep/ai/internal/feedback"
+	"peerprep/ai/internal/llm"
+	"peerprep/ai/internal/middleware"
+	"peerprep/ai/internal/models"
+	"peerprep/ai/internal/prompts"
+	"peerprep/ai/internal/utils"
+)
+
+type AIHandler struct {
+	provider        llm.Provider
+	promptManager   prompts.PromptProvider
+	logger          *zap.Logger
+	feedbackManager *feedback.FeedbackManager // Optional, can be nil
+}
+
+func NewAIHandler(provider llm.Provider, promptManager prompts.PromptProvider, logger *zap.Logger) *AIHandler {
+	return &AIHandler{
+		provider:        provider,
+		promptManager:   promptManager,
+		logger:          logger,
+		feedbackManager: nil, // Set later via SetFeedbackManager if needed
+	}
+}
+
+// SetFeedbackManager sets the feedback manager for storing request contexts
+func (h *AIHandler) SetFeedbackManager(fm *feedback.FeedbackManager) {
+	h.feedbackManager = fm
+}
+
+// storeRequestContext stores request context for feedback collection (if enabled)
+func (h *AIHandler) storeRequestContext(requestID, requestType, prompt, response, modelVersion string) {
+	if h.feedbackManager != nil {
+		ctx := &models.RequestContext{
+			RequestID:    requestID,
+			RequestType:  requestType,
+			Prompt:       prompt,
+			Response:     response,
+			ModelVersion: modelVersion,
+			Timestamp:    time.Now(),
+		}
+		h.feedbackManager.StoreRequestContext(ctx)
+	}
+}
+
+func (h *AIHandler) ExplainHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the validated request from middleware
+	req := middleware.GetValidatedRequest[*models.ExplainRequest](r)
+
+	// Generate request ID if not provided
+	req.RequestID = ensureRequestID(req.RequestID)
+
+	// build the prompt using the prompt manager
+	promptData := map[string]interface{}{
+		"Language": req.Language,
+		"Code":     req.Code,
+	}
+
+	prompt, err := h.promptManager.BuildPrompt("explain", req.DetailLevel, promptData)
+	if err != nil {
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
+		})
+		return
+	}
+
+	// call the AI provider with the built prompt
+	response, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, req.DetailLevel)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate explanation"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
+		})
+		return
+	}
+
+	h.logger.Info("Explanation generated successfully",
+		zap.String("request_id", req.RequestID),
+		zap.String("provider", h.provider.GetProviderName()),
+		zap.Int("processing_time_ms", response.Metadata.ProcessingTime))
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "explain", prompt, response.Content, response.Metadata.ModelVersion)
+
+	utils.JSON(w, http.StatusOK, response)
+}
+
+func generateRequestID() string {
+	return uuid.New().String()
+}
+
+// ensureRequestID generates a request ID if one is not provided
+func ensureRequestID(requestID string) string {
+	if requestID == "" {
+		return generateRequestID()
+	}
+	return requestID
+}
+
+func (h *AIHandler) HintHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the validated request from middleware
+	req := middleware.GetValidatedRequest[*models.HintRequest](r)
+
+	req.RequestID = ensureRequestID(req.RequestID)
+
+	// Build prompt directly from hint.yaml
+	promptData := map[string]interface{}{
+		"Language":  req.Language,
+		"Code":      req.Code,
+		"Question":  req.Question,
+		"HintLevel": req.HintLevel,
+	}
+
+	prompt, err := h.promptManager.BuildPrompt("hint", "default", promptData)
+	if err != nil {
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
+		})
+		return
+	}
+
+	// Reuse same provider call as explain
+	result, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, req.HintLevel)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate hint"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
+		})
+		return
+	}
+
+	resp := models.HintResponse{
+		Hint:      result.Content,
+		RequestID: req.RequestID,
+		Metadata:  result.Metadata,
+	}
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "hint", prompt, result.Content, result.Metadata.ModelVersion)
+
+	utils.JSON(w, http.StatusOK, resp)
+}
+
+func (h *AIHandler) TestsHandler(w http.ResponseWriter, r *http.Request) {
+	req := middleware.GetValidatedRequest[*models.TestGenRequest](r)
+	req.RequestID = ensureRequestID(req.RequestID)
+
+	// Build prompt from templates/tests.yaml
+	promptData := map[string]interface{}{
+		"Language":  req.Language,
+		"Code":      req.Code,
+		"Question":  req.Question,
+		"Framework": req.Framework,
+	}
+	prompt, err := h.promptManager.BuildPrompt("tests", "default", promptData)
+	if err != nil {
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "prompt_error",
+			Message: "Failed to build AI prompt",
+		})
+		return
+	}
+
+	// Reuse provider call
+	out, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate test cases"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
+		})
+		return
+	}
+
+	resp := models.TestGenResponse{
+		TestsCode: out.Content,
+		RequestID: req.RequestID,
+		Metadata:  out.Metadata,
+	}
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "tests", prompt, out.Content, out.Metadata.ModelVersion)
+
+	utils.JSON(w, http.StatusOK, resp)
+}
+
+func (h *AIHandler) RefactorTipsHandler(w http.ResponseWriter, r *http.Request) {
+	req := middleware.GetValidatedRequest[*models.RefactorTipsRequest](r)
+	req.RequestID = ensureRequestID(req.RequestID)
+
+	data := map[string]interface{}{
+		"Language": req.Language,
+		"Code":     utils.AddLineNumbers(req.Code),
+		"Question": req.Question,
+	}
+
+	prompt, err := h.promptManager.BuildPrompt("refactor_tips", "default", data)
+	if err != nil {
+		h.logger.Error("Failed to build prompt", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, http.StatusInternalServerError, models.ErrorResponse{
+			Code:    "prompt_error",
+			Message: "Failed to build prompt",
+		})
+		return
+	}
+
+	result, err := h.provider.GenerateContent(r.Context(), prompt, req.RequestID, models.DefaultDetailLevel)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := "ai_error"
+		errorMsg := "Failed to generate refactor tips"
+
+		// Check if it's a rate limit error
+		var provErr *llm.ProviderError
+		if errors.As(err, &provErr) && provErr.Code == llm.ErrCodeRateLimit {
+			statusCode = http.StatusTooManyRequests
+			errorCode = "rate_limit_exceeded"
+			errorMsg = "API rate limit exceeded, please try again later"
+		}
+
+		h.logger.Error("AI provider error", zap.Error(err), zap.String("request_id", req.RequestID))
+		utils.JSON(w, statusCode, models.ErrorResponse{
+			Code:    errorCode,
+			Message: errorMsg,
+		})
+		return
+	}
+
+	cleaned := utils.StripFences(result.Content)
+
+	// Store request context for feedback
+	h.storeRequestContext(req.RequestID, "refactor_tips", prompt, result.Content, result.Metadata.ModelVersion)
+
+	utils.JSON(w, http.StatusOK, models.RefactorTipsTextResponse{
+		TipsText:  cleaned,
+		RequestID: req.RequestID,
+		Metadata:  result.Metadata,
+	})
+}

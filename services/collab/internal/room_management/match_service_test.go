@@ -1,0 +1,737 @@
+package room_management
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/golang-jwt/jwt/v5"
+
+	"collab/internal/models"
+	"collab/internal/utils"
+)
+
+func setupRoomManager(t *testing.T, questionHandler http.HandlerFunc) (*RoomManager, *miniredis.Miniredis, *httptest.Server) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("failed to start miniredis: %v", err)
+	}
+	t.Cleanup(mr.Close)
+
+	var server *httptest.Server
+	if questionHandler != nil {
+		server = httptest.NewServer(questionHandler)
+		t.Cleanup(server.Close)
+	}
+
+	questionURL := ""
+	if server != nil {
+		questionURL = server.URL
+	}
+
+	manager := NewRoomManager(mr.Addr(), questionURL)
+	t.Cleanup(func() {
+		manager.Cleanup()
+		_ = manager.rdb.Close()
+	})
+	return manager, mr, server
+}
+
+func TestSubscribeToMatches(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 42, Title: "Q"})
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go manager.SubscribeToMatches(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	event := models.RoomInfo{
+		MatchId:    "matchA",
+		User1:      "u1",
+		User2:      "u2",
+		Category:   "algorithms",
+		Difficulty: "easy",
+		Token1:     "t1",
+		Token2:     "t2",
+	}
+	payload, _ := json.Marshal(event)
+	if err := manager.rdb.Publish(context.Background(), "matches", string(payload)).Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	waitUntil(t, 2*time.Second, func() bool {
+		manager.mu.RLock()
+		info, ok := manager.roomStatusMap[event.MatchId]
+		manager.mu.RUnlock()
+		return ok && info.Status == "ready" && info.Question != nil && info.Question.ID == 42
+	})
+}
+
+func TestSubscribeToMatchesInvalidPayload(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 1})
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	go manager.SubscribeToMatches(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	if err := manager.rdb.Publish(context.Background(), "matches", "not-json").Err(); err != nil {
+		t.Fatalf("publish invalid payload: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+}
+
+func TestSubscribeToMatchesWithNilContext(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	go manager.SubscribeToMatches(context.TODO())
+	time.Sleep(50 * time.Millisecond)
+	if err := manager.rdb.Publish(context.Background(), "matches", "bad").Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestSubscribeToRoomUpdates(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var callbackCalled atomic.Bool
+	var callbackMatchId string
+	var callbackRoomInfo *models.RoomInfo
+
+	manager.SetRoomUpdateCallback(func(matchId string, roomInfo *models.RoomInfo) {
+		callbackCalled.Store(true)
+		callbackMatchId = matchId
+		callbackRoomInfo = roomInfo
+	})
+
+	go manager.SubscribeToRoomUpdates(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Publish a room update event (simulating another instance)
+	event := struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}{
+		Type:       "room_updated",
+		InstanceID: "other-instance",
+		MatchId:    "match123",
+		RoomInfo: &models.RoomInfo{
+			MatchId:    "match123",
+			User1:      "u1",
+			User2:      "u2",
+			Status:     "ready",
+			Category:   "arrays",
+			Difficulty: "easy",
+		},
+	}
+
+	eventJSON, _ := json.Marshal(event)
+	if err := manager.rdb.Publish(context.Background(), "room_updates", string(eventJSON)).Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	waitUntil(t, 2*time.Second, func() bool {
+		return callbackCalled.Load()
+	})
+
+	if !callbackCalled.Load() {
+		t.Fatal("callback should have been called")
+	}
+	if callbackMatchId != "match123" {
+		t.Fatalf("expected match123, got %s", callbackMatchId)
+	}
+	if callbackRoomInfo == nil {
+		t.Fatal("callbackRoomInfo should not be nil")
+	}
+	if callbackRoomInfo.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", callbackRoomInfo.MatchId)
+	}
+
+	// Verify room was cached
+	manager.mu.RLock()
+	cached, exists := manager.roomStatusMap["match123"]
+	manager.mu.RUnlock()
+	if !exists {
+		t.Fatal("room should be cached")
+	}
+	if cached.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", cached.MatchId)
+	}
+}
+
+func TestSubscribeToRoomUpdates_IgnoresOwnEvents(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var callbackCalled atomic.Bool
+	manager.SetRoomUpdateCallback(func(matchId string, roomInfo *models.RoomInfo) {
+		callbackCalled.Store(true)
+	})
+
+	go manager.SubscribeToRoomUpdates(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Publish event with same instance ID (should be ignored)
+	event := struct {
+		Type       string           `json:"type"`
+		InstanceID string           `json:"instanceId"`
+		MatchId    string           `json:"matchId"`
+		RoomInfo   *models.RoomInfo `json:"roomInfo"`
+	}{
+		Type:       "room_updated",
+		InstanceID: manager.instanceID, // Same instance
+		MatchId:    "match123",
+		RoomInfo:   &models.RoomInfo{MatchId: "match123"},
+	}
+
+	eventJSON, _ := json.Marshal(event)
+	if err := manager.rdb.Publish(context.Background(), "room_updates", string(eventJSON)).Err(); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	if callbackCalled.Load() {
+		t.Fatal("callback should not be called for own events")
+	}
+	cancel()
+}
+
+func TestHandleMatchPayloadInvalid(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	manager.handleMatchPayload("not-json")
+}
+
+func TestHandleMatchPayloadValid(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 7})
+	})
+	manager.handleMatchPayload(`{"matchId":"mh","user1":"a","user2":"b","category":"cat","difficulty":"easy"}`)
+	waitUntil(t, 2*time.Second, func() bool {
+		manager.mu.RLock()
+		_, ok := manager.roomStatusMap["mh"]
+		manager.mu.RUnlock()
+		return ok
+	})
+}
+
+func TestProcessMatchEventFetchError(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusInternalServerError)
+	})
+	event := models.RoomInfo{MatchId: "m1", Category: "c", Difficulty: "d"}
+	manager.processMatchEvent(event)
+
+	manager.mu.RLock()
+	info := manager.roomStatusMap["m1"]
+	manager.mu.RUnlock()
+	if info == nil || info.Status != "error" || info.Question != nil {
+		t.Fatalf("expected error status, got %#v", info)
+	}
+}
+
+func TestFetchQuestion(t *testing.T) {
+	manager, _, server := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("difficulty") != "easy" || r.URL.Query().Get("topic") != "graphs" {
+			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
+		}
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 7})
+	})
+
+	q, err := manager.fetchQuestion("graphs", "easy")
+	if err != nil || q.ID != 7 {
+		t.Fatalf("unexpected question: %#v err=%v", q, err)
+	}
+
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "missing", http.StatusNotFound)
+	})
+	if _, err := manager.fetchQuestion("graphs", "easy"); err == nil {
+		t.Fatalf("expected error when service returns non-200")
+	}
+
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("{invalid"))
+	})
+	if _, err := manager.fetchQuestion("graphs", "easy"); err == nil {
+		t.Fatalf("expected decode error")
+	}
+}
+
+func TestFetchQuestionFallsBackToDifficultyOnly(t *testing.T) {
+	var calls atomic.Int32
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		topic := r.URL.Query().Get("topic")
+		if call == 1 {
+			if topic == "" {
+				t.Fatalf("expected topic on first request, got empty")
+			}
+			http.Error(w, "no eligible question", http.StatusNotFound)
+			return
+		}
+		if topic != "" {
+			t.Fatalf("expected fallback request without topic filter, got %q", topic)
+		}
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 99})
+	})
+
+	q, err := manager.fetchQuestion("graphs", "easy")
+	if err != nil {
+		t.Fatalf("expected fallback to succeed, got error %v", err)
+	}
+	if q.ID != 99 {
+		t.Fatalf("unexpected question returned: %+v", q)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected two calls (initial + fallback), got %d", calls.Load())
+	}
+}
+
+func TestFetchQuestionNetworkError(t *testing.T) {
+	manager := NewRoomManager("localhost:0", "http://127.0.0.1:0")
+	defer manager.Cleanup()
+	if _, err := manager.fetchQuestion("cat", "easy"); err == nil {
+		t.Fatalf("expected network error")
+	}
+}
+
+func TestFetchAlternativeQuestion(t *testing.T) {
+	var counter atomic.Int64
+	manager, _, server := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		id := counter.Add(1)
+		if id <= 2 {
+			id = 3 // duplicate id
+		}
+		_ = json.NewEncoder(w).Encode(models.Question{ID: int(id)})
+	})
+
+	q, err := manager.fetchAlternativeQuestion("cat", "hard", 3)
+	if err != nil || q.ID == 3 {
+		t.Fatalf("expected different question, got %#v err=%v", q, err)
+	}
+
+	counter.Store(0)
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 5})
+	})
+	if _, err := manager.fetchAlternativeQuestion("cat", "hard", 5); !errors.Is(err, ErrNoAlternativeQuestion) {
+		t.Fatalf("expected ErrNoAlternativeQuestion, got %v", err)
+	}
+
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad", http.StatusInternalServerError)
+	})
+	if _, err := manager.fetchAlternativeQuestion("cat", "hard", 0); err == nil {
+		t.Fatalf("expected error when fetchQuestion fails")
+	}
+}
+
+func TestUpdateAndFetchRoomStatusFromRedis(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	info := &models.RoomInfo{
+		MatchId:          "match1",
+		User1:            "u1",
+		User2:            "u2",
+		Category:         "cat",
+		Difficulty:       "easy",
+		Status:           "ready",
+		RerollsRemaining: 2,
+		CreatedAt:        "now",
+		Token1:           "tok1",
+		Token2:           "tok2",
+		Question:         &models.Question{ID: 9, Title: "title"},
+	}
+
+	manager.updateRoomStatusInRedis(context.Background(), info)
+	loaded, err := manager.fetchRoomStatusFromRedis("match1")
+	if err != nil {
+		t.Fatalf("failed to load from redis: %v", err)
+	}
+	if loaded.MatchId != info.MatchId || loaded.Question.ID != 9 {
+		t.Fatalf("unexpected loaded info: %#v", loaded)
+	}
+
+	if _, err := manager.fetchRoomStatusFromRedis("missing"); err == nil {
+		t.Fatalf("expected error for missing room")
+	}
+
+	infoNil := &models.RoomInfo{MatchId: "match2", Status: "ready"}
+	manager.updateRoomStatusInRedis(context.Background(), infoNil)
+	stored := manager.rdb.HGetAll(context.Background(), "room:match2").Val()
+	if stored["question"] != "" {
+		t.Fatalf("expected empty question field, got %q", stored["question"])
+	}
+
+	manager.rdb.HSet(context.Background(), "room:bad", map[string]interface{}{
+		"matchId":          "bad",
+		"user1":            "u1",
+		"user2":            "u2",
+		"category":         "cat",
+		"difficulty":       "easy",
+		"status":           "ready",
+		"question":         "{invalid",
+		"rerollsRemaining": "1",
+		"createdAt":        "now",
+	})
+	if info, err := manager.fetchRoomStatusFromRedis("bad"); err != nil || info.Question != nil {
+		t.Fatalf("expected graceful handling of bad question, got %#v err=%v", info, err)
+	}
+}
+
+func TestGetRoomStatusCaches(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	manager.roomStatusMap["cached"] = &models.RoomInfo{MatchId: "cached", Status: "ready"}
+
+	info, err := manager.GetRoomStatus("cached")
+	if err != nil || info.MatchId != "cached" {
+		t.Fatalf("unexpected result: %#v err=%v", info, err)
+	}
+	if info == manager.roomStatusMap["cached"] {
+		t.Fatalf("expected clone, got same pointer")
+	}
+}
+
+func TestFetchRoomStatusFromRedisError(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	_ = manager.rdb.Close()
+	if _, err := manager.fetchRoomStatusFromRedis("missing"); err == nil {
+		t.Fatalf("expected redis error")
+	}
+}
+
+func TestGetRoomStatusLoadsFromRedis(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	info := &models.RoomInfo{MatchId: "remote", Status: "ready"}
+	manager.updateRoomStatusInRedis(context.Background(), info)
+
+	loaded, err := manager.GetRoomStatus("remote")
+	if err != nil || loaded.MatchId != "remote" {
+		t.Fatalf("expected remote room, got %#v err=%v", loaded, err)
+	}
+	manager.mu.RLock()
+	_, exists := manager.roomStatusMap["remote"]
+	manager.mu.RUnlock()
+	if !exists {
+		t.Fatalf("expected room cached after load")
+	}
+}
+
+func TestCloneRoomInfo(t *testing.T) {
+	if cloneRoomInfo(nil) != nil {
+		t.Fatalf("expected nil clone")
+	}
+	src := &models.RoomInfo{
+		MatchId:  "m",
+		Question: &models.Question{ID: 1},
+	}
+	dst := cloneRoomInfo(src)
+	if dst == src || dst.Question == src.Question {
+		t.Fatalf("expected deep copy")
+	}
+}
+
+func TestRerollQuestionSuccessAndErrors(t *testing.T) {
+	manager, _, server := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 99})
+	})
+
+	manager.roomStatusMap["m"] = &models.RoomInfo{
+		MatchId:          "m",
+		Category:         "cat",
+		Difficulty:       "easy",
+		RerollsRemaining: 1,
+		Question:         &models.Question{ID: 1},
+		Status:           "ready",
+	}
+
+	updated, err := manager.RerollQuestion("m")
+	if err != nil || updated.Question.ID != 99 {
+		t.Fatalf("unexpected reroll result: %#v err=%v", updated, err)
+	}
+
+	manager.roomStatusMap["m"].RerollsRemaining = 0
+	if _, err := manager.RerollQuestion("m"); !errors.Is(err, ErrNoRerolls) {
+		t.Fatalf("expected ErrNoRerolls, got %v", err)
+	}
+
+	manager.roomStatusMap["x"] = &models.RoomInfo{
+		MatchId:          "x",
+		Category:         "cat",
+		Difficulty:       "easy",
+		RerollsRemaining: 1,
+	}
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "fail", http.StatusInternalServerError)
+	})
+	if _, err := manager.RerollQuestion("x"); err == nil {
+		t.Fatalf("expected reroll error when fetch fails")
+	}
+}
+
+func TestRerollQuestionMissingRoom(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	if _, err := manager.RerollQuestion("missing"); err == nil {
+		t.Fatalf("expected error when room missing")
+	}
+}
+
+func TestRerollQuestionLoadsFromRedis(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 42})
+	})
+
+	info := &models.RoomInfo{
+		MatchId:          "remote",
+		Category:         "cat",
+		Difficulty:       "easy",
+		RerollsRemaining: 1,
+	}
+	manager.updateRoomStatusInRedis(context.Background(), info)
+
+	updated, err := manager.RerollQuestion("remote")
+	if err != nil || updated.Question == nil || updated.Question.ID != 42 {
+		t.Fatalf("expected reroll to load from redis, got %#v err=%v", updated, err)
+	}
+}
+
+func TestRerollQuestionTriggersLocalCallback(t *testing.T) {
+	manager, _, server := setupRoomManager(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(models.Question{ID: 77})
+	})
+
+	manager.roomStatusMap["cb"] = &models.RoomInfo{
+		MatchId:          "cb",
+		Category:         "cat",
+		Difficulty:       "easy",
+		RerollsRemaining: 1,
+		Question:         &models.Question{ID: 1},
+		Status:           "ready",
+	}
+
+	var (
+		callbackCount int
+		lastInfo      *models.RoomInfo
+	)
+	manager.SetRoomUpdateCallback(func(matchId string, info *models.RoomInfo) {
+		callbackCount++
+		lastInfo = info
+	})
+
+	updated, err := manager.RerollQuestion("cb")
+	if err != nil {
+		t.Fatalf("unexpected reroll error: %v", err)
+	}
+	if callbackCount != 1 {
+		t.Fatalf("expected callback to fire once, got %d", callbackCount)
+	}
+	if lastInfo == nil || lastInfo.Question == nil || lastInfo.Question.ID != 77 {
+		t.Fatalf("callback received wrong data: %#v", lastInfo)
+	}
+	if updated.Question.ID != 77 {
+		t.Fatalf("unexpected updated question: %#v", updated.Question)
+	}
+
+	_ = server
+}
+
+func TestValidateRoomAccess(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	manager.roomStatusMap["match"] = &models.RoomInfo{
+		MatchId: "match",
+		User1:   "u1",
+		User2:   "u2",
+	}
+
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &utils.RoomTokenClaims{
+		MatchId: "match",
+		UserId:  "u1",
+	}).SignedString([]byte("your-secret-key"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	info, err := manager.ValidateRoomAccess(token)
+	if err != nil || info.MatchId != "match" {
+		t.Fatalf("unexpected validation result: %#v err=%v", info, err)
+	}
+
+	token, err = jwt.NewWithClaims(jwt.SigningMethodHS256, &utils.RoomTokenClaims{
+		MatchId: "match",
+		UserId:  "other",
+	}).SignedString([]byte("your-secret-key"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	if _, err := manager.ValidateRoomAccess(token); err == nil {
+		t.Fatalf("expected unauthorized user error")
+	}
+
+	if _, err := manager.ValidateRoomAccess("bad.token"); err == nil {
+		t.Fatalf("expected invalid token error")
+	}
+}
+
+func TestValidateRoomAccessMissingRoom(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, &utils.RoomTokenClaims{MatchId: "missing", UserId: "u"}).SignedString([]byte("your-secret-key"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	if _, err := manager.ValidateRoomAccess(token); err == nil {
+		t.Fatalf("expected room not found error")
+	}
+}
+
+func TestPublishSessionEnded(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	event := models.SessionEndedEvent{
+		MatchID:    "match123",
+		User1:      "u1",
+		User2:      "u2",
+		QuestionID: 42,
+		Category:   "arrays",
+		Difficulty: "easy",
+	}
+
+	err := manager.PublishSessionEnded(event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetActiveRoomForUser(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	// Create room in Redis
+	roomInfo := &models.RoomInfo{
+		MatchId:    "match123",
+		User1:      "user1",
+		User2:      "user2",
+		Category:   "arrays",
+		Difficulty: "easy",
+		Status:     "ready",
+		CreatedAt:  time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	// Get active room for user1
+	activeRoom, err := manager.GetActiveRoomForUser("user1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activeRoom.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", activeRoom.MatchId)
+	}
+
+	// Get active room for user2
+	activeRoom, err = manager.GetActiveRoomForUser("user2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activeRoom.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", activeRoom.MatchId)
+	}
+
+	// User not in any room
+	_, err = manager.GetActiveRoomForUser("nonexistent")
+	if err == nil {
+		t.Fatalf("expected error for user not in room")
+	}
+
+	// Room with non-ready status should not be returned
+	roomInfo.Status = "processing"
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+	_, err = manager.GetActiveRoomForUser("user1")
+	if err == nil {
+		t.Fatalf("expected error for non-ready room")
+	}
+}
+
+func TestMarkRoomAsEnded(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	// Create room in Redis
+	roomInfo := &models.RoomInfo{
+		MatchId:   "match123",
+		User1:     "user1",
+		User2:     "user2",
+		Status:    "ready",
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	// Cache it
+	manager.mu.Lock()
+	manager.roomStatusMap["match123"] = roomInfo
+	manager.mu.Unlock()
+
+	// Mark as ended
+	err := manager.MarkRoomAsEnded("match123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify in Redis
+	ctx := context.Background()
+	status := manager.rdb.HGet(ctx, "room:match123", "status").Val()
+	if status != "ended" {
+		t.Fatalf("expected status 'ended', got %s", status)
+	}
+
+	// Verify in-memory cache
+	manager.mu.RLock()
+	cached := manager.roomStatusMap["match123"]
+	manager.mu.RUnlock()
+	if cached.Status != "ended" {
+		t.Fatalf("expected cached status 'ended', got %s", cached.Status)
+	}
+}
+
+func TestGetRoomInfoForSession(t *testing.T) {
+	manager, _, _ := setupRoomManager(t, nil)
+
+	roomInfo := &models.RoomInfo{
+		MatchId:   "match123",
+		User1:     "user1",
+		User2:     "user2",
+		Status:    "ready",
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+	manager.updateRoomStatusInRedis(context.Background(), roomInfo)
+
+	info, err := manager.GetRoomInfoForSession("match123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.MatchId != "match123" {
+		t.Fatalf("expected match123, got %s", info.MatchId)
+	}
+}
+
+func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("condition not met within %s", timeout)
+}

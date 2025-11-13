@@ -1,0 +1,56 @@
+# The manifest for the "ai" service.
+# Read the full specification for the "Backend Service" type at:
+#  https://aws.github.io/copilot-cli/docs/manifest/backend-service/
+
+# Your service name will be used in naming your resources like log groups, ECS services, etc.
+name: ai
+type: Backend Service
+
+# Your service is reachable at "http://ai.${COPILOT_SERVICE_DISCOVERY_ENDPOINT}:8080" but is not public.
+
+# Configuration for your containers and service.
+image:
+  # Docker build arguments. For additional overrides: https://aws.github.io/copilot-cli/docs/manifest/backend-service/#image-build
+  build: services/ai/Dockerfile
+  # Port exposed through your container to route traffic to it.
+  port: 8080
+
+cpu: 256 # Number of CPU units for the task.
+memory: 512 # Amount of memory in MiB used by the task.
+count: 2 # Number of tasks that should be running in your service.
+exec: true # Enable running commands in your container.
+network:
+  connect: true # Enable Service Connect for intra-environment traffic between services.
+
+  # storage:
+  # readonly_fs: true       # Limit to read-only access to mounted root filesystems.
+
+  # Optional fields for more advanced use-cases.
+  #
+  # variables: # Pass environment variables as key value pairs.
+  #  LOG_LEVEL: info
+secrets: # Pass secrets from AWS Systems Manager (SSM) Parameter Store.
+  #  GITHUB_TOKEN: GITHUB_TOKEN  # The key is the name of the environment variable, the value is the name of the SSM parameter.
+  AI_PROVIDER: /ai/AI_PROVIDER
+  GEMINI_API_KEY: /ai/GEMINI_API_KEY
+  GEMINI_MODEL: /ai/GEMINI_MODEL
+  GEMINI_PROJECT_ID: /ai/GEMINI_PROJECT_ID
+
+  # AI Feedback & Fine-Tuning Configuration
+  FEEDBACK_CACHE_TTL: /ai/FEEDBACK_CACHE_TTL
+  FEEDBACK_EXPORT_ENABLED: /ai/FEEDBACK_EXPORT_ENABLED
+  FEEDBACK_EXPORT_SCHEDULE: /ai/FEEDBACK_EXPORT_SCHEDULE
+  FEEDBACK_EXPORT_DIR: /ai/FEEDBACK_EXPORT_DIR
+  FEEDBACK_AUTO_TUNE_ENABLED: /ai/FEEDBACK_AUTO_TUNE_ENABLED
+  FEEDBACK_MIN_SAMPLES_FOR_TUNE: /ai/FEEDBACK_MIN_SAMPLES_FOR_TUNE
+  TUNING_BASE_MODEL: /ai/TUNING_BASE_MODEL
+  TUNING_LEARNING_RATE: /ai/TUNING_LEARNING_RATE
+  TUNING_EPOCH_COUNT: /ai/TUNING_EPOCH_COUNT
+  TUNING_ADAPTER_SIZE: /ai/TUNING_ADAPTER_SIZE
+  TUNING_GCS_BUCKET: /ai/TUNING_GCS_BUCKET
+# You can override any of the values defined above by environment.
+#environments:
+#  test:
+#    count: 2               # Number of tasks to run for the "test" environment.
+#    deployment:            # The deployment strategy for the "test" environment.
+#       rolling: 'recreate' # Stops existing tasks before new ones are started for faster deployments.
